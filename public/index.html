@@ -2224,3 +2224,210 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
   .pipe-bar{display:none}
 }
 </style>
+
+<style>
+/* ══ MOBIEL: volledige doorloop ══ */
+@media (max-width:960px){
+
+  /* ── tabellen worden kaartjes (overruled inline kolombreedtes) ── */
+  .t-head{display:none !important}
+  .t-row{
+    display:flex !important;
+    grid-template-columns:none !important;
+    flex-direction:column;align-items:stretch;
+    gap:5px;padding:14px 15px;
+  }
+  .t-row>*{min-width:0;text-align:left !important;justify-content:flex-start}
+  .t-row>*:first-child{font-weight:600;font-size:13.5px}
+  .t-row .t-addr,.t-row .t-type,.t-row .t-traj{
+    display:block !important;font-size:12px;color:var(--muted)
+  }
+  .t-row .t-num{grid-column:auto}
+  /* actieknoppen in tabelrijen naast elkaar */
+  .t-row>div:last-child{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+  .jbtn{min-height:38px;padding:0 12px}
+
+  /* ── filterchips horizontaal scrollbaar ── */
+  .filters{
+    flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;
+    scrollbar-width:none;margin-left:-14px;margin-right:-14px;
+    padding:0 14px 2px;
+  }
+  .filters::-webkit-scrollbar{display:none}
+  .chip{flex:none;min-height:38px;display:flex;align-items:center}
+
+  /* ── routebalk in dossier: veegbaar ── */
+  .route-card{padding:16px 14px 6px}
+  .route{min-width:600px}
+  .route-title{flex-wrap:wrap;gap:8px}
+
+  /* ── koppen ── */
+  .page-head h1{font-size:22px;line-height:1.25}
+  .page-head p{font-size:13px}
+  .card-head{padding-left:15px;padding-right:15px;flex-wrap:wrap;gap:8px}
+
+  /* ── meldingen onderin volle breedte ── */
+  .toasts{left:14px;right:14px;bottom:14px}
+  .toast{max-width:none}
+
+  /* ── modals ── */
+  .modal-head{padding:15px 16px}
+  .modal-head h3{font-size:16px}
+
+  /* ── klant- en onderaannemersportaal ── */
+  .ext-body{padding:18px 14px 60px}
+  .ext-top{padding-left:14px;padding-right:14px}
+  .ext-top .fwd-logo{width:118px}
+}
+</style>
+
+<style>
+/* ══════ MOBIELE AFWERKING ══════ */
+@media (max-width:960px){
+
+  /* ── onderbalk: haltes onder je duim ── */
+  .fw-tabs{
+    position:fixed;left:0;right:0;bottom:0;z-index:90;
+    display:grid;grid-auto-flow:column;grid-auto-columns:1fr;
+    background:rgba(21,31,53,.94);
+    -webkit-backdrop-filter:saturate(150%) blur(14px);
+    backdrop-filter:saturate(150%) blur(14px);
+    border-top:1px solid rgba(255,255,255,.07);
+    padding-bottom:env(safe-area-inset-bottom);
+    box-shadow:0 -8px 30px rgba(9,14,26,.28);
+  }
+  .fw-tab{
+    position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:3px;padding:9px 4px 8px;min-height:56px;
+    color:#8C99B0;font-size:10px;font-weight:600;letter-spacing:.01em;
+    font-family:'Inter',sans-serif;-webkit-tap-highlight-color:transparent;
+    transition:color .18s ease;
+  }
+  .fw-tab svg{width:21px;height:21px;transition:transform .22s cubic-bezier(.34,1.4,.5,1)}
+  /* de halte: klein streepje dat aanschuift */
+  .fw-tab::before{
+    content:'';position:absolute;top:0;left:50%;translate:-50% 0;
+    width:0;height:3px;border-radius:0 0 4px 4px;
+    background:linear-gradient(90deg,var(--teal),var(--teal-2));
+    transition:width .26s cubic-bezier(.34,1.2,.5,1);
+  }
+  .fw-tab.on{color:#fff}
+  .fw-tab.on::before{width:26px}
+  .fw-tab.on svg{transform:translateY(-1px) scale(1.06);color:var(--teal-2)}
+  .fw-tab:active svg{transform:scale(.9)}
+  .fw-tab .tab-dot{
+    position:absolute;top:7px;right:calc(50% - 19px);
+    min-width:16px;height:16px;padding:0 4px;border-radius:9px;
+    background:var(--teal);color:#04222a;font-size:9.5px;font-weight:800;
+    display:flex;align-items:center;justify-content:center;
+  }
+
+  /* ruimte vrijhouden onder de inhoud */
+  .content{padding-bottom:calc(84px + env(safe-area-inset-bottom))}
+  .toasts{bottom:calc(78px + env(safe-area-inset-bottom))}
+  .sidebar{padding-bottom:calc(24px + env(safe-area-inset-bottom))}
+
+  /* ── aanraking i.p.v. muisaanwijzer ── */
+  .btn:active,.jbtn:active,.chip:active,.opt-pick:active,.arow:active{transform:scale(.985)}
+  .btn,.jbtn,.chip,.opt-pick,.arow,.t-row{transition:transform .12s ease,background .14s ease}
+  .arow:active,.t-row:active{background:var(--canvas)}
+
+  /* ── rustiger oppervlak ── */
+  .card{border-radius:15px;box-shadow:0 1px 2px rgba(21,31,53,.05),0 4px 16px rgba(21,31,53,.045)}
+  .topbar{background:rgba(243,246,248,.9);-webkit-backdrop-filter:saturate(150%) blur(12px)}
+  .page-head{margin-bottom:14px}
+  .kpi{border-radius:14px}
+}
+
+/* geen plakkende hover-kleuren op touch */
+@media (hover:none){
+  .arow:hover,.t-row:hover,.chip:hover,.nav-item:hover{background:inherit}
+}
+
+/* toegankelijkheid */
+.fw-tab:focus-visible,.fw-burger:focus-visible{outline:2px solid var(--teal-2);outline-offset:-3px;border-radius:10px}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms !important;transition-duration:.01ms !important}
+}
+</style>
+
+<script>
+/* ── onderbalk ── */
+(function(){
+  var PRIMAIR = ['dashboard','schades','agenda','postvak'];
+  var LABEL = { dashboard:'Overzicht', schades:'Schades', agenda:'Agenda', postvak:'Postvak' };
+
+  function init(){
+    var app = document.getElementById('internApp');
+    if(!app || document.getElementById('fwTabs')) return;
+    var navs = {};
+    Array.prototype.forEach.call(app.querySelectorAll('.sidebar .nav-item[data-view]'), function(n){
+      navs[n.getAttribute('data-view')] = n;
+    });
+    if(!navs.dashboard) return;
+
+    var bar = document.createElement('nav');
+    bar.id = 'fwTabs';
+    bar.className = 'fw-tabs';
+    bar.setAttribute('aria-label','Hoofdnavigatie');
+
+    PRIMAIR.forEach(function(view){
+      var src = navs[view];
+      if(!src) return;
+      var b = document.createElement('button');
+      b.className = 'fw-tab';
+      b.setAttribute('data-tab', view);
+      var svg = src.querySelector('svg');
+      b.innerHTML = (svg ? svg.outerHTML : '') + '<span>' + (LABEL[view] || view) + '</span>';
+      var cnt = src.querySelector('.nav-count, .cnt, .badge');
+      if(cnt && cnt.textContent.trim()){
+        var d = document.createElement('span');
+        d.className = 'tab-dot';
+        d.textContent = cnt.textContent.trim();
+        b.appendChild(d);
+      }
+      b.addEventListener('click', function(){
+        document.body.classList.remove('fw-nav-open');
+        src.click();
+        window.scrollTo({ top:0, behavior:'smooth' });
+        sync();
+      });
+      bar.appendChild(b);
+    });
+
+    var meer = document.createElement('button');
+    meer.className = 'fw-tab';
+    meer.setAttribute('data-tab','meer');
+    meer.innerHTML = '<svg viewBox="0 0 24 24" fill="none"><circle cx="5" cy="12" r="1.9" fill="currentColor"/><circle cx="12" cy="12" r="1.9" fill="currentColor"/><circle cx="19" cy="12" r="1.9" fill="currentColor"/></svg><span>Meer</span>';
+    meer.addEventListener('click', function(){ document.body.classList.toggle('fw-nav-open'); });
+    bar.appendChild(meer);
+
+    app.appendChild(bar);
+
+    function sync(){
+      var actief = app.querySelector('.sidebar .nav-item.active');
+      var view = actief ? actief.getAttribute('data-view') : null;
+      Array.prototype.forEach.call(bar.querySelectorAll('.fw-tab'), function(t){
+        var v = t.getAttribute('data-tab');
+        var aan = (v === view) || (v === 'meer' && view && PRIMAIR.indexOf(view) === -1);
+        t.classList.toggle('on', aan);
+      });
+    }
+    sync();
+
+    if (window.MutationObserver){
+      var obs = new MutationObserver(sync);
+      Array.prototype.forEach.call(app.querySelectorAll('.sidebar .nav-item'), function(n){
+        obs.observe(n, { attributes:true, attributeFilter:['class'] });
+      });
+    }
+  }
+
+  function boot(){
+    init();
+    setTimeout(init, 400);
+  }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+  else boot();
+})();
+</script>
