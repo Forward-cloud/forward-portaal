@@ -1,0 +1,15 @@
+# Lokale PostgreSQL voor ontwikkeling
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: forward
+      POSTGRES_PASSWORD: forward
+      POSTGRES_DB: forward
+    ports:
+      - "5432:5432"
+    volumes:
+      - forward_db:/var/lib/postgresql/data
+volumes:
+  forward_db:

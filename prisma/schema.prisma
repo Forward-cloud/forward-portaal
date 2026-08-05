@@ -1,0 +1,63 @@
+// Forward Schadeherstel — databaseschema (fundament, groeit per module)
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  DIRECTIE
+  FINANCIEEL
+  SCHADEBEHANDELAAR
+  PLANNER
+}
+
+model User {
+  id           String     @id @default(cuid())
+  naam         String
+  email        String     @unique
+  passwordHash String
+  role         Role       @default(SCHADEBEHANDELAAR)
+  active       Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  logs         LogEntry[]
+}
+
+model Schade {
+  id      String @id @default(cuid())
+  nummer  String @unique
+  owner   String
+  email   String?
+  adres   String?
+  ins     String?
+  amount  Int    @default(0)
+  profit  Int    @default(0)
+  status  String @default("open")
+  step    Int    @default(1)
+  traject String @default("volledig")
+
+  // Financieel — alleen zichtbaar/aanpasbaar voor directie (server dwingt dit af)
+  finExpertiseOmzet    Int @default(0)
+  finHerstelOmzet      Int @default(0)
+  finHerstelInkoop     Int @default(0)
+  finHerstelUitbesteed Int @default(0)
+
+  ingediendAt DateTime?
+  docVisible  Json      @default("{}")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model LogEntry {
+  id        String   @id @default(cuid())
+  text      String
+  byUser    User?    @relation(fields: [byUserId], references: [id])
+  byUserId  String?
+  byName    String
+  createdAt DateTime @default(now())
+}
