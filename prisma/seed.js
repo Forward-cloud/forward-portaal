@@ -5,26 +5,8 @@ const prisma = new PrismaClient();
 const DEFAULT_PASSWORD = 'Welkom123!';
 
 const users = [
-  { naam: 'Rick Jansen', email: 'rick@forwardschadeherstel.nl', role: 'DIRECTIE' },
-  { naam: 'Petra Willems', email: 'petra@forwardschadeherstel.nl', role: 'FINANCIEEL' },
-  { naam: 'Sanne de Boer', email: 'sanne@forwardschadeherstel.nl', role: 'SCHADEBEHANDELAAR' },
-  { naam: 'Youssef El Amrani', email: 'youssef@forwardschadeherstel.nl', role: 'PLANNER' },
-];
-
-const schades = [
-  {
-    nummer: 'FWD-2406-018', owner: 'M. de Vries', email: 'm.devries@example.nl',
-    adres: 'Dorpsstraat 12, Apeldoorn', ins: 'Nationale-Nederlanden', amount: 8600, profit: 2240,
-    step: 3, traject: 'volledig',
-    finExpertiseOmzet: 650, finHerstelOmzet: 8200, finHerstelInkoop: 2100, finHerstelUitbesteed: 3400,
-    docVisible: { 'Schaderapport.pdf': true, 'Offerte herstel.pdf': true },
-  },
-  {
-    nummer: 'FWD-2406-009', owner: 'VvE Groen Wonen', email: 'beheer@groenwonen.nl',
-    adres: 'Parklaan 3, Deventer', ins: 'ASR', amount: 4200, profit: 1090,
-    step: 2, traject: 'expertise', finExpertiseOmzet: 900,
-    docVisible: {},
-  },
+  { naam: 'Tarish Navaratnam', email: 'tarish@forwardschadeherstel.nl', role: 'DIRECTIE' },
+  { naam: 'Abdullah',          email: 'abdullah@forwardschadeherstel.nl', role: 'DIRECTIE' },
 ];
 
 async function main() {
@@ -36,15 +18,9 @@ async function main() {
       create: { ...u, passwordHash },
     });
   }
-  for (const s of schades) {
-    await prisma.schade.upsert({ where: { nummer: s.nummer }, update: s, create: s });
-  }
   console.log('Seed klaar.');
-  console.log(`Inloggen kan met wachtwoord: ${DEFAULT_PASSWORD}`);
-  console.log('  Directie:   rick@forwardschadeherstel.nl');
-  console.log('  Financieel: petra@forwardschadeherstel.nl');
-  console.log('  Behandelaar:sanne@forwardschadeherstel.nl');
-  console.log('  Planner:    youssef@forwardschadeherstel.nl');
+  console.log(`Wachtwoord voor beide accounts: ${DEFAULT_PASSWORD}`);
+  for (const u of users) console.log(`  ${u.role}: ${u.email}`);
 }
 
 main().then(() => prisma.$disconnect()).catch(async (e) => {
