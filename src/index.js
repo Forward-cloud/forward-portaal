@@ -1,3 +1,4 @@
+const path = require('path');
 const express = require('express');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
@@ -20,6 +21,9 @@ app.use('/api/auth', require('./routes/auth.routes'));
 app.use('/api/users', require('./routes/users.routes'));
 app.use('/api/schades', require('./routes/schades.routes'));
 app.use('/api/portal', require('./routes/portal.routes'));
+
+// Frontend serveren
+app.use(express.static(path.join(__dirname, '..', 'public')));
 
 // Foutafhandeling
 app.use((err, req, res, next) => {
