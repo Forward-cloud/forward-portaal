@@ -2199,3 +2199,28 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
   else init();
 })();
 </script>
+
+<style>
+/* ══ MOBIEL: overloop dashboard ══ */
+@media (max-width:960px){
+  /* rasterkinderen mogen krimpen (anders duwen ze de kaart breder dan het scherm) */
+  .grid-2>*,.grid-2b>*,.panel-grid>*,.kpis>*{min-width:0}
+  .grid-2,.grid-2b,.panel-grid{grid-template-columns:1fr}
+  #internApp .card,#internApp .view,.content{max-width:100%}
+
+  /* Schades per halte */
+  .pipe{padding:12px 14px}
+  .pipe-row{gap:9px}
+  .pipe-name{min-width:0;overflow-wrap:anywhere;white-space:normal;line-height:1.3}
+  .pipe-bar{width:46px}
+  .pipe-count{min-width:18px;text-align:right}
+
+  /* Acties */
+  .arow{padding:11px 10px;gap:10px}
+  .a-main{min-width:0}
+  .card-body{padding-left:8px;padding-right:8px}
+}
+@media (max-width:400px){
+  .pipe-bar{display:none}
+}
+</style>
