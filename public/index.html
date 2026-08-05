@@ -2099,3 +2099,103 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
     .catch(function(){ showLogin(); });
 })();
 </script>
+
+<style>
+/* ══ MOBIELE LAAG ══ */
+@media (max-width:960px){
+  html,body{overflow-x:hidden}
+  .app{grid-template-columns:1fr}
+
+  /* zijbalk wordt uitschuifmenu */
+  .sidebar{
+    display:flex;position:fixed;top:0;left:0;bottom:0;
+    width:272px;max-width:84vw;height:100dvh;z-index:320;
+    transform:translateX(-100%);transition:transform .26s ease;
+    box-shadow:0 0 60px rgba(0,0,0,.45);padding-bottom:32px;
+  }
+  body.fw-nav-open .sidebar{transform:none}
+  .fw-scrim{
+    position:fixed;inset:0;background:rgba(13,20,38,.5);backdrop-filter:blur(2px);
+    z-index:310;opacity:0;pointer-events:none;transition:opacity .26s;
+  }
+  body.fw-nav-open .fw-scrim{opacity:1;pointer-events:auto}
+  .nav-item{padding:12px 12px;font-size:14.5px}
+
+  /* hamburger */
+  .fw-burger{
+    display:flex;align-items:center;justify-content:center;
+    width:42px;height:42px;min-width:42px;border-radius:11px;
+    background:var(--surface);border:1px solid var(--line);
+    box-shadow:var(--shadow-s);color:var(--navy);flex:none;
+  }
+  .fw-burger svg{width:21px;height:21px}
+
+  /* topbar compacter */
+  .topbar{padding:10px 14px;gap:9px;flex-wrap:nowrap}
+  .search{max-width:none;padding:9px 11px;font-size:13px;min-width:0}
+  .search input{min-width:0}
+  .live-chip{display:none}
+  .top-user{display:none}
+  .top-btn{padding:10px;min-width:42px;justify-content:center;font-size:0;gap:0}
+  .top-btn svg{margin:0}
+  .icon-btn{min-width:42px;height:42px}
+
+  .content{padding:16px 14px 90px}
+
+  /* kaarten onder elkaar */
+  .kpis{grid-template-columns:repeat(2,1fr);gap:10px}
+  .kpi{padding:13px 14px}
+
+  /* modals schermvullend */
+  .modal-overlay{padding:0;align-items:stretch}
+  .modal{max-width:none;border-radius:0;min-height:100dvh;display:flex;flex-direction:column}
+  .modal-body{flex:1;overflow-y:auto}
+  .modal-foot{position:sticky;bottom:0;background:var(--surface);border-top:1px solid var(--line);flex-wrap:wrap;gap:8px}
+  .modal-foot .btn{flex:1;justify-content:center;min-height:44px}
+
+  /* tikdoelen groot genoeg */
+  .btn,.jbtn,.opt-pick{min-height:44px}
+  input,select,textarea{font-size:16px}
+}
+@media (max-width:480px){
+  .kpis{grid-template-columns:1fr}
+  .login{padding:26px 20px;border-radius:18px}
+  .ext-wrap{padding:20px 14px}
+}
+</style>
+
+<script>
+/* ── mobiel menu ── */
+(function(){
+  function init(){
+    var bar = document.querySelector('#internApp .topbar');
+    var side = document.querySelector('#internApp .sidebar');
+    if(!bar || !side || document.getElementById('fwBurger')) return;
+
+    var b = document.createElement('button');
+    b.id = 'fwBurger';
+    b.className = 'fw-burger';
+    b.setAttribute('aria-label','Menu');
+    b.innerHTML = '<svg viewBox="0 0 24 24" fill="none"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+    bar.insertBefore(b, bar.firstChild);
+
+    var scrim = document.createElement('div');
+    scrim.className = 'fw-scrim';
+    document.body.appendChild(scrim);
+
+    function open(){ document.body.classList.add('fw-nav-open'); }
+    function close(){ document.body.classList.remove('fw-nav-open'); }
+    function toggle(){ document.body.classList.toggle('fw-nav-open'); }
+
+    b.addEventListener('click', function(e){ e.stopPropagation(); toggle(); });
+    scrim.addEventListener('click', close);
+    side.addEventListener('click', function(e){
+      if(e.target.closest('.nav-item')) close();
+    });
+    document.addEventListener('keydown', function(e){ if(e.key==='Escape') close(); });
+    window.addEventListener('resize', function(){ if(window.innerWidth>960) close(); });
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+})();
+</script>
