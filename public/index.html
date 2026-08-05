@@ -455,7 +455,21 @@
   .blk-chip button{color:var(--red);font-size:14px;line-height:1;opacity:.7}.blk-chip button:hover{opacity:1}
 </style>
 
-<div class="app" id="internApp">
+<!-- FORWARD LOGIN -->
+<div class="ext-wrap" id="fwLogin" style="display:none">
+  <div class="login">
+    <div id="logoFwLogin"></div>
+    <h2>Forward Portaal</h2>
+    <p>Log in met uw Forward-account.</p>
+    <div class="field"><label>E-mailadres</label><input id="fwEmail" type="email" autocomplete="username" placeholder="naam@forwardschadeherstel.nl"></div>
+    <div class="field"><label>Wachtwoord</label><input id="fwPass" type="password" autocomplete="current-password"></div>
+    <div id="fwErr" style="display:none;background:var(--red-soft);color:var(--red);font-size:12.5px;padding:10px 12px;border-radius:10px;margin-bottom:12px"></div>
+    <button class="btn primary" id="fwLoginBtn" onclick="fwDoLogin()">Inloggen</button>
+    <div class="login-hint">Alleen voor medewerkers van Forward Schadeherstel.</div>
+  </div>
+</div>
+
+<div class="app" id="internApp" style="display:none">
   <aside class="sidebar">
     <div class="side-logo" id="logoSidebar"></div>
     <div class="nav-label">Werk</div>
@@ -2012,4 +2026,76 @@ SCHADES.forEach(s=>{ if(s.phone===undefined) s.phone='06-1234 5678'; });
 /* ---------- init ---------- */
 renderUserFooter();renderDash();renderSchades();renderFacturen();renderAgenda();renderOnder();renderInbox();renderVerzList();renderTeam();applyRoleUI();
 sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
+</script>
+
+<script>
+(function(){
+  var $$ = function(id){ return document.getElementById(id); };
+  var AUTH = { user: null };
+  window.FWAUTH = AUTH;
+
+  function showLogin(){
+    $$('fwLogin').style.display = 'flex';
+    $$('internApp').style.display = 'none';
+  }
+  function showApp(){
+    $$('fwLogin').style.display = 'none';
+    $$('internApp').style.display = 'grid';
+    addLogout();
+  }
+  function addLogout(){
+    if ($$('fwLogoutBtn')) return;
+    var foot = $$('userFoot');
+    if (!foot) return;
+    var b = document.createElement('button');
+    b.id = 'fwLogoutBtn';
+    b.textContent = 'Uitloggen';
+    b.style.cssText = 'margin-top:10px;width:100%;padding:9px;border-radius:10px;background:rgba(255,255,255,.08);color:#fff;font-size:12.5px;font-family:inherit;cursor:pointer;border:none';
+    b.onclick = fwLogout;
+    foot.parentNode.insertBefore(b, foot.nextSibling);
+  }
+  function fwLogout(){
+    fetch('/api/auth/logout', { method:'POST', credentials:'include' })
+      .catch(function(){})
+      .then(function(){ location.reload(); });
+  }
+
+  window.fwDoLogin = function(){
+    var err = $$('fwErr'), btn = $$('fwLoginBtn');
+    err.style.display = 'none';
+    btn.disabled = true;
+    btn.textContent = 'Bezig...';
+    fetch('/api/auth/login', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: $$('fwEmail').value.trim(), password: $$('fwPass').value })
+    })
+    .then(function(r){ return r.json().catch(function(){ return {}; }).then(function(j){ return { ok:r.ok, j:j }; }); })
+    .then(function(res){
+      if (!res.ok) throw new Error(res.j.error || 'Inloggen mislukt');
+      AUTH.user = res.j.user;
+      showApp();
+    })
+    .catch(function(e){
+      err.textContent = e.message || 'Inloggen mislukt';
+      err.style.display = 'block';
+    })
+    .then(function(){
+      btn.disabled = false;
+      btn.textContent = 'Inloggen';
+    });
+  };
+
+  document.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && $$('fwLogin') && $$('fwLogin').style.display === 'flex') window.fwDoLogin();
+  });
+
+  try { if (typeof logoSVG === 'function') $$('logoFwLogin').innerHTML = logoSVG(''); } catch(e){}
+
+  fetch('/api/auth/me', { credentials:'include' })
+    .then(function(r){ if(!r.ok) throw new Error('geen sessie'); return r.json(); })
+    .then(function(j){ AUTH.user = j.user; showApp(); })
+    .catch(function(){ showLogin(); });
+})();
 </script>
