@@ -9,6 +9,8 @@ const users = [
   { naam: 'Abdullah',          email: 'abdullah@forwardschadeherstel.nl', role: 'DIRECTIE' },
 ];
 
+const demoSchades = ['FWD-2406-018', 'FWD-2406-009'];
+
 async function main() {
   const passwordHash = await bcrypt.hash(DEFAULT_PASSWORD, 12);
   for (const u of users) {
@@ -18,7 +20,16 @@ async function main() {
       create: { ...u, passwordHash },
     });
   }
+
+  const weg = await prisma.user.deleteMany({
+    where: { email: { notIn: users.map((u) => u.email) } },
+  });
+  const wegSchades = await prisma.schade.deleteMany({
+    where: { nummer: { in: demoSchades } },
+  });
+
   console.log('Seed klaar.');
+  console.log(`Verwijderd: ${weg.count} oude gebruiker(s), ${wegSchades.count} demoschade(s).`);
   console.log(`Wachtwoord voor beide accounts: ${DEFAULT_PASSWORD}`);
   for (const u of users) console.log(`  ${u.role}: ${u.email}`);
 }
