@@ -188,6 +188,17 @@ router.patch('/:nummer', async (req, res) => {
     if (f.herstelUitbesteed !== undefined) data.finHerstelUitbesteed = Number(f.herstelUitbesteed) || 0;
   }
 
+  // Verandert de route? Zak dan terug naar de dichtstbijzijnde halte die nog bestaat.
+  if (data.haltes !== undefined) {
+    const huidig = await prisma.schade.findUnique({ where: { nummer: req.params.nummer } });
+    if (!huidig) return res.status(404).json({ error: 'Dossier niet gevonden' });
+    const doel = data.step !== undefined ? data.step : huidig.step;
+    if (!data.haltes.includes(Number(doel))) {
+      const lager = data.haltes.filter((h) => h < Number(doel));
+      data.step = lager.length ? lager[lager.length - 1] : data.haltes[0];
+    }
+  }
+
   if (data.step !== undefined) {
     const huidig = await prisma.schade.findUnique({ where: { nummer: req.params.nummer } });
     if (!huidig) return res.status(404).json({ error: 'Dossier niet gevonden' });
