@@ -1,4 +1,5 @@
 const { isDirectie } = require('../auth/roles');
+const { normaliseerHaltes, volgendeHalte, isAfgerond } = require('./haltes');
 
 // Standaard documentenlijst van een dossier (later uit de DB / opslag)
 const DOCS = [
@@ -13,19 +14,49 @@ function safeUser(u) {
 
 // Dossier zoals de MEDEWERKER het mag zien — financiën alleen voor directie.
 function schadeForUser(s, user) {
+  const haltes = normaliseerHaltes(s.haltes);
   const base = {
+    id: s.id,
     nummer: s.nummer,
     owner: s.owner,
     email: s.email,
     adres: s.adres,
+    plaats: s.plaats,
     ins: s.ins,
     amount: s.amount,
     status: s.status,
     step: s.step,
     traject: s.traject,
+
+    haltes,
+    preset: s.preset,
+    volgendeHalte: volgendeHalte(s.step, haltes),
+    afgerond: isAfgerond(s.step, haltes),
+
+    opdrachtnummer: s.opdrachtnummer,
+    opdrachtgever: s.opdrachtgever,
+
+    verzStatus: s.verzStatus,
+    verzSchadenummer: s.verzSchadenummer,
+    verzEmail: s.verzEmail,
+    tussenpersoon: s.tussenpersoon,
+    verzIngediendAt: s.verzIngediendAt,
+    afwijzingReden: s.afwijzingReden,
+
+    wachtReden: s.wachtReden,
+    wachtTot: s.wachtTot,
+    inWacht: !!s.wachtReden,
+
+    archived: s.archived,
+    archivedAt: s.archivedAt,
+
+    uitvoeringAt: s.uitvoeringAt,
+    gefactureerd: s.gefactureerd,
+
     ingediendAt: s.ingediendAt,
     docVisible: s.docVisible || {},
     createdAt: s.createdAt,
+    updatedAt: s.updatedAt,
   };
   if (isDirectie(user)) {
     base.profit = s.profit;
@@ -39,7 +70,8 @@ function schadeForUser(s, user) {
   return base;
 }
 
-// Dossier zoals de KLANT het mag zien — nooit financiën, alleen vrijgegeven documenten.
+// Dossier zoals de KLANT het mag zien — nooit financiën, nooit de wachtstand,
+// nooit het opdrachtnummer van de beheerder, alleen vrijgegeven documenten.
 function schadeForClient(s) {
   const dv = s.docVisible || {};
   const documents = DOCS.filter((d) => dv[d.key]).map((d) => ({ naam: d.naam, ico: d.ico, kleur: d.kleur }));
@@ -47,11 +79,13 @@ function schadeForClient(s) {
     nummer: s.nummer,
     owner: s.owner,
     adres: s.adres,
+    plaats: s.plaats,
     ins: s.ins,
     status: s.status,
     step: s.step,
     traject: s.traject,
-    documents, // leeg = klant ziet geen documenten-tab
+    haltes: normaliseerHaltes(s.haltes),
+    documents,
   };
 }
 
