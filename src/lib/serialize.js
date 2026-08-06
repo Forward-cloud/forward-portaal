@@ -1,5 +1,5 @@
 const { isDirectie } = require('../auth/roles');
-const { normaliseerHaltes, volgendeHalte, isAfgerond } = require('./haltes');
+const { normaliseerHaltes, volgendeHalte, isAfgerond, positie } = require('./haltes');
 
 // Standaard documentenlijst van een dossier (later uit de DB / opslag)
 const DOCS = [
@@ -32,9 +32,21 @@ function schadeForUser(s, user) {
     preset: s.preset,
     volgendeHalte: volgendeHalte(s.step, haltes),
     afgerond: isAfgerond(s.step, haltes),
+    positie: positie(s.step, haltes).positie,
+    totaal: positie(s.step, haltes).totaal,
+
+    bronStatus: s.bronStatus,
+    bronOpmerking: s.bronOpmerking,
+    bronHersteldAt: s.bronHersteldAt,
+    bronDoorReden: s.bronDoorReden,
 
     opdrachtnummer: s.opdrachtnummer,
     opdrachtgever: s.opdrachtgever,
+
+    verzekeraarId: s.verzekeraarId,
+    verzekeraar: s.verzekeraar || null,
+    tussenpersoonId: s.tussenpersoonId,
+    tussenpersoonRel: s.tussenpersoonRel || null,
 
     verzStatus: s.verzStatus,
     verzSchadenummer: s.verzSchadenummer,
@@ -85,6 +97,7 @@ function schadeForClient(s) {
     step: s.step,
     traject: s.traject,
     haltes: normaliseerHaltes(s.haltes),
+    bronStatus: s.bronStatus,
     documents,
   };
 }
