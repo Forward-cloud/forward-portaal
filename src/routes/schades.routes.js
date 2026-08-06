@@ -2,7 +2,7 @@ const express = require('express');
 const prisma = require('../db');
 const { requireAuth, isDirectie } = require('../auth/middleware');
 const { schadeForUser } = require('../lib/serialize');
-const { PRESETS, haltesVoorPreset, normaliseerHaltes, leidAfUitKaart } = require('../lib/haltes');
+const { PRESETS, BRON_STATUS, haltesVoorPreset, normaliseerHaltes, leidAfUitKaart, bronBlokkeert, positie } = require('../lib/haltes');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -27,6 +27,20 @@ async function volgendNummer(jaar) {
     n = parseInt(staart, 10) || 0;
   }
   return `${start}${String(n + 1).padStart(4, '0')}`;
+}
+
+// Zoekt een relatie op naam of maakt hem aan. Lege of nietszeggende waarden geven null.
+async function relatieId(naam, soort, email) {
+  const n = String(naam == null ? '' : naam).trim();
+  if (!n || ['-', 'nee', 'geen', 'nvt', 'n.v.t.'].includes(n.toLowerCase())) return null;
+  const bestaand = await prisma.relatie.findFirst({
+    where: { naam: { equals: n, mode: 'insensitive' }, soort },
+  });
+  if (bestaand) return bestaand.id;
+  const nieuw = await prisma.relatie.create({
+    data: { naam: n, soort, email: email ? String(email).trim() : null },
+  });
+  return nieuw.id;
 }
 
 const datum = (v) => {
@@ -121,8 +135,14 @@ router.patch('/:nummer', async (req, res) => {
     if (b[k] !== undefined) data[k] = b[k] || null;
   });
 
+  ['verzekeraarId', 'tussenpersoonId'].forEach((k) => {
+    if (b[k] !== undefined) data[k] = b[k] || null;
+  });
+
   if (b.amount !== undefined) data.amount = Number(b.amount) || 0;
   if (b.step !== undefined) data.step = Number(b.step) || 1;
+
+  if (b.bronDoorReden !== undefined) data.bronDoorReden = b.bronDoorReden || null;
   if (b.gefactureerd !== undefined) data.gefactureerd = !!b.gefactureerd;
   if (b.uitvoeringAt !== undefined) data.uitvoeringAt = datum(b.uitvoeringAt);
   if (b.verzIngediendAt !== undefined) data.verzIngediendAt = datum(b.verzIngediendAt);
@@ -139,6 +159,17 @@ router.patch('/:nummer', async (req, res) => {
     const geldig = ['geen', 'ingediend', 'akkoord', 'afgewezen', 'doorverwezen'];
     if (!geldig.includes(b.verzStatus)) return res.status(400).json({ error: 'Onbekende verzekeraarstatus' });
     data.verzStatus = b.verzStatus;
+    // Indienen zet de indieningsdatum automatisch, tenzij die wordt meegegeven.
+    if (b.verzStatus === 'ingediend' && b.verzIngediendAt === undefined) {
+      const nu = await prisma.schade.findUnique({
+        where: { nummer: req.params.nummer },
+        select: { verzIngediendAt: true },
+      });
+      if (!nu || !nu.verzIngediendAt) {
+        data.verzIngediendAt = new Date();
+        data.ingediendAt = new Date();
+      }
+    }
     if (b.verzStatus === 'afgewezen') {
       data.status = 'afgewezen';
       data.archived = true;
@@ -157,7 +188,36 @@ router.patch('/:nummer', async (req, res) => {
     if (f.herstelUitbesteed !== undefined) data.finHerstelUitbesteed = Number(f.herstelUitbesteed) || 0;
   }
 
+  if (data.step !== undefined) {
+    const huidig = await prisma.schade.findUnique({ where: { nummer: req.params.nummer } });
+    if (!huidig) return res.status(404).json({ error: 'Dossier niet gevonden' });
+    const blok = bronBlokkeert(
+      { ...huidig, ...data, bronDoorReden: data.bronDoorReden !== undefined ? data.bronDoorReden : huidig.bronDoorReden },
+      data.step
+    );
+    if (blok) return res.status(409).json({ error: blok, bronWaarschuwing: true });
+  }
+
   const s = await prisma.schade.update({ where: { nummer: req.params.nummer }, data });
+  res.json({ schade: schadeForUser(s, req.user) });
+});
+
+/* ─────────── bronherstel ─────────── */
+router.post('/:nummer/bron', async (req, res) => {
+  const { status, opmerking } = req.body || {};
+  if (!BRON_STATUS[status]) return res.status(400).json({ error: 'Onbekende bronstatus' });
+  if (status === 'onvoldoende' && !(opmerking && String(opmerking).trim())) {
+    return res.status(400).json({ error: 'Beschrijf wat er niet goed is aan het bronherstel' });
+  }
+  const data = {
+    bronStatus: status,
+    bronOpmerking: opmerking ? String(opmerking).trim() : null,
+    bronHersteldAt: status === 'hersteld' ? new Date() : null,
+  };
+  if (status !== 'onvoldoende') data.bronDoorReden = null;
+
+  const s = await prisma.schade.update({ where: { nummer: req.params.nummer }, data });
+  await log(req.user, `Bron ${BRON_STATUS[status].toLowerCase()}: ${s.nummer}` + (data.bronOpmerking ? ` — ${data.bronOpmerking}` : ''));
   res.json({ schade: schadeForUser(s, req.user) });
 });
 
@@ -268,8 +328,15 @@ router.post('/import', async (req, res) => {
       haltes: afgeleid.haltes,
       step: afgeleid.step,
       verzStatus: afgeleid.verzStatus,
+      bronStatus: afgeleid.bronStatus,
       traject: afgeleid.preset === 'expertise' ? 'expertise' : 'volledig',
     };
+
+    // Verzekeraar en tussenpersoon koppelen aan de adreslijst (aanmaken als ze nog niet bestaan)
+    if (!droogloop) {
+      velden.verzekeraarId = await relatieId(r.ins, 'VERZEKERAAR');
+      velden.tussenpersoonId = await relatieId(r.tussenpersoon, 'TUSSENPERSOON', r.verzEmail);
+    }
 
     const bestaand = velden.opdrachtnummer
       ? await prisma.schade.findFirst({ where: { opdrachtnummer: velden.opdrachtnummer } })
@@ -278,7 +345,7 @@ router.post('/import', async (req, res) => {
     if (bestaand) {
       if (!droogloop) await prisma.schade.update({ where: { id: bestaand.id }, data: velden });
       resultaat.bijgewerkt++;
-      resultaat.regels.push({ nummer: bestaand.nummer, adres, status: 'bijgewerkt', halte: afgeleid.step, preset: afgeleid.preset });
+      resultaat.regels.push({ nummer: bestaand.nummer, adres, status: 'bijgewerkt', halte: afgeleid.step, preset: afgeleid.preset, positie: afgeleid.haltes.indexOf(afgeleid.step) + 1, totaal: afgeleid.haltes.length });
       continue;
     }
 
@@ -287,7 +354,7 @@ router.post('/import', async (req, res) => {
       await prisma.schade.create({ data: { nummer, ...velden } });
     }
     resultaat.nieuw++;
-    resultaat.regels.push({ nummer, adres, status: 'nieuw', halte: afgeleid.step, preset: afgeleid.preset });
+    resultaat.regels.push({ nummer, adres, status: 'nieuw', halte: afgeleid.step, preset: afgeleid.preset, positie: afgeleid.haltes.indexOf(afgeleid.step) + 1, totaal: afgeleid.haltes.length });
   }
 
   if (!droogloop) {
