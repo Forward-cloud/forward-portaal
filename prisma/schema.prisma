@@ -1,4 +1,3 @@
-// Forward Schadeherstel — databaseschema (fundament, groeit per module)
 generator client {
   provider = "prisma-client-js"
 }
@@ -33,12 +32,37 @@ model Schade {
   owner   String
   email   String?
   adres   String?
+  plaats  String?
   ins     String?
   amount  Int    @default(0)
   profit  Int    @default(0)
   status  String @default("open")
   step    Int    @default(1)
   traject String @default("volledig")
+
+  // Welke haltes gelden voor dit dossier, bijv. [1,3,6,8,9]
+  haltes Json   @default("[1,2,3,4,5,6,7,8,9]")
+  preset String @default("volledig")
+
+  // Herkomst uit de schadekaart
+  opdrachtnummer String?
+  opdrachtgever  String?
+
+  // Verzekeraar
+  verzStatus       String    @default("geen") // geen | ingediend | akkoord | afgewezen | doorverwezen
+  verzSchadenummer String?
+  verzEmail        String?
+  tussenpersoon    String?
+  verzIngediendAt  DateTime?
+  afwijzingReden   String?
+
+  // Wachtstand (alleen intern)
+  wachtReden String?
+  wachtTot   DateTime?
+
+  // Uitvoering
+  uitvoeringAt  DateTime?
+  gefactureerd  Boolean   @default(false)
 
   // Financieel — alleen zichtbaar/aanpasbaar voor directie (server dwingt dit af)
   finExpertiseOmzet    Int @default(0)
