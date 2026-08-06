@@ -1233,7 +1233,9 @@ function subClose(id){const b=BONNEN.find(x=>x.id===id);if(!b.uitvoerdatum){toas
 
 /* ---------- detail (intern) ---------- */
 function openDetail(nr){
-  activeNr=nr;const s=SCHADES.find(x=>x.nr===nr);s.unread=false;
+  activeNr=nr;const s=SCHADES.find(x=>x.nr===nr);
+  if(!s){console.warn('Dossier niet in de lijst:',nr);if(typeof toast==='function')toast('Niet gevonden','Dit dossier staat niet in de huidige lijst. Ververs de pagina.','err');return;}
+  s.unread=false;
   const T=trajOf(s);const HI=HI_of(s);const FIN=FIN_of(s);
   const stops=HI.map((h,i)=>{
     const cls=i+1<s.step?'done':i+1===s.step?'current':'todo';
@@ -2821,6 +2823,27 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
       verzSchadenummer: d.verzSchadenummer,
       verzIngediendAt: d.verzIngediendAt,
       opdrachtnummer: d.opdrachtnummer,
+      fin: d.fin ? {
+        expertise: { omzet: d.fin.expertiseOmzet || 0 },
+        herstel: {
+          omzet: d.fin.herstelOmzet || 0,
+          inkoop: d.fin.herstelInkoop || 0,
+          uitbesteed: d.fin.herstelUitbesteed || 0
+        }
+      } : null,
+      magFin: !!d.fin,
+      fact: {
+        expertise: { status: d.gefactureerd ? 'sent' : 'open' },
+        herstel:   { status: d.gefactureerd ? 'sent' : 'open' }
+      },
+      verz: {
+        ref: d.verzSchadenummer || '',
+        ingediend: d.verzIngediendAt || null,
+        ontvangst: null, reminders: [], auto: false, next: null, docs: []
+      },
+      updates: [],
+      notes: [],
+      received: d.createdAt ? new Date(d.createdAt).toLocaleDateString('nl-NL', { day:'numeric', month:'short' }) : '',
 
       // velden die nog uit losse modules komen
       appt: null,
@@ -2992,6 +3015,40 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
     }).then(function(){ melden('Bronstatus bijgewerkt', BRON[status]); return na(); }).catch(mis);
   };
 
+  function getal(id){
+    var el = document.getElementById(id);
+    if (!el) return 0;
+    var t = String(el.value).replace(/[^0-9,.-]/g, '').replace(/\./g, '').replace(',', '.');
+    return Math.round(Number(t) || 0);
+  }
+
+  window.fwRekenMarge = function(){
+    var o = getal('fwOmzet'), i = getal('fwInkoop'), u = getal('fwUitb');
+    var m = o - i - u;
+    var el = document.getElementById('fwMarge'), p = document.getElementById('fwPct');
+    if (el) {
+      el.textContent = (m < 0 ? '-' : '') + '\u20ac' + Math.abs(m).toLocaleString('nl-NL');
+      el.style.color = m < 0 ? 'var(--red)' : '';
+    }
+    if (p) p.textContent = (o > 0 ? Math.round((m / o) * 100) : 0) + '%';
+  };
+
+  window.fwBewaarFin = function(){
+    var s = huidig(); if (!s) return;
+    var o = getal('fwOmzet');
+    window.fwApi('/api/schades/' + encodeURIComponent(s.nr), {
+      method:'PATCH',
+      body: JSON.stringify({
+        amount: o,
+        fin: { herstelOmzet: o, herstelInkoop: getal('fwInkoop'), herstelUitbesteed: getal('fwUitb') }
+      })
+    }).then(function(){ melden('Opgeslagen', 'De marge is bijgewerkt.'); return na(); }).catch(mis);
+  };
+
+  document.addEventListener('input', function(e){
+    if (e.target && ['fwOmzet','fwInkoop','fwUitb'].indexOf(e.target.id) > -1) window.fwRekenMarge();
+  });
+
   window.fwZetWacht = function(){
     var s = huidig(); if (!s) return;
     var reden = window.prompt('Waarom ligt dit dossier stil? Je collega leest dit.', s.wachtReden || '');
@@ -3049,6 +3106,28 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
         ' onchange="fwZetHalte(this,' + nr + ')"><span>' + nr + '. ' + naam + '</span></label>';
     });
     h += '</div>';
+
+    if (s.magFin && s.fin) {
+      var omzet = s.fin.herstel.omzet || s.amount || 0;
+      var ink = s.fin.herstel.inkoop || 0, uit = s.fin.herstel.uitbesteed || 0;
+      var marge = omzet - ink - uit;
+      var pct = omzet > 0 ? Math.round((marge / omzet) * 100) : 0;
+      h += '<div style="border-top:1px solid var(--line);padding-top:12px">' +
+        '<div class="fwp-lab" style="margin-bottom:8px">Financieel</div>' +
+        '<div class="fwp-rij"><span class="fwp-lab">Offertesom</span>' +
+          '<input type="text" id="fwOmzet" value="' + omzet + '" style="width:120px"></div>' +
+        '<div class="fwp-rij"><span class="fwp-lab">Inkoop materiaal</span>' +
+          '<input type="text" id="fwInkoop" value="' + ink + '" style="width:120px"></div>' +
+        '<div class="fwp-rij"><span class="fwp-lab">Onderaanneming</span>' +
+          '<input type="text" id="fwUitb" value="' + uit + '" style="width:120px"></div>' +
+        '<div class="fwp-rij" style="margin-top:4px"><span class="fwp-lab">Netto marge</span>' +
+          '<b id="fwMarge" style="font-size:15px;font-variant-numeric:tabular-nums">' +
+          (marge < 0 ? '-' : '') + '\u20ac' + Math.abs(marge).toLocaleString('nl-NL') + '</b>' +
+          '<span id="fwPct" style="font-size:12px;color:var(--muted)">' + pct + '%</span>' +
+          '<button class="btn primary" onclick="fwBewaarFin()" style="margin-left:auto">Opslaan</button></div>' +
+        '<div style="font-size:11.5px;color:var(--muted);margin-top:2px">Geen onderaanneming? Vul 0 in.</div>' +
+      '</div>';
+    }
 
     h += '<div class="fwp-rij" style="border-top:1px solid var(--line);padding-top:12px">' +
       (s.inWacht
