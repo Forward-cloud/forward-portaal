@@ -496,6 +496,17 @@
     </div>
   </div>
 </div>
+
+<div class="fwm-wrap" id="fwmWrap">
+  <div class="fwm">
+    <div class="fwm-head"><h3 id="fwmTitel">Wachtwoord wijzigen</h3><p id="fwmSub"></p></div>
+    <div class="fwm-body" id="fwmBody"></div>
+    <div class="fwm-foot">
+      <button class="btn" onclick="fwmSluit()">Annuleren</button>
+      <button class="btn primary" id="fwmOk" onclick="fwmBewaar()">Opslaan</button>
+    </div>
+  </div>
+</div>
 <div class="app" id="internApp" style="display:none">
   <aside class="sidebar">
     <div class="side-logo" id="logoSidebar"></div>
@@ -3502,6 +3513,203 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
     if (!view || !document.getElementById('fwPaneel')) { vorige = null; return; }
     zone();
     if (nr && nr !== vorige) { vorige = nr; window.fwLaadDocs(); }
+  }, 400);
+})();
+</script>
+
+<style>
+/* ── Wachtwoord & medewerkers ── */
+.fwm-wrap{position:fixed;inset:0;z-index:420;background:rgba(13,20,38,.55);
+  -webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);display:none;
+  align-items:center;justify-content:center;padding:22px}
+.fwm-wrap.on{display:flex}
+.fwm{background:var(--surface);border-radius:16px;width:100%;max-width:440px;overflow:hidden;
+  box-shadow:0 24px 70px rgba(9,14,26,.35)}
+.fwm-head{padding:16px 20px;border-bottom:1px solid var(--line)}
+.fwm-head h3{margin:0;font-size:16px;font-weight:600}
+.fwm-head p{margin:3px 0 0;font-size:12.5px;color:var(--muted)}
+.fwm-body{padding:18px 20px;display:grid;gap:12px}
+.fwm-body label{font-size:12px;color:var(--muted);display:block;margin-bottom:4px}
+.fwm-body input,.fwm-body select{width:100%;padding:10px 12px;border:1px solid var(--line);
+  border-radius:10px;font-family:inherit;font-size:14px;background:var(--surface);color:var(--text)}
+.fwm-foot{padding:14px 20px;border-top:1px solid var(--line);display:flex;gap:8px;justify-content:flex-end}
+.fwm-err{background:var(--red-soft);color:var(--red);font-size:12.5px;padding:10px 12px;border-radius:10px}
+.fwm-ok{background:var(--teal-soft);color:var(--teal-ink);font-size:12.5px;padding:10px 12px;border-radius:10px}
+.fwm-code{font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:600;letter-spacing:.04em}
+@media (max-width:960px){ .fwm-wrap{padding:0} .fwm{max-width:none;min-height:100dvh;border-radius:0} }
+</style>
+
+<script>
+/* ══ Wachtwoord en medewerkers ══ */
+(function(){
+  var ROLLABEL = { DIRECTIE:'Directie', FINANCIEEL:'Financieel', SCHADEBEHANDELAAR:'Schadebehandelaar', PLANNER:'Planner' };
+
+  function $$(id){ return document.getElementById(id); }
+  function esc(v){ return String(v==null?'':v).replace(/[&<>"]/g,function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function melden(t,m,k){ if (typeof toast==='function') toast(t,m,k||'ok'); }
+
+  window.fwmSluit = function(){ $$('fwmWrap').classList.remove('on'); };
+
+  /* ── eigen wachtwoord ── */
+  window.fwmWachtwoord = function(){
+    $$('fwmTitel').textContent = 'Wachtwoord wijzigen';
+    $$('fwmSub').textContent = 'Minstens 10 tekens. Kies iets dat je nergens anders gebruikt.';
+    $$('fwmBody').innerHTML =
+      '<div id="fwmMelding" style="display:none"></div>' +
+      '<div><label>Huidig wachtwoord</label><input type="password" id="fwmOud" autocomplete="current-password"></div>' +
+      '<div><label>Nieuw wachtwoord</label><input type="password" id="fwmNieuw" autocomplete="new-password"></div>' +
+      '<div><label>Nogmaals ter controle</label><input type="password" id="fwmHerhaal" autocomplete="new-password"></div>';
+    $$('fwmOk').textContent = 'Wachtwoord opslaan';
+    $$('fwmOk').onclick = bewaarWachtwoord;
+    $$('fwmWrap').classList.add('on');
+    setTimeout(function(){ var e = $$('fwmOud'); if (e) e.focus(); }, 60);
+  };
+
+  function toonFout(t){
+    var m = $$('fwmMelding');
+    if (!m) return;
+    m.className = 'fwm-err'; m.textContent = t; m.style.display = '';
+  }
+
+  function bewaarWachtwoord(){
+    var knop = $$('fwmOk');
+    knop.disabled = true; knop.textContent = 'Bezig\u2026';
+    window.fwApi('/api/users/wachtwoord', {
+      method:'POST',
+      body: JSON.stringify({ huidig: $$('fwmOud').value, nieuw: $$('fwmNieuw').value, herhaal: $$('fwmHerhaal').value })
+    }).then(function(){
+      window.fwmSluit();
+      melden('Wachtwoord gewijzigd', 'Gebruik het nieuwe wachtwoord de volgende keer dat je inlogt.');
+    }).catch(function(e){ toonFout(e.message); })
+      .then(function(){ knop.disabled = false; knop.textContent = 'Wachtwoord opslaan'; });
+  }
+
+  /* ── medewerkers ── */
+  window.fwmMedewerker = function(id){
+    var bestaand = null;
+    (window.__fwUsers || []).forEach(function(u){ if (u.id === id) bestaand = u; });
+    $$('fwmTitel').textContent = bestaand ? 'Medewerker bewerken' : 'Medewerker toevoegen';
+    $$('fwmSub').textContent = bestaand ? '' : 'Je krijgt een tijdelijk wachtwoord dat je zelf doorgeeft.';
+    $$('fwmBody').innerHTML =
+      '<div id="fwmMelding" style="display:none"></div>' +
+      '<div><label>Naam</label><input type="text" id="fwmNaam" value="' + esc(bestaand ? bestaand.naam : '') + '"></div>' +
+      '<div><label>E-mailadres</label><input type="email" id="fwmMail" value="' + esc(bestaand ? bestaand.email : '') + '"></div>' +
+      '<div><label>Rol</label><select id="fwmRol">' +
+        Object.keys(ROLLABEL).map(function(r){
+          return '<option value="' + r + '"' + (bestaand && bestaand.role === r ? ' selected' : '') + '>' + ROLLABEL[r] + '</option>';
+        }).join('') + '</select></div>';
+    $$('fwmOk').textContent = bestaand ? 'Opslaan' : 'Toevoegen';
+    $$('fwmOk').onclick = function(){ bewaarMedewerker(bestaand ? bestaand.id : null); };
+    $$('fwmWrap').classList.add('on');
+  };
+
+  function bewaarMedewerker(id){
+    var knop = $$('fwmOk');
+    var body = JSON.stringify({ naam: $$('fwmNaam').value, email: $$('fwmMail').value, role: $$('fwmRol').value });
+    knop.disabled = true;
+    window.fwApi('/api/users' + (id ? '/' + id : ''), { method: id ? 'PATCH' : 'POST', body: body })
+      .then(function(res){
+        if (res.tempPassword) {
+          $$('fwmSub').textContent = '';
+          $$('fwmBody').innerHTML = '<div class="fwm-ok">Account aangemaakt. Geef dit tijdelijke wachtwoord door ' +
+            'aan ' + esc(res.user.naam) + ' \u2014 het staat hier maar \u00e9\u00e9n keer:</div>' +
+            '<div style="text-align:center;padding:14px 0"><span class="fwm-code">' + esc(res.tempPassword) + '</span></div>' +
+            '<div style="font-size:12px;color:var(--muted)">Vraag om het meteen na de eerste keer inloggen te wijzigen.</div>';
+          $$('fwmOk').textContent = 'Klaar';
+          $$('fwmOk').onclick = function(){ window.fwmSluit(); laadUsers(); };
+        } else {
+          window.fwmSluit();
+          melden('Opgeslagen', 'De gegevens zijn bijgewerkt.');
+          laadUsers();
+        }
+      }).catch(function(e){ toonFout(e.message); })
+        .then(function(){ knop.disabled = false; });
+  }
+
+  window.fwmReset = function(id, naam){
+    if (!window.confirm('Wachtwoord van ' + naam + ' opnieuw instellen?')) return;
+    window.fwApi('/api/users/' + id + '/reset-password', { method:'POST' }).then(function(res){
+      $$('fwmTitel').textContent = 'Nieuw wachtwoord';
+      $$('fwmSub').textContent = '';
+      $$('fwmBody').innerHTML = '<div class="fwm-ok">Geef dit door aan ' + esc(res.naam) + '. Het staat hier maar \u00e9\u00e9n keer.</div>' +
+        '<div style="text-align:center;padding:14px 0"><span class="fwm-code">' + esc(res.tempPassword) + '</span></div>';
+      $$('fwmOk').textContent = 'Klaar';
+      $$('fwmOk').onclick = window.fwmSluit;
+      $$('fwmWrap').classList.add('on');
+    }).catch(function(e){ melden('Niet gelukt', e.message, 'err'); });
+  };
+
+  window.fwmActief = function(id, aan){
+    window.fwApi('/api/users/' + id, { method:'PATCH', body: JSON.stringify({ active: aan }) })
+      .then(function(){ laadUsers(); })
+      .catch(function(e){ melden('Niet gelukt', e.message, 'err'); });
+  };
+
+  function laadUsers(){
+    return window.fwApi('/api/users').then(function(res){
+      window.__fwUsers = res.users || [];
+      teken();
+      return res.users;
+    }).catch(function(){ return []; });
+  }
+
+  function teken(){
+    var doel = $$('fwmLijst');
+    if (!doel) return;
+    doel.innerHTML = (window.__fwUsers || []).map(function(u){
+      return '<div class="t-row" style="grid-template-columns:1.4fr 1.6fr 150px 1fr;cursor:default">' +
+        '<div><div class="t-owner">' + esc(u.naam) + '</div>' +
+          (u.active ? '' : '<div class="t-addr" style="color:var(--red)">niet actief</div>') + '</div>' +
+        '<div class="t-addr">' + esc(u.email) + '</div>' +
+        '<div><span class="tag ' + (u.role === 'DIRECTIE' ? 'teal' : 'grey') + '">' + (ROLLABEL[u.role] || u.role) + '</span></div>' +
+        '<div style="display:flex;gap:6px;flex-wrap:wrap">' +
+          '<button class="jbtn" onclick="fwmMedewerker(\'' + u.id + '\')">Bewerken</button>' +
+          '<button class="jbtn" onclick="fwmReset(\'' + u.id + '\',\'' + esc(u.naam).replace(/'/g,'') + '\')">Reset</button>' +
+          '<button class="jbtn" onclick="fwmActief(\'' + u.id + '\',' + (u.active ? 'false' : 'true') + ')">' +
+            (u.active ? 'Deactiveren' : 'Activeren') + '</button>' +
+        '</div></div>';
+    }).join('') || '<div class="empty">Nog geen medewerkers.</div>';
+  }
+
+  /* ── knoppen inhaken ── */
+  function knoppen(){
+    // Wachtwoord wijzigen naast Uitloggen
+    if (!$$('fwmWwBtn')) {
+      var uit = $$('fwLogoutBtn') || document.querySelector('#internApp .sidebar button');
+      var foot = $$('userFoot');
+      if (foot) {
+        var b = document.createElement('button');
+        b.id = 'fwmWwBtn';
+        b.textContent = 'Wachtwoord wijzigen';
+        b.style.cssText = 'margin-top:8px;width:100%;padding:9px;border-radius:10px;background:rgba(255,255,255,.06);' +
+          'color:#fff;font-size:12.5px;font-family:inherit;cursor:pointer;border:none';
+        b.onclick = window.fwmWachtwoord;
+        foot.parentNode.insertBefore(b, foot.nextSibling);
+      }
+    }
+    // Team & rechten vullen
+    var view = $$('view-team');
+    if (view && !$$('fwmLijst')) {
+      var kaart = document.createElement('div');
+      kaart.innerHTML =
+        '<div class="page-head"><div class="eyebrow">Beheer</div><h1>Team &amp; rechten</h1>' +
+          '<p>Medewerkers van Forward en wat zij mogen zien.</p></div>' +
+        '<div style="margin-bottom:12px"><button class="btn primary" onclick="fwmMedewerker()">Medewerker toevoegen</button></div>' +
+        '<div class="table"><div class="t-head" style="grid-template-columns:1.4fr 1.6fr 150px 1fr">' +
+          '<div>Naam</div><div>E-mailadres</div><div>Rol</div><div>Acties</div></div>' +
+          '<div id="fwmLijst"></div></div>';
+      view.innerHTML = '';
+      while (kaart.firstChild) view.appendChild(kaart.firstChild);
+      laadUsers();
+    }
+  }
+
+  var pogingen = 0;
+  var tik = setInterval(function(){
+    var app = $$('internApp');
+    if (app && app.style.display !== 'none') knoppen();
+    if (++pogingen > 400) clearInterval(tik);
   }, 400);
 })();
 </script>
