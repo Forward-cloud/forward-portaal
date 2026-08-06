@@ -20,6 +20,7 @@ app.get('/api/health', (req, res) => res.json({ ok: true, env: NODE_ENV, time: n
 app.use('/api/auth', require('./routes/auth.routes'));
 app.use('/api/users', require('./routes/users.routes'));
 app.use('/api/schades', require('./routes/schades.routes'));
+app.use('/api/relaties', require('./routes/relaties.routes'));
 app.use('/api/portal', require('./routes/portal.routes'));
 
 // Frontend serveren
