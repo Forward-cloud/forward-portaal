@@ -672,8 +672,8 @@ document.getElementById('logoExt').innerHTML=logoSVG('on-dark');
 document.getElementById('logoSub').innerHTML=logoSVG('on-dark');
 
 /* ---------- haltes ---------- */
-const HALTES_INT=["Schademelding ontvangen","Schade-opname ingepland","Schaderapport opgesteld","Dossier ingediend bij verzekeraar","Akkoord verzekeraar","Herstel ingepland","Herstel in uitvoering","Opgeleverd","Uitgefactureerd"];
-const INT_FIN=[4,5,9]; // financiële / verzekeraar-haltes (intern zichtbaar)
+const HALTES_INT=["Schademelding ontvangen","Schade-opname ingepland","Bron hersteld","Schaderapport opgesteld","Dossier ingediend bij verzekeraar","Akkoord verzekeraar","Herstel ingepland","Herstel in uitvoering","Opgeleverd","Uitgefactureerd"];
+const INT_FIN=[5,6,10]; // financiële / verzekeraar-haltes (intern zichtbaar)
 const HALTES_EXT=[
   {t:"Melding ontvangen",x:"We hebben uw schademelding in goede orde ontvangen."},
   {t:"Inspectie ingepland",x:"Een inspecteur komt de schade bij u opnemen."},
@@ -683,7 +683,7 @@ const HALTES_EXT=[
   {t:"Herstel wordt uitgevoerd",x:"Onze vakmensen voeren het herstel uit."},
   {t:"Afgerond",x:"Het herstel is opgeleverd en het dossier is afgehandeld."}
 ];
-const intToExt=s=>({1:1,2:2,3:3,4:4,5:4,6:5,7:6,8:7,9:7})[s];
+const intToExt=s=>({1:1,2:2,3:3,4:3,5:4,6:4,7:5,8:6,9:7,10:7})[s];
 
 /* ---------- trajecten (stappenplannen per zaaksoort) ---------- */
 const TRAJ={
@@ -2590,17 +2590,25 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
 
         var K = {};
         (aoa[kop] || []).forEach(function(c, idx){ K[String(c == null ? '' : c).toLowerCase().trim()] = idx; });
-        function kol(zoek){
+        function kol(zoek, verboden){
           var sleutels = Object.keys(K);
-          for (var i = 0; i < sleutels.length; i++) if (sleutels[i].indexOf(zoek) > -1) return K[sleutels[i]];
+          for (var i = 0; i < sleutels.length; i++) {
+            var k = sleutels[i];
+            if (k.indexOf(zoek) === -1) continue;
+            if (verboden && verboden.some(function(v){ return k.indexOf(v) > -1; })) continue;
+            return K[k];
+          }
           return -1;
         }
         function cel(r, idx){ return idx < 0 ? null : r[idx]; }
 
+        var iBron = kol('bron');
         var iAdres = kol('adres'), iPlaats = kol('plaatsnaam'), iOpdr = kol('opdrachtgever'),
             iNr = kol('opdrachtnummer'), iOpname = kol('opname'), iRap = kol('rapport'),
             iOff = kol('offerte gereed'), iIng = kol('ingediend'), iDat = kol('indieningsdatum'),
-            iVerz = kol('verzekeraar') , iTus = kol('tussenpersoon'), iMail = kol('emailadres'),
+            iVerz = kol('hoofd verzekeraar') > -1 ? kol('hoofd verzekeraar')
+              : kol('verzekeraar', ['ingediend', 'ontvangs', 'emailadres', 'schadenummer', 'uitkering']),
+            iTus = kol('tussenpersoon'), iMail = kol('emailadres'),
             iSnr = kol('schadenummer'), iUitk = kol('uitkeringsbericht'), iHer = kol('schade hersteld'),
             iUitv = kol('datum uitvoering'), iFac = kol('factu'), iSom = kol('offertesom');
 
@@ -2618,6 +2626,7 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
             opdrachtnummer: tekst(cel(r, iNr)),
             opname: cel(r, iOpname),
             rapport: cel(r, iRap),
+            bron: cel(r, iBron),
             offerte: cel(r, iOff),
             ingediend: cel(r, iIng),
             ingediendAt: datum(cel(r, iDat)),
@@ -2664,7 +2673,7 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
     var som = rijen.reduce(function(a, r){ return a + (Number(r.amount) || 0); }, 0);
     var LABEL = { volledig:'Volledig', expertise:'Alleen expertise', er_rapport:'Eigen risico \u00b7 rapport',
                   er_offerte:'Eigen risico \u00b7 offerte', er_mandaat:'Eigen risico \u00b7 mandaat' };
-    var TOT = { volledig:9, expertise:4, er_rapport:7, er_offerte:6, er_mandaat:5 };
+    var TOT = { volledig:10, expertise:5, er_rapport:8, er_offerte:7, er_mandaat:6 };
 
     var h = '<div class="imp-kpis">' +
       '<div class="imp-kpi"><div class="l">Nieuw</div><div class="v">' + res.nieuw + '</div></div>' +
@@ -2683,11 +2692,11 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
              '<span class="rt">Overgeslagen</span><span class="ha"></span></div>';
         return;
       }
-      var tot = TOT[r.preset] || 9;
+      var pos = r.positie || r.halte, tot = r.totaal || TOT[r.preset] || 9;
       h += '<div class="imp-r"><span class="nr">' + esc(r.nummer) + '</span>' +
            '<span class="ad">' + esc(r.adres) + '</span>' +
            '<span class="rt">' + esc(LABEL[r.preset] || r.preset) + '</span>' +
-           '<span class="ha">' + r.halte + ' <span style="color:var(--muted-2,#8a94a6)">/ ' + tot + '</span></span></div>';
+           '<span class="ha">' + pos + ' <span style="color:var(--muted-2,#8a94a6)">/ ' + tot + '</span></span></div>';
     });
     h += '</div>';
 
