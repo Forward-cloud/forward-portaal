@@ -16,6 +16,11 @@ enum Role {
   PLANNER
 }
 
+enum RelatieSoort {
+  VERZEKERAAR
+  TUSSENPERSOON
+}
+
 model User {
   id           String     @id @default(cuid())
   naam         String
@@ -26,6 +31,29 @@ model User {
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
   logs         LogEntry[]
+}
+
+model Relatie {
+  id             String       @id @default(cuid())
+  naam           String
+  soort          RelatieSoort @default(VERZEKERAAR)
+  email          String?
+  telefoon       String?
+  adres          String?
+  postcode       String?
+  plaats         String?
+  website        String?
+  contactpersoon String?
+  notitie        String?
+  reactietermijn Int          @default(7)
+  actief         Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  schadesAlsVerzekeraar   Schade[] @relation("SchadeVerzekeraar")
+  schadesAlsTussenpersoon Schade[] @relation("SchadeTussenpersoon")
+
+  @@unique([naam, soort])
 }
 
 model Schade {
@@ -42,15 +70,18 @@ model Schade {
   step    Int     @default(1)
   traject String  @default("volledig")
 
-  // Welke haltes gelden voor dit dossier, bijv. [1,2,3,6,7,8,9]
-  haltes Json   @default("[1,2,3,4,5,6,7,8,9]")
+  haltes Json   @default("[1,2,3,4,5,6,7,8,9,10]")
   preset String @default("volledig")
 
-  // Herkomst uit de schadekaart
   opdrachtnummer String?
   opdrachtgever  String?
 
-  // Verzekeraar — geen | ingediend | akkoord | afgewezen | doorverwezen
+  verzekeraarId String?
+  verzekeraar   Relatie? @relation("SchadeVerzekeraar", fields: [verzekeraarId], references: [id])
+
+  tussenpersoonId  String?
+  tussenpersoonRel Relatie? @relation("SchadeTussenpersoon", fields: [tussenpersoonId], references: [id])
+
   verzStatus       String    @default("geen")
   verzSchadenummer String?
   verzEmail        String?
@@ -58,19 +89,20 @@ model Schade {
   verzIngediendAt  DateTime?
   afwijzingReden   String?
 
-  // Wachtstand (alleen intern zichtbaar)
   wachtReden String?
   wachtTot   DateTime?
 
-  // Archief
   archived   Boolean   @default(false)
   archivedAt DateTime?
 
-  // Uitvoering
+  bronStatus     String    @default("nvt")
+  bronOpmerking  String?
+  bronHersteldAt DateTime?
+  bronDoorReden  String?
+
   uitvoeringAt DateTime?
   gefactureerd Boolean   @default(false)
 
-  // Financieel — alleen voor directie (server dwingt dit af)
   finExpertiseOmzet    Int @default(0)
   finHerstelOmzet      Int @default(0)
   finHerstelInkoop     Int @default(0)
@@ -83,7 +115,7 @@ model Schade {
   updatedAt DateTime @updatedAt
 
   @@index([archived, status])
-  @@index([nummer])
+  @@index([verzekeraarId])
 }
 
 model LogEntry {
