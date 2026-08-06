@@ -3750,3 +3750,147 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
   setInterval(groet, 1500);
 })();
 </script>
+
+<script>
+/* ══ Acties uit echte dossiergegevens ══ */
+(function(){
+  var HALTE = ['Schademelding ontvangen','Schade-opname ingepland','Bron hersteld',
+    'Schaderapport opgesteld','Dossier ingediend bij verzekeraar','Akkoord verzekeraar',
+    'Herstel ingepland','Herstel in uitvoering','Opgeleverd','Uitgefactureerd'];
+
+  function esc(v){ return String(v==null?'':v).replace(/[&<>"]/g,function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+
+  function werkdagenGeleden(d){
+    if (!d) return 0;
+    var start = new Date(d), eind = new Date(), n = 0;
+    if (isNaN(start.getTime())) return 0;
+    start.setHours(0,0,0,0);
+    while (start < eind) {
+      start.setDate(start.getDate() + 1);
+      var dag = start.getDay();
+      if (dag !== 0 && dag !== 6) n++;
+    }
+    return n;
+  }
+
+  function dagString(d){
+    if (!d) return '';
+    var x = new Date(d);
+    return isNaN(x.getTime()) ? '' : x.toLocaleDateString('nl-NL', { day:'numeric', month:'short' });
+  }
+
+  // Bepaalt per dossier of er iets te doen is.
+  function acties(){
+    var urgent = [], afwachting = [], wacht = [];
+
+    (window.SCHADES || []).forEach(function(s){
+      if (s.archived) return;
+      var stap = s.step || 1;
+
+      if (s.inWacht) {
+        var verlopen = s.wachtTot && new Date(s.wachtTot) <= new Date();
+        (verlopen ? urgent : wacht).push({
+          s: s, kleur: verlopen ? 'red' : 'amber',
+          titel: verlopen ? 'Wachttijd verstreken' : 'Wacht op derden',
+          tekst: s.wachtReden + (s.wachtTot ? ' \u00b7 tot ' + dagString(s.wachtTot) : '')
+        });
+        return;
+      }
+
+      if (s.bronStatus === 'onvoldoende') {
+        urgent.push({ s: s, kleur:'red', titel:'Bron onvoldoende hersteld',
+          tekst: s.bronOpmerking || 'Eerst de bron goed maken voor het herstel begint' });
+        return;
+      }
+
+      if (s.verzStatus === 'akkoord' && stap < 7) {
+        urgent.push({ s: s, kleur:'teal', titel:'Herstel inplannen',
+          tekst: 'Uitkeringsbericht binnen \u2014 datum afstemmen met de klant' });
+        return;
+      }
+
+      if (stap >= 9 && !s.gefactureerd) {
+        urgent.push({ s: s, kleur:'teal', titel:'Factureren',
+          tekst: 'Opgeleverd, nota nog niet verstuurd' });
+        return;
+      }
+
+      if (s.verzStatus === 'ingediend') {
+        var dagen = werkdagenGeleden(s.verzIngediendAt);
+        if (dagen >= 7) {
+          urgent.push({ s: s, kleur:'amber', titel:'Herinnering verzekeraar',
+            tekst: dagen + ' werkdagen geen reactie van ' + (s.ins || 'de verzekeraar') });
+        } else {
+          afwachting.push({ s: s, kleur:'grey', titel:'Bij de verzekeraar',
+            tekst: (s.ins || 'Verzekeraar') + ' \u00b7 ingediend ' + (dagen ? dagen + ' werkdagen geleden' : 'vandaag') });
+        }
+        return;
+      }
+
+      if (stap <= 2) {
+        urgent.push({ s: s, kleur:'red', titel:'Opname inplannen',
+          tekst: 'Dossier staat op \u201c' + HALTE[stap-1] + '\u201d' });
+      }
+    });
+
+    return { urgent: urgent, afwachting: afwachting, wacht: wacht };
+  }
+
+  var KLEUR = {
+    red:   ['var(--red)',   'var(--red-soft)'],
+    amber: ['#E0A030',      '#FDF3E0'],
+    teal:  ['var(--teal)',  'var(--teal-soft)'],
+    grey:  ['var(--muted-2)','var(--canvas)']
+  };
+
+  function rij(a){
+    var k = KLEUR[a.kleur] || KLEUR.grey;
+    return '<button class="arow" style="--ac:' + k[0] + '" onclick="openDetail(\'' + a.s.nr + '\')">' +
+      '<div class="a-ico" style="background:' + k[1] + ';color:' + k[0] + '">' +
+        '<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.8"/>' +
+        '<path d="M12 8v5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>' +
+        '<circle cx="12" cy="16" r=".9" fill="currentColor"/></svg></div>' +
+      '<div class="a-main"><div class="a-title">' + esc(a.titel) + '</div>' +
+        '<div class="a-sub">' + esc(a.s.owner) + ' \u00b7 ' + esc(a.s.nr) + ' \u00b7 ' + esc(a.tekst) + '</div></div>' +
+      '<div class="chev"><svg viewBox="0 0 24 24" fill="none"><path d="M9 6l6 6-6 6" stroke="currentColor" ' +
+        'stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div></button>';
+  }
+
+  function kop(t, n){
+    return '<div style="font-size:10.5px;font-weight:700;color:var(--muted-2,#8a94a6);letter-spacing:.04em;' +
+      'padding:12px 13px 5px">' + t.toUpperCase() + ' \u00b7 ' + n + '</div>';
+  }
+
+  window.fwActies = function(){
+    var doel = document.getElementById('actionList');
+    if (!doel || !window.SCHADES) return;
+    var a = acties();
+    var h = '';
+    if (a.urgent.length)     h += kop('Urgent \u00b7 nu oppakken', a.urgent.length) + a.urgent.map(rij).join('');
+    if (a.wacht.length)      h += kop('Wacht op derden', a.wacht.length) + a.wacht.map(rij).join('');
+    if (a.afwachting.length) h += kop('In afwachting van reactie', a.afwachting.length) + a.afwachting.map(rij).join('');
+    doel.innerHTML = h || '<div class="empty" style="padding:28px 12px">Geen openstaande acties \uD83C\uDF89</div>';
+
+    var teller = document.getElementById('actCnt');
+    if (teller) teller.textContent = a.urgent.length || '';
+
+    // Gereed voor herstel: uitkeringsbericht binnen, nog niet ingepland
+    var ready = document.getElementById('readyList');
+    if (ready) {
+      var g = (window.SCHADES || []).filter(function(s){
+        return !s.archived && !s.inWacht && s.verzStatus === 'akkoord' && (s.step || 1) < 7;
+      });
+      ready.innerHTML = g.map(function(s){
+        return '<button class="arow" style="--ac:var(--teal)" onclick="openDetail(\'' + s.nr + '\')">' +
+          '<div class="a-main"><div class="a-title">' + esc(s.owner) + '</div>' +
+          '<div class="a-sub">' + esc(s.nr) + ' \u00b7 ' + esc(s.addr || '') + '</div></div></button>';
+      }).join('') || '<div class="empty" style="padding:22px 12px">Nog geen dossiers gereed voor herstel.</div>';
+      var rc = ready.parentNode ? ready.parentNode.querySelector('.cnt') : null;
+      if (rc) rc.textContent = g.length || '';
+    }
+  };
+
+  setInterval(function(){ try { window.fwActies(); } catch(e){} }, 2000);
+})();
+</script>
