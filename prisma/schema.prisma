@@ -60,6 +60,10 @@ model Schade {
   wachtReden String?
   wachtTot   DateTime?
 
+  // Archief
+  archived   Boolean   @default(false)
+  archivedAt DateTime?
+
   // Uitvoering
   uitvoeringAt  DateTime?
   gefactureerd  Boolean   @default(false)
