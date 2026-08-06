@@ -1,5 +1,6 @@
 <!-- Forward Schadeherstel — Portaal v2 (huisstijl + logo) -->
 <meta charset="utf-8" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700&family=Inter:wght@400;450;500;600&family=JetBrains+Mono:wght@400;500&family=Caveat:wght@600&display=swap');
@@ -469,6 +470,31 @@
   </div>
 </div>
 
+
+<div class="imp-wrap" id="impWrap">
+  <div class="imp">
+    <div class="imp-head">
+      <div>
+        <h3>Schadekaart importeren</h3>
+        <div class="sub" id="impSub">Kies je Excel-bestand met het tabblad SO Dossiers.</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <span class="imp-flag" id="impFlag" style="display:none">Droogloop &mdash; nog niets opgeslagen</span>
+        <button class="icon-btn" onclick="impClose()" aria-label="Sluiten">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="imp-body" id="impBody"></div>
+    <div class="imp-foot">
+      <div style="font-size:12.5px;color:var(--muted)" id="impHint">Je bestand blijft op je eigen computer tot je vastlegt.</div>
+      <div style="display:flex;gap:8px">
+        <button class="btn" onclick="impReset()" id="impBtnAnder" style="display:none">Ander bestand</button>
+        <button class="btn primary" onclick="impVastleggen()" id="impBtnGo" style="display:none">Vastleggen</button>
+      </div>
+    </div>
+  </div>
+</div>
 <div class="app" id="internApp" style="display:none">
   <aside class="sidebar">
     <div class="side-logo" id="logoSidebar"></div>
@@ -2429,5 +2455,286 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
   }
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
   else boot();
+})();
+</script>
+
+<style>
+/* ── Import schadekaart ── */
+.imp-wrap{position:fixed;inset:0;z-index:400;background:rgba(13,20,38,.55);
+  -webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);
+  display:none;align-items:center;justify-content:center;padding:24px}
+.imp-wrap.on{display:flex}
+.imp{background:var(--surface);border-radius:16px;width:100%;max-width:860px;
+  max-height:88vh;display:flex;flex-direction:column;overflow:hidden;
+  box-shadow:0 24px 70px rgba(9,14,26,.35)}
+.imp-head{padding:16px 20px;border-bottom:1px solid var(--line);display:flex;
+  align-items:center;justify-content:space-between;gap:12px}
+.imp-head h3{font-size:16px;font-weight:600;margin:0}
+.imp-head .sub{font-size:12.5px;color:var(--muted);margin-top:2px}
+.imp-body{flex:1;overflow-y:auto;padding:18px 20px}
+.imp-foot{padding:14px 20px;border-top:1px solid var(--line);display:flex;
+  align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;background:var(--surface)}
+.imp-drop{border:1.5px dashed var(--line-2,#cfd8e3);border-radius:14px;padding:34px 20px;
+  text-align:center;cursor:pointer;transition:.16s;background:var(--canvas)}
+.imp-drop:hover{border-color:var(--teal);background:rgba(0,155,168,.04)}
+.imp-drop .t{font-size:14px;font-weight:600;color:var(--text)}
+.imp-drop .s{font-size:12.5px;color:var(--muted);margin-top:4px}
+.imp-flag{font-size:11.5px;padding:4px 10px;border-radius:20px;
+  background:#FDF3E0;color:#8A5A0B;white-space:nowrap;font-weight:600}
+.imp-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
+.imp-kpi{background:var(--canvas);border-radius:11px;padding:12px 14px}
+.imp-kpi .l{font-size:12px;color:var(--muted)}
+.imp-kpi .v{font-size:22px;font-weight:700;margin-top:2px;font-variant-numeric:tabular-nums}
+.imp-tbl{width:100%;font-size:13px}
+.imp-r{display:grid;grid-template-columns:106px minmax(0,1fr) 132px 78px;gap:12px;
+  padding:10px 0;border-bottom:1px solid var(--line);align-items:center}
+.imp-r.head{font-size:11.5px;color:var(--muted-2,#8a94a6);padding:6px 0;font-weight:600;
+  text-transform:none;letter-spacing:0}
+.imp-r .nr{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--muted)}
+.imp-r .ad{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.imp-r .rt{font-size:12px;color:var(--muted)}
+.imp-r .ha{text-align:right;font-variant-numeric:tabular-nums}
+.imp-r.skip{opacity:.6}
+.imp-err{background:var(--red-soft);color:var(--red);font-size:13px;padding:11px 13px;
+  border-radius:10px;margin-bottom:14px}
+@media (max-width:960px){
+  .imp-wrap{padding:0}
+  .imp{max-width:none;max-height:100dvh;min-height:100dvh;border-radius:0}
+  .imp-kpis{grid-template-columns:repeat(2,1fr)}
+  .imp-r{grid-template-columns:96px minmax(0,1fr) 62px;gap:9px}
+  .imp-r .rt{display:none}
+}
+</style>
+
+<script>
+/* ── Import schadekaart ── */
+(function(){
+  var rijen = [];
+  var bestandsnaam = '';
+
+  function $$(id){ return document.getElementById(id); }
+  function esc(v){ return String(v == null ? '' : v).replace(/[&<>"]/g, function(c){
+    return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]; }); }
+  function eur(n){ return '\u20ac' + (Math.round(Number(n)||0)).toLocaleString('nl-NL'); }
+
+  window.impOpen = function(){
+    $$('impWrap').classList.add('on');
+    impReset();
+  };
+  window.impClose = function(){ $$('impWrap').classList.remove('on'); };
+
+  window.impReset = function(){
+    rijen = []; bestandsnaam = '';
+    $$('impFlag').style.display = 'none';
+    $$('impBtnGo').style.display = 'none';
+    $$('impBtnAnder').style.display = 'none';
+    $$('impSub').textContent = 'Kies je Excel-bestand met het tabblad SO Dossiers.';
+    $$('impHint').textContent = 'Je bestand blijft op je eigen computer tot je vastlegt.';
+    $$('impBody').innerHTML =
+      '<div class="imp-drop" id="impDrop">' +
+        '<div class="t">Kies je schadekaart</div>' +
+        '<div class="s">Excel-bestand (.xlsx) &middot; of sleep het bestand hierheen</div>' +
+      '</div><input type="file" id="impFile" accept=".xlsx,.xls" style="display:none">';
+    var drop = $$('impDrop'), file = $$('impFile');
+    drop.onclick = function(){ file.click(); };
+    file.onchange = function(){ if (file.files[0]) lees(file.files[0]); };
+    drop.ondragover = function(e){ e.preventDefault(); drop.style.borderColor = 'var(--teal)'; };
+    drop.ondragleave = function(){ drop.style.borderColor = ''; };
+    drop.ondrop = function(e){
+      e.preventDefault();
+      if (e.dataTransfer.files[0]) lees(e.dataTransfer.files[0]);
+    };
+  };
+
+  function fout(t){
+    $$('impBody').innerHTML = '<div class="imp-err">' + esc(t) + '</div>';
+    $$('impBtnAnder').style.display = '';
+  }
+
+  function tekst(v){ return v == null ? '' : String(v).trim(); }
+
+  function datum(v){
+    if (v == null || v === '') return null;
+    if (v instanceof Date) return v.toISOString();
+    if (typeof v === 'number' && window.XLSX && XLSX.SSF) {
+      var d = XLSX.SSF.parse_date_code(v);
+      if (d) return new Date(Date.UTC(d.y, d.m - 1, d.d)).toISOString();
+    }
+    var p = new Date(v);
+    return isNaN(p.getTime()) ? null : p.toISOString();
+  }
+
+  function bedrag(v){
+    if (v == null || v === '') return 0;
+    if (typeof v === 'number') return Math.round(v);
+    var t = String(v).replace(/[^0-9,.-]/g, '').replace(/\./g, '').replace(',', '.');
+    return Math.round(Number(t) || 0);
+  }
+
+  function lees(f){
+    bestandsnaam = f.name;
+    $$('impBody').innerHTML = '<div style="padding:34px;text-align:center;color:var(--muted);font-size:13.5px">Bestand lezen\u2026</div>';
+    var fr = new FileReader();
+    fr.onload = function(e){
+      try {
+        var wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array', cellDates: true });
+        var naam = wb.SheetNames.find(function(n){ return /so\s*dossier/i.test(n); }) || wb.SheetNames[0];
+        var aoa = XLSX.utils.sheet_to_json(wb.Sheets[naam], { header: 1, raw: true, defval: null });
+
+        var kop = -1;
+        for (var i = 0; i < Math.min(aoa.length, 12); i++) {
+          var r = (aoa[i] || []).map(function(c){ return String(c == null ? '' : c).toLowerCase(); });
+          if (r.some(function(c){ return c.indexOf('opdrachtnummer') > -1; })) { kop = i; break; }
+        }
+        if (kop < 0) return fout('Geen kolom "Opdrachtnummer" gevonden. Controleer of dit de schadekaart is.');
+
+        var K = {};
+        (aoa[kop] || []).forEach(function(c, idx){ K[String(c == null ? '' : c).toLowerCase().trim()] = idx; });
+        function kol(zoek){
+          var sleutels = Object.keys(K);
+          for (var i = 0; i < sleutels.length; i++) if (sleutels[i].indexOf(zoek) > -1) return K[sleutels[i]];
+          return -1;
+        }
+        function cel(r, idx){ return idx < 0 ? null : r[idx]; }
+
+        var iAdres = kol('adres'), iPlaats = kol('plaatsnaam'), iOpdr = kol('opdrachtgever'),
+            iNr = kol('opdrachtnummer'), iOpname = kol('opname'), iRap = kol('rapport'),
+            iOff = kol('offerte gereed'), iIng = kol('ingediend'), iDat = kol('indieningsdatum'),
+            iVerz = kol('verzekeraar') , iTus = kol('tussenpersoon'), iMail = kol('emailadres'),
+            iSnr = kol('schadenummer'), iUitk = kol('uitkeringsbericht'), iHer = kol('schade hersteld'),
+            iUitv = kol('datum uitvoering'), iFac = kol('factu'), iSom = kol('offertesom');
+
+        rijen = [];
+        for (var j = kop + 1; j < aoa.length; j++) {
+          var r = aoa[j] || [];
+          var adres = tekst(cel(r, iAdres));
+          var opdrachtgever = tekst(cel(r, iOpdr));
+          if (!adres && !opdrachtgever) continue;
+          rijen.push({
+            adres: adres,
+            plaats: tekst(cel(r, iPlaats)),
+            owner: opdrachtgever || adres,
+            opdrachtgever: opdrachtgever,
+            opdrachtnummer: tekst(cel(r, iNr)),
+            opname: cel(r, iOpname),
+            rapport: cel(r, iRap),
+            offerte: cel(r, iOff),
+            ingediend: cel(r, iIng),
+            ingediendAt: datum(cel(r, iDat)),
+            ins: tekst(cel(r, iVerz)),
+            tussenpersoon: tekst(cel(r, iTus)),
+            verzEmail: tekst(cel(r, iMail)),
+            verzSchadenummer: tekst(cel(r, iSnr)),
+            uitkering: cel(r, iUitk),
+            hersteld: cel(r, iHer),
+            uitvoeringAt: datum(cel(r, iUitv)),
+            gefactureerd: cel(r, iFac),
+            amount: bedrag(cel(r, iSom))
+          });
+        }
+        if (!rijen.length) return fout('Geen dossiers gevonden onder de kopregel.');
+        $$('impSub').textContent = bestandsnaam + ' \u00b7 tabblad ' + naam;
+        droogloop();
+      } catch (err) {
+        fout('Kon het bestand niet lezen: ' + (err.message || err));
+      }
+    };
+    fr.readAsArrayBuffer(f);
+  }
+
+  function post(droog){
+    return fetch('/api/schades/import', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rijen: rijen, droogloop: droog })
+    }).then(function(r){
+      return r.json().catch(function(){ return {}; }).then(function(j){
+        if (!r.ok) throw new Error(j.error || 'Import mislukt');
+        return j;
+      });
+    });
+  }
+
+  function droogloop(){
+    $$('impBody').innerHTML = '<div style="padding:34px;text-align:center;color:var(--muted);font-size:13.5px">Controleren\u2026</div>';
+    post(true).then(toon).catch(function(e){ fout(e.message); });
+  }
+
+  function toon(res){
+    var som = rijen.reduce(function(a, r){ return a + (Number(r.amount) || 0); }, 0);
+    var LABEL = { volledig:'Volledig', expertise:'Alleen expertise', er_rapport:'Eigen risico \u00b7 rapport',
+                  er_offerte:'Eigen risico \u00b7 offerte', er_mandaat:'Eigen risico \u00b7 mandaat' };
+    var TOT = { volledig:9, expertise:4, er_rapport:7, er_offerte:6, er_mandaat:5 };
+
+    var h = '<div class="imp-kpis">' +
+      '<div class="imp-kpi"><div class="l">Nieuw</div><div class="v">' + res.nieuw + '</div></div>' +
+      '<div class="imp-kpi"><div class="l">Bijgewerkt</div><div class="v">' + res.bijgewerkt + '</div></div>' +
+      '<div class="imp-kpi"><div class="l">Overgeslagen</div><div class="v">' + res.overgeslagen + '</div></div>' +
+      '<div class="imp-kpi"><div class="l">Schadesom</div><div class="v">' + eur(som) + '</div></div>' +
+      '</div>';
+
+    h += '<div class="imp-tbl"><div class="imp-r head"><span>Nummer</span><span>Adres</span>' +
+         '<span>Route</span><span class="ha">Halte</span></div>';
+
+    (res.regels || []).forEach(function(r){
+      if (r.status === 'overgeslagen') {
+        h += '<div class="imp-r skip"><span class="nr">\u2014</span>' +
+             '<span class="ad">' + esc(r.adres || 'Lege regel') + ' \u00b7 ' + esc(r.reden || '') + '</span>' +
+             '<span class="rt">Overgeslagen</span><span class="ha"></span></div>';
+        return;
+      }
+      var tot = TOT[r.preset] || 9;
+      h += '<div class="imp-r"><span class="nr">' + esc(r.nummer) + '</span>' +
+           '<span class="ad">' + esc(r.adres) + '</span>' +
+           '<span class="rt">' + esc(LABEL[r.preset] || r.preset) + '</span>' +
+           '<span class="ha">' + r.halte + ' <span style="color:var(--muted-2,#8a94a6)">/ ' + tot + '</span></span></div>';
+    });
+    h += '</div>';
+
+    $$('impBody').innerHTML = h;
+    $$('impFlag').style.display = '';
+    $$('impBtnAnder').style.display = '';
+    $$('impBtnGo').style.display = '';
+    $$('impBtnGo').textContent = (res.nieuw + res.bijgewerkt) + ' dossiers vastleggen';
+    $$('impHint').textContent = 'Controleer de routes en haltes voordat je vastlegt.';
+  }
+
+  window.impVastleggen = function(){
+    var b = $$('impBtnGo');
+    b.disabled = true; b.textContent = 'Bezig\u2026';
+    post(false).then(function(res){
+      $$('impFlag').style.display = 'none';
+      $$('impBody').innerHTML =
+        '<div style="padding:40px 20px;text-align:center">' +
+          '<div style="font-size:17px;font-weight:600;margin-bottom:6px">Vastgelegd</div>' +
+          '<div style="font-size:13.5px;color:var(--muted)">' + res.nieuw + ' nieuw, ' +
+          res.bijgewerkt + ' bijgewerkt, ' + res.overgeslagen + ' overgeslagen.</div>' +
+        '</div>';
+      $$('impBtnGo').style.display = 'none';
+      $$('impHint').textContent = 'Je dossiers staan nu in de database.';
+      if (typeof toast === 'function') toast('Import klaar', res.nieuw + ' dossiers toegevoegd', 'ok');
+    }).catch(function(e){
+      fout(e.message);
+    }).then(function(){
+      b.disabled = false;
+    });
+  };
+
+  /* knop in de kop van Schades */
+  function knop(){
+    var kop = document.querySelector('#view-schades .page-head');
+    if (!kop || document.getElementById('impBtn')) return;
+    kop.style.position = 'relative';
+    var b = document.createElement('button');
+    b.id = 'impBtn';
+    b.className = 'btn';
+    b.style.cssText = 'margin-top:12px;display:inline-flex;align-items:center;gap:7px';
+    b.innerHTML = '<svg viewBox="0 0 24 24" fill="none" width="16" height="16"><path d="M12 3v12M8 11l4 4 4-4M4 20h16" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>Schadekaart importeren';
+    b.onclick = window.impOpen;
+    kop.appendChild(b);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', knop);
+  else knop();
+  setTimeout(knop, 500);
 })();
 </script>
