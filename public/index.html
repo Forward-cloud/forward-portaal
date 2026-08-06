@@ -2701,6 +2701,18 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
     h += '</div>';
 
     $$('impBody').innerHTML = h;
+    var VERWACHT = 'haltes-4-bron';
+    if (res.versie !== VERWACHT) {
+      $$('impBody').innerHTML =
+        '<div class="imp-err"><b>Server en portaal horen niet bij elkaar.</b><br>' +
+        'Het portaal verwacht <code>' + VERWACHT + '</code>, de server draait <code>' +
+        (res.versie || 'onbekend') + '</code>.<br>' +
+        'Upload de nieuwste <code>src/lib/haltes.js</code> naar GitHub en deploy opnieuw. ' +
+        'Importeren is nu geblokkeerd, want de haltes zouden verkeerd worden berekend.</div>';
+      $$('impBtnAnder').style.display = '';
+      $$('impBtnGo').style.display = 'none';
+      return;
+    }
     $$('impFlag').style.display = '';
     $$('impBtnAnder').style.display = '';
     $$('impBtnGo').style.display = '';
