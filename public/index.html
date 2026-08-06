@@ -542,7 +542,7 @@
     <div class="content">
       <!-- DASHBOARD -->
       <section class="view active" id="view-dashboard">
-        <div class="page-head"><div class="eyebrow" id="todayLabel">Overzicht</div><h1>Goedemiddag, Rick</h1><p id="dashIntro"></p></div>
+        <div class="page-head"><div class="eyebrow" id="todayLabel">Overzicht</div><h1 id="dashGroet">Welkom</h1><p id="dashIntro"></p></div>
         <div class="kpis" id="kpis"></div>
         <div class="card" id="finCard" style="margin-bottom:18px;display:none"><div class="card-head"><h3><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M4 19V5m0 14h16M8 15l3-3 2 2 5-5" stroke="var(--teal)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Omzet &amp; marge <span class="tag grey" style="font-size:9px">alleen intern</span></h3><button class="modal-close" onclick="toggleFinChart()"><svg viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button></div><div style="padding:14px 18px" id="finDash"></div></div>
         <div class="grid-2">
@@ -3732,5 +3732,21 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
     if (app && app.style.display !== 'none') knoppen();
     if (++pogingen > 400) clearInterval(tik);
   }, 400);
+})();
+</script>
+
+<script>
+/* ══ Begroeting op naam van wie is ingelogd ══ */
+(function(){
+  function groet(){
+    var el = document.getElementById('dashGroet');
+    if (!el || !window.__fwIk) return;
+    var u = new Date().getHours();
+    var moment = u < 6 ? 'Goedenacht' : u < 12 ? 'Goedemorgen' : u < 18 ? 'Goedemiddag' : 'Goedenavond';
+    var voornaam = String(window.__fwIk.naam || '').trim().split(' ')[0] || '';
+    el.textContent = moment + (voornaam ? ', ' + voornaam : '');
+  }
+  window.fwGroet = groet;
+  setInterval(groet, 1500);
 })();
 </script>
