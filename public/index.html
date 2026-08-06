@@ -525,8 +525,8 @@
     <button class="nav-item" data-view="team"><svg viewBox="0 0 24 24" fill="none"><circle cx="9" cy="8" r="3" stroke="currentColor" stroke-width="1.8"/><path d="M3 20c0-3 2.7-5 6-5s6 2 6 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M16 11a3 3 0 000-6M21 20c0-2.4-1.6-4.2-4-4.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>Team &amp; rechten</button>
     <div class="side-foot">
       <div class="live"><span class="pulse"></span><span id="liveClock">Live · bijgewerkt zojuist</span></div>
-      <div class="user" id="userFoot" onclick="openUserSwitch()" style="cursor:pointer" title="Wisselen van medewerker"><div class="avatar">RJ</div><div><div class="user-name">Rick Jansen</div><div class="user-role">Directie</div></div></div>
-      <button class="switch-btn" onclick="openUserSwitch()"><svg viewBox="0 0 24 24" fill="none"><path d="M8 7h11m0 0l-3-3m3 3l-3 3M16 17H5m0 0l3-3m-3 3l3 3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Wisselen van medewerker</button>
+      <div class="user" id="userFoot"><div class="avatar">RJ</div><div><div class="user-name">Rick Jansen</div><div class="user-role">Directie</div></div></div>
+      <button class="switch-btn" style="display:none" onclick="return false"><svg viewBox="0 0 24 24" fill="none"><path d="M8 7h11m0 0l-3-3m3 3l-3 3M16 17H5m0 0l3-3m-3 3l3 3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Wisselen van medewerker</button>
     </div>
   </aside>
 
@@ -534,7 +534,7 @@
     <div class="topbar">
       <div class="search"><svg viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.8"/><path d="M20 20l-3.5-3.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><input placeholder="Zoek op schadenummer, naam of adres…"></div>
       <div class="live-chip"><span class="pulse"></span>Realtime</div>
-      <button class="top-user" id="topUser" onclick="openUserSwitch()" title="Wisselen van medewerker"></button>
+      <button class="top-user" id="topUser" style="display:none"></button>
       <button class="icon-btn"><svg viewBox="0 0 24 24" fill="none"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="dot"></span></button>
       <button class="top-btn" onclick="openNewSchade()"><svg viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg>Nieuwe schade</button>
     </div>
@@ -976,9 +976,20 @@ let USERS=[
   {id:'u4',naam:'Petra Willems',email:'petra@forwardschadeherstel.nl',rol:'Financiële administratie',perms:{omzet:false,beheer:false},active:true,tempPass:''}
 ];
 let currentUserId='u1';
+// De echt ingelogde medewerker overschrijft de demolijst zodra hij bekend is.
+window.__fwIk = null;
 let LOG=[];
 const PERM_LABELS={omzet:'Omzet & marge (KPI + grafiek)',beheer:'Gebruikersbeheer & instellingen'};
-function currentUser(){return USERS.find(u=>u.id===currentUserId)||USERS[0];}
+const ROL_NL={DIRECTIE:'Directie',FINANCIEEL:'Financiële administratie',SCHADEBEHANDELAAR:'Schadebehandelaar',PLANNER:'Planner'};
+function currentUser(){
+  if(window.__fwIk){
+    return {id:window.__fwIk.id,naam:window.__fwIk.naam,email:window.__fwIk.email,
+      rol:ROL_NL[window.__fwIk.role]||window.__fwIk.role,
+      perms:{omzet:window.__fwIk.role==='DIRECTIE',beheer:window.__fwIk.role==='DIRECTIE'},
+      active:true,tempPass:''};
+  }
+  return USERS.find(u=>u.id===currentUserId)||USERS[0];
+}
 function isDirectie(){return currentUser().rol==='Directie';}
 function canInvoice(){return isDirectie()||currentUser().rol==='Financiële administratie';}
 function can(key){return isDirectie();}
@@ -1016,7 +1027,8 @@ function saveUser(){if(!UM.naam.trim()){toast('Naam vereist','','info');return;}
   closeUserModal();renderTeam();renderUserFooter();}
 function resetUserPass(id){if(!can('beheer'))return;const u=USERS.find(x=>x.id===id);u.tempPass='FWD-'+(1000+Math.floor(Math.random()*9000));logAction('Wachtwoord gereset voor '+u.naam);toast('Wachtwoord gereset',u.naam+' · tijdelijk: '+u.tempPass,'check');renderTeam();}
 function deleteUser(id){if(!can('beheer'))return;const u=USERS.find(x=>x.id===id);if(!u||id===currentUserId)return;if(!confirm(`Gebruiker "${u.naam}" verwijderen?`))return;USERS=USERS.filter(x=>x.id!==id);logAction('Gebruiker verwijderd: '+u.naam);toast('Verwijderd',u.naam,'info');renderTeam();}
-function openUserSwitch(){document.getElementById('switchModal').innerHTML=`<div class="modal" onclick="event.stopPropagation()" style="max-width:420px"><div class="modal-head"><div><h3>Inloggen als</h3><div class="mh-sub">Demo — wissel van medewerker om rechten te testen</div></div><button class="modal-close" onclick="closeSwitch()">${XSVG}</button></div><div style="padding:16px 20px">${USERS.filter(u=>u.active).map(u=>`<button class="opt-pick" style="margin-bottom:8px" onclick="switchUser('${u.id}')"><div><div style="font-weight:600;font-size:13.5px;color:var(--navy)">${escT(u.naam)}</div><div style="font-size:11.5px;color:var(--muted)">${escT(u.rol)} · ${u.rol==='Directie'?'masterkey · ziet omzet & winst':u.rol==='Financiële administratie'?'mag factureren':'operationeel'}</div></div>${u.id===currentUserId?'<span class="tag teal">actief</span>':'<span class="tag grey">kies</span>'}</button>`).join('')}</div></div>`;document.getElementById('switchModal').classList.add('open');}
+function openUserSwitch(){ return; }
+function _oudUserSwitch(){document.getElementById('switchModal').innerHTML=`<div class="modal" onclick="event.stopPropagation()" style="max-width:420px"><div class="modal-head"><div><h3>Inloggen als</h3><div class="mh-sub">Demo — wissel van medewerker om rechten te testen</div></div><button class="modal-close" onclick="closeSwitch()">${XSVG}</button></div><div style="padding:16px 20px">${USERS.filter(u=>u.active).map(u=>`<button class="opt-pick" style="margin-bottom:8px" onclick="switchUser('${u.id}')"><div><div style="font-weight:600;font-size:13.5px;color:var(--navy)">${escT(u.naam)}</div><div style="font-size:11.5px;color:var(--muted)">${escT(u.rol)} · ${u.rol==='Directie'?'masterkey · ziet omzet & winst':u.rol==='Financiële administratie'?'mag factureren':'operationeel'}</div></div>${u.id===currentUserId?'<span class="tag teal">actief</span>':'<span class="tag grey">kies</span>'}</button>`).join('')}</div></div>`;document.getElementById('switchModal').classList.add('open');}
 function closeSwitch(){document.getElementById('switchModal').classList.remove('open');}
 function switchUser(id){currentUserId=id;closeSwitch();const c=$('#finCard');if(c&&!can('omzet'))c.style.display='none';renderUserFooter();renderDash();applyRoleUI();if($('#view-team').classList.contains('active'))renderTeam();toast('Ingelogd als',currentUser().naam,'check');}
 // accounts + beschikbaarheid (geblokkeerde dagen, in-memory demo)
@@ -2115,7 +2127,10 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
     .then(function(res){
       if (!res.ok) throw new Error(res.j.error || 'Inloggen mislukt');
       AUTH.user = res.j.user;
+      window.__fwIk = res.j.user;
       showApp();
+      try { if (typeof renderUserFooter === 'function') renderUserFooter(); } catch(e){}
+      try { if (typeof applyRoleUI === 'function') applyRoleUI(); } catch(e){}
     })
     .catch(function(e){
       err.textContent = e.message || 'Inloggen mislukt';
@@ -2135,7 +2150,13 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
 
   fetch('/api/auth/me', { credentials:'include' })
     .then(function(r){ if(!r.ok) throw new Error('geen sessie'); return r.json(); })
-    .then(function(j){ AUTH.user = j.user; showApp(); })
+    .then(function(j){
+      AUTH.user = j.user;
+      window.__fwIk = j.user;
+      showApp();
+      try { if (typeof renderUserFooter === 'function') renderUserFooter(); } catch(e){}
+      try { if (typeof applyRoleUI === 'function') applyRoleUI(); } catch(e){}
+    })
     .catch(function(){ showLogin(); });
 })();
 </script>
