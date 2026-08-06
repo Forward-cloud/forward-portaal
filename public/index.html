@@ -3784,7 +3784,7 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
   function acties(){
     var urgent = [], afwachting = [], wacht = [];
 
-    (window.SCHADES || []).forEach(function(s){
+    (typeof SCHADES !== 'undefined' ? SCHADES : []).forEach(function(s){
       if (s.archived) return;
       var stap = s.step || 1;
 
@@ -3864,7 +3864,7 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
 
   window.fwActies = function(){
     var doel = document.getElementById('actionList');
-    if (!doel || !window.SCHADES) return;
+    if (!doel || typeof SCHADES === 'undefined') return;
     var a = acties();
     var h = '';
     if (a.urgent.length)     h += kop('Urgent \u00b7 nu oppakken', a.urgent.length) + a.urgent.map(rij).join('');
@@ -3878,7 +3878,7 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
     // Gereed voor herstel: uitkeringsbericht binnen, nog niet ingepland
     var ready = document.getElementById('readyList');
     if (ready) {
-      var g = (window.SCHADES || []).filter(function(s){
+      var g = (typeof SCHADES !== 'undefined' ? SCHADES : []).filter(function(s){
         return !s.archived && !s.inWacht && s.verzStatus === 'akkoord' && (s.step || 1) < 7;
       });
       ready.innerHTML = g.map(function(s){
