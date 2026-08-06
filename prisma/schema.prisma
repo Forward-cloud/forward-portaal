@@ -1,3 +1,5 @@
+// Forward Schadeherstel — databaseschema
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -27,20 +29,20 @@ model User {
 }
 
 model Schade {
-  id      String @id @default(cuid())
-  nummer  String @unique
+  id      String  @id @default(cuid())
+  nummer  String  @unique
   owner   String
   email   String?
   adres   String?
   plaats  String?
   ins     String?
-  amount  Int    @default(0)
-  profit  Int    @default(0)
-  status  String @default("open")
-  step    Int    @default(1)
-  traject String @default("volledig")
+  amount  Int     @default(0)
+  profit  Int     @default(0)
+  status  String  @default("open")
+  step    Int     @default(1)
+  traject String  @default("volledig")
 
-  // Welke haltes gelden voor dit dossier, bijv. [1,3,6,8,9]
+  // Welke haltes gelden voor dit dossier, bijv. [1,2,3,6,7,8,9]
   haltes Json   @default("[1,2,3,4,5,6,7,8,9]")
   preset String @default("volledig")
 
@@ -48,15 +50,15 @@ model Schade {
   opdrachtnummer String?
   opdrachtgever  String?
 
-  // Verzekeraar
-  verzStatus       String    @default("geen") // geen | ingediend | akkoord | afgewezen | doorverwezen
+  // Verzekeraar — geen | ingediend | akkoord | afgewezen | doorverwezen
+  verzStatus       String    @default("geen")
   verzSchadenummer String?
   verzEmail        String?
   tussenpersoon    String?
   verzIngediendAt  DateTime?
   afwijzingReden   String?
 
-  // Wachtstand (alleen intern)
+  // Wachtstand (alleen intern zichtbaar)
   wachtReden String?
   wachtTot   DateTime?
 
@@ -65,10 +67,10 @@ model Schade {
   archivedAt DateTime?
 
   // Uitvoering
-  uitvoeringAt  DateTime?
-  gefactureerd  Boolean   @default(false)
+  uitvoeringAt DateTime?
+  gefactureerd Boolean   @default(false)
 
-  // Financieel — alleen zichtbaar/aanpasbaar voor directie (server dwingt dit af)
+  // Financieel — alleen voor directie (server dwingt dit af)
   finExpertiseOmzet    Int @default(0)
   finHerstelOmzet      Int @default(0)
   finHerstelInkoop     Int @default(0)
@@ -79,6 +81,9 @@ model Schade {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([archived, status])
+  @@index([nummer])
 }
 
 model LogEntry {
