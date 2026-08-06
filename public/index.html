@@ -3036,6 +3036,34 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
     }).then(na).catch(mis);
   };
 
+  window.fwZetHalteNaar = function(nr){
+    var s = huidig(); if (!s) return;
+    window.fwApi('/api/schades/' + encodeURIComponent(s.nr), {
+      method:'PATCH', body: JSON.stringify({ step: Number(nr) })
+    }).then(function(){
+      melden('Voortgang bijgewerkt', HALTES[Number(nr) - 1]);
+      return na();
+    }).catch(function(e){
+      // De server blokkeert doorgaan bij een onvoldoende herstelde bron.
+      if (/bron/i.test(e.message)) {
+        var reden = window.prompt(e.message + '\n\nWaarom ga je toch door?', '');
+        if (!reden || !reden.trim()) return;
+        return window.fwApi('/api/schades/' + encodeURIComponent(s.nr), {
+          method:'PATCH', body: JSON.stringify({ step: Number(nr), bronDoorReden: reden.trim() })
+        }).then(function(){ melden('Voortgang bijgewerkt', 'Reden vastgelegd bij het dossier.'); return na(); })
+          .catch(mis);
+      }
+      mis(e);
+    });
+  };
+
+  window.fwVolgendeHalte = function(){
+    var s = huidig(); if (!s) return;
+    var actief = (s.haltes || []).filter(function(h){ return h > (s.step || 1); });
+    if (!actief.length) { melden('Klaar', 'Dit dossier staat al op de laatste halte.', 'info'); return; }
+    window.fwZetHalteNaar(actief[0]);
+  };
+
   window.fwZetBron = function(sel){
     var s = huidig(); if (!s) return;
     var status = sel.value, opm = null;
@@ -3098,6 +3126,17 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
       .then(function(){ melden('Weer opgepakt', 'Het dossier staat terug in de werkvoorraad.'); return na(); }).catch(mis);
   };
 
+  window.fwAfgehandeld = function(){
+    var s = huidig(); if (!s) return;
+    if (!window.confirm('Dit dossier markeren als volledig afgehandeld?\n\n' +
+        'De laatste halte wordt afgevinkt, het dossier telt als gefactureerd en verdwijnt uit je acties. ' +
+        'Je kunt het altijd terugdraaien.')) return;
+    var laatste = (s.haltes && s.haltes.length) ? s.haltes[s.haltes.length - 1] : 10;
+    window.fwApi('/api/schades/' + encodeURIComponent(s.nr), {
+      method:'PATCH', body: JSON.stringify({ step: laatste, gefactureerd: true, status: 'done' })
+    }).then(function(){ melden('Afgehandeld', s.nr + ' staat nu op afgerond.'); return na(); }).catch(mis);
+  };
+
   window.fwArchiveer = function(aan){
     var s = huidig(); if (!s) return;
     window.fwApi('/api/schades/' + encodeURIComponent(s.nr) + '/archief', { method: aan ? 'POST' : 'DELETE' })
@@ -3125,6 +3164,20 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
         return '<option value="' + p[0] + '"' + (p[0] === s.preset ? ' selected' : '') + '>' + p[1] + '</option>';
       }).join('') + '</select>' +
       '<span style="font-size:12px;color:var(--muted)">halte ' + (s.positie || 1) + ' van ' + (s.totaal || 10) + '</span></div>';
+
+    var volgende = (s.haltes || []).filter(function(x){ return x > (s.step || 1); })[0];
+    h += '<div class="fwp-rij"><span class="fwp-lab">Nu op halte</span>' +
+      '<select onchange="fwZetHalteNaar(this.value)">' +
+        (s.haltes || []).map(function(n){
+          return '<option value="' + n + '"' + (n === s.step ? ' selected' : '') + '>' +
+            n + '. ' + HALTES[n - 1] + '</option>';
+        }).join('') +
+      '</select>' +
+      (volgende
+        ? '<button class="btn primary" onclick="fwVolgendeHalte()">' +
+          HALTES[volgende - 1] + ' afvinken</button>'
+        : '<span style="font-size:12px;color:var(--muted)">laatste halte bereikt</span>') +
+      '</div>';
 
     h += '<div class="fwp-rij"><span class="fwp-lab">Bronherstel</span><select onchange="fwZetBron(this)">' +
       Object.keys(BRON).map(function(k){
@@ -3169,6 +3222,9 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
       (s.archived
         ? '<button class="btn" onclick="fwArchiveer(false)">Uit archief halen</button>'
         : '<button class="btn" onclick="fwArchiveer(true)">Archiveren</button>') +
+      (!s.afgerond && !s.archived
+        ? '<button class="btn" onclick="fwAfgehandeld()" title="Dossier is buiten het portaal al afgerond">Afgehandeld</button>'
+        : '') +
       '</div>';
 
     doel.innerHTML = h;
@@ -3786,12 +3842,13 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
 
     (typeof SCHADES !== 'undefined' ? SCHADES : []).forEach(function(s){
       if (s.archived) return;
+      if (s.gefactureerd || s.afgerond) return;  // afgehandeld: geen actie meer
       var stap = s.step || 1;
 
       if (s.inWacht) {
         var verlopen = s.wachtTot && new Date(s.wachtTot) <= new Date();
         (verlopen ? urgent : wacht).push({
-          s: s, kleur: verlopen ? 'red' : 'amber',
+          s: s, kleur: verlopen ? 'verlopen' : 'wacht',
           titel: verlopen ? 'Wachttijd verstreken' : 'Wacht op derden',
           tekst: s.wachtReden + (s.wachtTot ? ' \u00b7 tot ' + dagString(s.wachtTot) : '')
         });
@@ -3799,19 +3856,19 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
       }
 
       if (s.bronStatus === 'onvoldoende') {
-        urgent.push({ s: s, kleur:'red', titel:'Bron onvoldoende hersteld',
+        urgent.push({ s: s, kleur:'bron', titel:'Bron onvoldoende hersteld',
           tekst: s.bronOpmerking || 'Eerst de bron goed maken voor het herstel begint' });
         return;
       }
 
       if (s.verzStatus === 'akkoord' && stap < 7) {
-        urgent.push({ s: s, kleur:'teal', titel:'Herstel inplannen',
+        urgent.push({ s: s, kleur:'plannen', titel:'Herstel inplannen',
           tekst: 'Uitkeringsbericht binnen \u2014 datum afstemmen met de klant' });
         return;
       }
 
       if (stap >= 9 && !s.gefactureerd) {
-        urgent.push({ s: s, kleur:'teal', titel:'Factureren',
+        urgent.push({ s: s, kleur:'factuur', titel:'Factureren',
           tekst: 'Opgeleverd, nota nog niet verstuurd' });
         return;
       }
@@ -3819,17 +3876,17 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
       if (s.verzStatus === 'ingediend') {
         var dagen = werkdagenGeleden(s.verzIngediendAt);
         if (dagen >= 7) {
-          urgent.push({ s: s, kleur:'amber', titel:'Herinnering verzekeraar',
+          urgent.push({ s: s, kleur:'herinnering', titel:'Herinnering verzekeraar',
             tekst: dagen + ' werkdagen geen reactie van ' + (s.ins || 'de verzekeraar') });
         } else {
-          afwachting.push({ s: s, kleur:'grey', titel:'Bij de verzekeraar',
+          afwachting.push({ s: s, kleur:'stil', titel:'Bij de verzekeraar',
             tekst: (s.ins || 'Verzekeraar') + ' \u00b7 ingediend ' + (dagen ? dagen + ' werkdagen geleden' : 'vandaag') });
         }
         return;
       }
 
       if (stap <= 2) {
-        urgent.push({ s: s, kleur:'red', titel:'Opname inplannen',
+        urgent.push({ s: s, kleur:'opname', titel:'Opname inplannen',
           tekst: 'Dossier staat op \u201c' + HALTE[stap-1] + '\u201d' });
       }
     });
@@ -3837,20 +3894,31 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
     return { urgent: urgent, afwachting: afwachting, wacht: wacht };
   }
 
+  // Elk soort werk een eigen kleur en pictogram — herkenbaar zonder te lezen.
+  var IC_KAL  = '<rect x="3" y="5" width="18" height="16" rx="2.5" stroke="currentColor" stroke-width="1.8"/><path d="M3 10h18M8 3v4M16 3v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>';
+  var IC_EURO = '<path d="M16 8.5A5 5 0 108 15M4 11h7M4 14h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>';
+  var IC_MAIL = '<rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M4 7l8 6 8-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>';
+  var IC_DRUP = '<path d="M12 3s6 6.5 6 10a6 6 0 11-12 0c0-3.5 6-10 6-10z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>';
+  var IC_KLOK = '<circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.8"/><path d="M12 7.5V12l3 2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>';
+  var IC_LOEP = '<circle cx="11" cy="11" r="6.5" stroke="currentColor" stroke-width="1.8"/><path d="M16 16l4.5 4.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>';
+  var IC_PAUZE= '<circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.8"/><path d="M10 9.5v5M14 9.5v5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>';
+
   var KLEUR = {
-    red:   ['var(--red)',   'var(--red-soft)'],
-    amber: ['#E0A030',      '#FDF3E0'],
-    teal:  ['var(--teal)',  'var(--teal-soft)'],
-    grey:  ['var(--muted-2)','var(--canvas)']
+    plannen:     ['#1D9E75', '#E1F5EE', IC_KAL],   // groen — werk voor de planner
+    factuur:     ['#7F77DD', '#EEEDFE', IC_EURO],  // paars — werk voor de administratie
+    herinnering: ['#BA7517', '#FAEEDA', IC_MAIL],  // amber — nabellen/mailen
+    bron:        ['#D85A30', '#FAECE7', IC_DRUP],  // koraal — bron niet dicht
+    opname:      ['#378ADD', '#E6F1FB', IC_LOEP],  // blauw — inspectie regelen
+    verlopen:    ['var(--red)', 'var(--red-soft)', IC_KLOK],
+    wacht:       ['#888780', '#F1EFE8', IC_PAUZE],
+    stil:        ['var(--muted-2)', 'var(--canvas)', IC_KLOK]
   };
 
   function rij(a){
     var k = KLEUR[a.kleur] || KLEUR.grey;
     return '<button class="arow" style="--ac:' + k[0] + '" onclick="openDetail(\'' + a.s.nr + '\')">' +
       '<div class="a-ico" style="background:' + k[1] + ';color:' + k[0] + '">' +
-        '<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.8"/>' +
-        '<path d="M12 8v5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>' +
-        '<circle cx="12" cy="16" r=".9" fill="currentColor"/></svg></div>' +
+        '<svg viewBox="0 0 24 24" fill="none">' + (k[2] || '') + '</svg></div>' +
       '<div class="a-main"><div class="a-title">' + esc(a.titel) + '</div>' +
         '<div class="a-sub">' + esc(a.s.owner) + ' \u00b7 ' + esc(a.s.nr) + ' \u00b7 ' + esc(a.tekst) + '</div></div>' +
       '<div class="chev"><svg viewBox="0 0 24 24" fill="none"><path d="M9 6l6 6-6 6" stroke="currentColor" ' +
@@ -3892,5 +3960,51 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
   };
 
   setInterval(function(){ try { window.fwActies(); } catch(e){} }, 2000);
+})();
+</script>
+
+<script>
+/* ══ Meerdere dossiers tegelijk afronden ══ */
+(function(){
+  function open(){
+    return (typeof SCHADES !== 'undefined' ? SCHADES : []).filter(function(s){
+      return !s.archived && !s.gefactureerd && !s.afgerond;
+    });
+  }
+
+  window.fwBulkAfronden = function(){
+    var lijst = open().filter(function(s){ return (s.step || 1) >= 9; });
+    if (!lijst.length) { if (typeof toast === 'function') toast('Niets te doen', 'Alle opgeleverde dossiers zijn al afgerond.', 'info'); return; }
+    if (!window.confirm(lijst.length + ' dossier(s) staan op opgeleverd of verder.\n\n' +
+      'Markeren als volledig afgehandeld? Ze verdwijnen dan uit je acties.')) return;
+
+    var keten = Promise.resolve(), gelukt = 0;
+    lijst.forEach(function(s){
+      keten = keten.then(function(){
+        var laatste = (s.haltes && s.haltes.length) ? s.haltes[s.haltes.length - 1] : 10;
+        return window.fwApi('/api/schades/' + encodeURIComponent(s.nr), {
+          method:'PATCH', body: JSON.stringify({ step: laatste, gefactureerd: true, status: 'done' })
+        }).then(function(){ gelukt++; }).catch(function(){});
+      });
+    });
+    keten.then(function(){
+      if (typeof toast === 'function') toast('Afgerond', gelukt + ' dossier(s) afgehandeld.', 'ok');
+      return window.fwLaadDossiers();
+    });
+  };
+
+  function knop(){
+    var kop = document.querySelector('#view-schades .page-head');
+    if (!kop || document.getElementById('fwBulkBtn')) return;
+    var b = document.createElement('button');
+    b.id = 'fwBulkBtn';
+    b.className = 'btn';
+    b.style.cssText = 'margin-top:12px;margin-left:8px';
+    b.textContent = 'Opgeleverde dossiers afronden';
+    b.title = 'Voor dossiers die buiten het portaal al zijn afgehandeld';
+    b.onclick = window.fwBulkAfronden;
+    kop.appendChild(b);
+  }
+  setInterval(knop, 800);
 })();
 </script>
