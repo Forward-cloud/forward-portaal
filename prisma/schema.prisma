@@ -19,6 +19,7 @@ enum Role {
 enum RelatieSoort {
   VERZEKERAAR
   TUSSENPERSOON
+  ONDERAANNEMER
 }
 
 model User {
@@ -46,12 +47,14 @@ model Relatie {
   contactpersoon String?
   notitie        String?
   reactietermijn Int          @default(7)
+  factuurwijze   String       @default("per_klus")
   actief         Boolean      @default(true)
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
-  schadesAlsVerzekeraar   Schade[] @relation("SchadeVerzekeraar")
-  schadesAlsTussenpersoon Schade[] @relation("SchadeTussenpersoon")
+  schadesAlsVerzekeraar   Schade[]   @relation("SchadeVerzekeraar")
+  schadesAlsTussenpersoon Schade[]   @relation("SchadeTussenpersoon")
+  documenten              Document[]
 
   @@unique([naam, soort])
 }
@@ -130,7 +133,11 @@ model Document {
   mime            String
   grootte         Int      @default(0)
   bedrag          Int?
+  bedragTotaal    Int?
+  verzamel        Boolean  @default(false)
   bedragBevestigd Boolean  @default(false)
+  leverancier     Relatie? @relation(fields: [leverancierId], references: [id])
+  leverancierId   String?
   doorNaam        String?
   createdAt       DateTime @default(now())
 
