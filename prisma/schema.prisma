@@ -111,6 +111,8 @@ model Schade {
   ingediendAt DateTime?
   docVisible  Json      @default("{}")
 
+  documenten Document[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -118,11 +120,22 @@ model Schade {
   @@index([verzekeraarId])
 }
 
-model LogEntry {
-  id        String   @id @default(cuid())
-  text      String
-  byUser    User?    @relation(fields: [byUserId], references: [id])
-  byUserId  String?
-  byName    String
-  createdAt DateTime @default(now())
+model Document {
+  id              String   @id @default(cuid())
+  schade          Schade   @relation(fields: [schadeId], references: [id], onDelete: Cascade)
+  schadeId        String
+  soort           String   @default("overig")
+  bestandsnaam    String
+  opslagnaam      String   @unique
+  mime            String
+  grootte         Int      @default(0)
+  bedrag          Int?
+  bedragBevestigd Boolean  @default(false)
+  doorNaam        String?
+  createdAt       DateTime @default(now())
+
+  @@index([schadeId, soort])
 }
+
+model LogEntry {
+  id        String   @id
