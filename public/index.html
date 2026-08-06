@@ -751,7 +751,7 @@ function herstelBesluitCard(s){ if((s.traject||'volledig')!=='herstel'||s.herste
 function setHerstelKeuze(nr,keuze){const s=SCHADES.find(x=>x.nr===nr);s.herstelKeuze=keuze;s.step=5;if(keuze==='offerte'){s.status='prog';toast('Alleen offerte','Traject afgerond na offerte — factureer de offertekosten','check');}else{s.status='prog';toast('Akkoord ontvangen','Opdrachtgever gaat akkoord — plan het herstel','check');}renderDash();renderSchades();openDetail(nr);}
 
 /* ---------- data ---------- */
-const SCHADES=[
+let SCHADES=[
   {nr:"FWD-2406-018",owner:"M. de Vries",email:"m.devries@email.nl",addr:"Hoofdstraat 24, Apeldoorn",type:"Stormschade dak",icon:"storm",ins:"Univé",amount:12450,profit:3480,step:5,invoiced:false,payout:true,received:"24 jun",newState:"aangenomen",status:"prog",
     appt:{type:"Herstel — dakpannen & nokvorst",dur:180,state:"concept",chosen:null,options:[{start:"2026-08-11T07:30:00.000Z",when:"ma 11 augustus · 09:30",eventId:"demo-s1a"},{start:"2026-08-13T11:00:00.000Z",when:"wo 13 augustus · 13:00",eventId:"demo-s1b"}]},
     messages:[{from:"forward",t:"Goedemiddag, uw verzekeraar Univé heeft het herstel goedgekeurd. We stellen graag een hersteldatum voor.",time:"24 jun 14:10"},{from:"owner",t:"Fijn! Volgende week dinsdag zou mij goed uitkomen.",time:"24 jun 16:22"}]},
@@ -2757,5 +2757,342 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', knop);
   else knop();
   setTimeout(knop, 500);
+})();
+</script>
+
+<script>
+/* ══ Dossiers uit de database ══ */
+(function(){
+  var LABEL = {
+    volledig:'Volledig', expertise:'Expertise',
+    er_rapport:'Eigen risico', er_offerte:'Eigen risico', er_mandaat:'Eigen risico'
+  };
+
+  function api(pad, opts){
+    opts = opts || {};
+    opts.credentials = 'include';
+    if (opts.body && !opts.headers) opts.headers = { 'Content-Type':'application/json' };
+    return fetch(pad, opts).then(function(r){
+      return r.json().catch(function(){ return {}; }).then(function(j){
+        if (!r.ok) throw new Error(j.error || 'Er ging iets mis');
+        return j;
+      });
+    });
+  }
+  window.fwApi = api;
+
+  // Zet een dossier uit de database om naar de vorm die de schermen verwachten.
+  function naarScherm(d){
+    var afgerond = d.afgerond || d.status === 'afgewezen';
+    var status = afgerond ? 'done' : (d.step <= 2 ? 'new' : 'prog');
+    var adres = [d.adres, d.plaats].filter(Boolean).join(', ');
+    return {
+      nr: d.nummer,
+      owner: d.owner || '—',
+      email: d.email || '',
+      phone: '',
+      addr: adres,
+      type: d.opdrachtgever || 'Schadedossier',
+      icon: 'water',
+      ins: (d.verzekeraar && d.verzekeraar.naam) || d.ins || '—',
+      amount: d.amount || 0,
+      profit: d.profit || 0,
+      step: d.step || 1,
+      status: status,
+      traject: d.preset && d.preset.indexOf('er_') === 0 ? 'herstel' : (d.traject || 'volledig'),
+      invoiced: !!d.gefactureerd,
+      draft: false,
+      unread: false,
+      payout: d.verzStatus === 'akkoord',
+
+      // uit de database, gebruikt door de nieuwe schermen
+      haltes: d.haltes || [],
+      preset: d.preset,
+      presetLabel: LABEL[d.preset] || d.preset,
+      positie: d.positie,
+      totaal: d.totaal,
+      bronStatus: d.bronStatus,
+      bronOpmerking: d.bronOpmerking,
+      wachtReden: d.wachtReden,
+      wachtTot: d.wachtTot,
+      inWacht: !!d.wachtReden,
+      archived: !!d.archived,
+      verzStatus: d.verzStatus,
+      verzSchadenummer: d.verzSchadenummer,
+      verzIngediendAt: d.verzIngediendAt,
+      opdrachtnummer: d.opdrachtnummer,
+
+      // velden die nog uit losse modules komen
+      appt: null,
+      messages: [],
+      docs: []
+    };
+  }
+  window.fwNaarScherm = naarScherm;
+
+  var archiefStand = 'nee';
+  window.fwArchiefStand = function(){ return archiefStand; };
+
+  window.fwLaadDossiers = function(opties){
+    opties = opties || {};
+    var q = [];
+    q.push('archief=' + encodeURIComponent(opties.archief || archiefStand));
+    if (opties.q) q.push('q=' + encodeURIComponent(opties.q));
+    return api('/api/schades?' + q.join('&')).then(function(res){
+      var lijst = (res.schades || []).map(naarScherm);
+      SCHADES.length = 0;
+      lijst.forEach(function(x){ SCHADES.push(x); });
+      hertekenen();
+      return lijst;
+    });
+  };
+
+  function hertekenen(){
+    ['renderDash','renderSchades','renderFacturen','renderAgenda'].forEach(function(fn){
+      try { if (typeof window[fn] === 'function') window[fn](); } catch(e){}
+    });
+  }
+  window.fwHerteken = hertekenen;
+
+  // Archiefschakelaar boven de filters
+  function schakelaar(){
+    var f = document.getElementById('filters');
+    if (!f || document.getElementById('fwArchief')) return;
+    var wrap = document.createElement('div');
+    wrap.id = 'fwArchief';
+    wrap.style.cssText = 'display:flex;gap:6px;margin-bottom:10px';
+    [['nee','Lopend'],['ja','Archief'],['alles','Alles']].forEach(function(o){
+      var b = document.createElement('button');
+      b.className = 'chip' + (o[0] === archiefStand ? ' active' : '');
+      b.textContent = o[1];
+      b.onclick = function(){
+        archiefStand = o[0];
+        Array.prototype.forEach.call(wrap.children, function(c){ c.classList.remove('active'); });
+        b.classList.add('active');
+        window.fwLaadDossiers();
+      };
+      wrap.appendChild(b);
+    });
+    f.parentNode.insertBefore(wrap, f);
+  }
+
+  // Zoeken doorzoekt de database, inclusief archief
+  function zoeken(){
+    var inp = document.querySelector('.search input');
+    if (!inp || inp.dataset.fw) return;
+    inp.dataset.fw = '1';
+    var t;
+    inp.addEventListener('input', function(){
+      clearTimeout(t);
+      var v = inp.value.trim();
+      t = setTimeout(function(){ window.fwLaadDossiers(v ? { q: v } : {}); }, 280);
+    });
+  }
+
+  function start(){
+    schakelaar();
+    zoeken();
+    window.fwLaadDossiers().catch(function(e){
+      if (typeof toast === 'function') toast('Laden mislukt', e.message, 'err');
+      console.error(e);
+    });
+  }
+
+  // Wacht tot de gebruiker is ingelogd (het portaal is dan zichtbaar).
+  var pogingen = 0;
+  var tik = setInterval(function(){
+    var app = document.getElementById('internApp');
+    if (app && app.style.display !== 'none') { clearInterval(tik); start(); }
+    if (++pogingen > 200) clearInterval(tik);
+  }, 150);
+})();
+</script>
+
+<style>
+/* ── Dossierbediening ── */
+.fwp{background:var(--surface);border:1px solid var(--line);border-radius:14px;margin:0 0 16px;overflow:hidden}
+.fwp-head{padding:12px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;
+  justify-content:space-between;gap:10px;flex-wrap:wrap}
+.fwp-head h4{margin:0;font-size:13.5px;font-weight:600}
+.fwp-body{padding:14px 16px;display:grid;gap:12px}
+.fwp-rij{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.fwp-lab{font-size:12px;color:var(--muted);min-width:118px}
+.fwp select,.fwp input[type=text],.fwp input[type=date]{padding:8px 10px;border:1px solid var(--line);
+  border-radius:9px;font-family:inherit;font-size:13px;background:var(--surface);color:var(--text);min-height:38px}
+.fwp select{min-width:190px}
+.fwp-vlag{padding:11px 14px;border-radius:11px;font-size:12.5px;display:flex;gap:9px;align-items:flex-start}
+.fwp-vlag.rood{background:var(--red-soft);color:var(--red)}
+.fwp-vlag.amber{background:#FDF3E0;color:#8A5A0B}
+.fwp-halte{display:flex;align-items:center;gap:8px;font-size:12.5px;padding:5px 0}
+.fwp-halte input{width:16px;height:16px;accent-color:var(--teal)}
+.fwp-halte.vast{opacity:.5}
+</style>
+
+<script>
+/* ══ Bediening op het dossier ══ */
+(function(){
+  var PRESETS = [
+    ['volledig','Volledig'],
+    ['expertise','Alleen expertise'],
+    ['er_rapport','Eigen risico \u00b7 met rapport'],
+    ['er_offerte','Eigen risico \u00b7 offerte'],
+    ['er_mandaat','Eigen risico \u00b7 mandaat']
+  ];
+  var HALTES = ['Schademelding ontvangen','Schade-opname ingepland','Bron hersteld',
+    'Schaderapport opgesteld','Dossier ingediend bij verzekeraar','Akkoord verzekeraar',
+    'Herstel ingepland','Herstel in uitvoering','Opgeleverd','Uitgefactureerd'];
+  var VAST = [1,2,10];
+  var BRON = { nvt:'Niet van toepassing', open:'Nog niet hersteld', hersteld:'Hersteld', onvoldoende:'Onvoldoende hersteld' };
+
+  function esc(v){ return String(v==null?'':v).replace(/[&<>"]/g,function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function dag(d){ return d ? new Date(d).toISOString().slice(0,10) : ''; }
+
+  function huidig(){
+    var nr = window.__fwDossier;
+    return SCHADES.find(function(x){ return x.nr === nr; });
+  }
+
+  function melden(t, m, k){ if (typeof toast === 'function') toast(t, m, k || 'ok'); }
+
+  function na(res){
+    return window.fwLaadDossiers().then(function(){
+      var s = huidig();
+      if (s) teken(s);
+    });
+  }
+  function mis(e){ melden('Niet gelukt', e.message, 'err'); }
+
+  window.fwZetPreset = function(sel){
+    var s = huidig(); if (!s) return;
+    window.fwApi('/api/schades/' + encodeURIComponent(s.nr), {
+      method:'PATCH', body: JSON.stringify({ preset: sel.value })
+    }).then(function(){ melden('Route gewijzigd', 'De haltes zijn bijgewerkt.'); return na(); }).catch(mis);
+  };
+
+  window.fwZetHalte = function(box, nr){
+    var s = huidig(); if (!s) return;
+    var lijst = (s.haltes || []).slice();
+    if (box.checked) { if (lijst.indexOf(nr) === -1) lijst.push(nr); }
+    else lijst = lijst.filter(function(h){ return h !== nr; });
+    window.fwApi('/api/schades/' + encodeURIComponent(s.nr), {
+      method:'PATCH', body: JSON.stringify({ haltes: lijst })
+    }).then(na).catch(mis);
+  };
+
+  window.fwZetBron = function(sel){
+    var s = huidig(); if (!s) return;
+    var status = sel.value, opm = null;
+    if (status === 'onvoldoende') {
+      opm = window.prompt('Wat is er niet goed aan het bronherstel?', s.bronOpmerking || '');
+      if (!opm || !opm.trim()) { sel.value = s.bronStatus || 'nvt'; return; }
+    }
+    window.fwApi('/api/schades/' + encodeURIComponent(s.nr) + '/bron', {
+      method:'POST', body: JSON.stringify({ status: status, opmerking: opm })
+    }).then(function(){ melden('Bronstatus bijgewerkt', BRON[status]); return na(); }).catch(mis);
+  };
+
+  window.fwZetWacht = function(){
+    var s = huidig(); if (!s) return;
+    var reden = window.prompt('Waarom ligt dit dossier stil? Je collega leest dit.', s.wachtReden || '');
+    if (!reden || !reden.trim()) return;
+    var tot = window.prompt('Opnieuw bekijken op (jjjj-mm-dd) \u2014 leeg laten mag', dag(s.wachtTot));
+    window.fwApi('/api/schades/' + encodeURIComponent(s.nr) + '/wacht', {
+      method:'POST', body: JSON.stringify({ reden: reden, tot: tot || null })
+    }).then(function(){ melden('In de wacht', 'Het dossier staat stil met reden.'); return na(); }).catch(mis);
+  };
+
+  window.fwUitWacht = function(){
+    var s = huidig(); if (!s) return;
+    window.fwApi('/api/schades/' + encodeURIComponent(s.nr) + '/wacht', { method:'DELETE' })
+      .then(function(){ melden('Weer opgepakt', 'Het dossier staat terug in de werkvoorraad.'); return na(); }).catch(mis);
+  };
+
+  window.fwArchiveer = function(aan){
+    var s = huidig(); if (!s) return;
+    window.fwApi('/api/schades/' + encodeURIComponent(s.nr) + '/archief', { method: aan ? 'POST' : 'DELETE' })
+      .then(function(){ melden(aan ? 'Gearchiveerd' : 'Uit archief', s.nr); return na(); }).catch(mis);
+  };
+
+  function teken(s){
+    var doel = document.getElementById('fwPaneel');
+    if (!doel) return;
+    var h = '';
+
+    if (s.inWacht) {
+      h += '<div class="fwp-vlag amber"><b>In de wacht.</b> ' + esc(s.wachtReden) +
+           (s.wachtTot ? ' \u00b7 opnieuw bekijken op ' + dag(s.wachtTot) : '') + '</div>';
+    }
+    if (s.bronStatus === 'onvoldoende') {
+      h += '<div class="fwp-vlag rood"><b>Bron onvoldoende hersteld.</b> ' + esc(s.bronOpmerking || '') + '</div>';
+    }
+    if (s.archived) {
+      h += '<div class="fwp-vlag amber"><b>Gearchiveerd.</b> Haal het dossier terug om het te bewerken.</div>';
+    }
+
+    h += '<div class="fwp-rij"><span class="fwp-lab">Route</span><select onchange="fwZetPreset(this)">' +
+      PRESETS.map(function(p){
+        return '<option value="' + p[0] + '"' + (p[0] === s.preset ? ' selected' : '') + '>' + p[1] + '</option>';
+      }).join('') + '</select>' +
+      '<span style="font-size:12px;color:var(--muted)">halte ' + (s.positie || 1) + ' van ' + (s.totaal || 10) + '</span></div>';
+
+    h += '<div class="fwp-rij"><span class="fwp-lab">Bronherstel</span><select onchange="fwZetBron(this)">' +
+      Object.keys(BRON).map(function(k){
+        return '<option value="' + k + '"' + (k === s.bronStatus ? ' selected' : '') + '>' + BRON[k] + '</option>';
+      }).join('') + '</select></div>';
+
+    h += '<div><div class="fwp-lab" style="margin-bottom:6px">Welke haltes gelden</div>';
+    HALTES.forEach(function(naam, i){
+      var nr = i + 1, vast = VAST.indexOf(nr) > -1, aan = (s.haltes || []).indexOf(nr) > -1;
+      h += '<label class="fwp-halte' + (vast ? ' vast' : '') + '">' +
+        '<input type="checkbox"' + (aan ? ' checked' : '') + (vast ? ' disabled' : '') +
+        ' onchange="fwZetHalte(this,' + nr + ')"><span>' + nr + '. ' + naam + '</span></label>';
+    });
+    h += '</div>';
+
+    h += '<div class="fwp-rij" style="border-top:1px solid var(--line);padding-top:12px">' +
+      (s.inWacht
+        ? '<button class="btn" onclick="fwUitWacht()">Weer oppakken</button>'
+        : '<button class="btn" onclick="fwZetWacht()">In de wacht zetten</button>') +
+      (s.archived
+        ? '<button class="btn" onclick="fwArchiveer(false)">Uit archief halen</button>'
+        : '<button class="btn" onclick="fwArchiveer(true)">Archiveren</button>') +
+      '</div>';
+
+    doel.innerHTML = h;
+  }
+  window.fwTekenPaneel = teken;
+
+  // Haak in op het openen van een dossier
+  var origineel = window.openDetail;
+  function haak(){
+    if (typeof window.openDetail !== 'function' || window.openDetail.__fw) return;
+    var vorig = window.openDetail;
+    window.openDetail = function(nr){
+      window.__fwDossier = nr;
+      var uit = vorig.apply(this, arguments);
+      setTimeout(function(){
+        var view = document.getElementById('view-detail');
+        if (!view) return;
+        var paneel = document.getElementById('fwPaneel');
+        if (!paneel) {
+          var kaart = document.createElement('div');
+          kaart.className = 'fwp';
+          kaart.innerHTML = '<div class="fwp-head"><h4>Dossierbeheer</h4>' +
+            '<span style="font-size:11.5px;color:var(--muted)">alleen intern zichtbaar</span></div>' +
+            '<div class="fwp-body" id="fwPaneel"></div>';
+          var terug = view.querySelector('.back-btn');
+          if (terug && terug.nextSibling) view.insertBefore(kaart, terug.nextSibling);
+          else view.insertBefore(kaart, view.firstChild);
+        }
+        var s = SCHADES.find(function(x){ return x.nr === nr; });
+        if (s) teken(s);
+      }, 30);
+      return uit;
+    };
+    window.openDetail.__fw = true;
+  }
+  var t = setInterval(function(){ haak(); if (window.openDetail && window.openDetail.__fw) clearInterval(t); }, 200);
+  setTimeout(function(){ clearInterval(t); }, 20000);
 })();
 </script>
