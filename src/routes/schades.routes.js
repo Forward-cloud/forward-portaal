@@ -2,7 +2,7 @@ const express = require('express');
 const prisma = require('../db');
 const { requireAuth, isDirectie } = require('../auth/middleware');
 const { schadeForUser } = require('../lib/serialize');
-const { PRESETS, BRON_STATUS, haltesVoorPreset, normaliseerHaltes, leidAfUitKaart, bronBlokkeert, positie } = require('../lib/haltes');
+const { VERSIE, PRESETS, BRON_STATUS, haltesVoorPreset, normaliseerHaltes, leidAfUitKaart, bronBlokkeert, positie } = require('../lib/haltes');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -294,7 +294,7 @@ router.post('/import', async (req, res) => {
     return 0;
   });
 
-  const resultaat = { nieuw: 0, bijgewerkt: 0, overgeslagen: 0, regels: [] };
+  const resultaat = { versie: VERSIE, nieuw: 0, bijgewerkt: 0, overgeslagen: 0, regels: [] };
 
   for (const r of gesorteerd) {
     const owner = String(r.owner || '').trim();
