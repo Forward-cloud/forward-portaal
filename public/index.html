@@ -3205,10 +3205,19 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
 (function(){
   var SOORT = {
     schaderapport:'Schaderapport', offerte:'Offerte herstel', factuur_onder:'Onderaannemersfactuur',
-    polis:'Polisblad', foto:"Foto's", uitkeringsbericht:'Uitkeringsbericht', overig:'Overig'
+    factuur_bron:'Bronherstel \u00b7 ter info', polis:'Polisblad', foto:"Foto's",
+    uitkeringsbericht:'Uitkeringsbericht', overig:'Overig'
   };
-  var VOLGORDE = ['schaderapport','offerte','factuur_onder','uitkeringsbericht','polis','foto','overig'];
+  var VOLGORDE = ['schaderapport','offerte','factuur_onder','factuur_bron','uitkeringsbericht','polis','foto','overig'];
   var docs = [];
+  var leveranciers = [];
+
+  function laadLeveranciers(){
+    if (leveranciers.length) return Promise.resolve(leveranciers);
+    return window.fwApi('/api/relaties?soort=ONDERAANNEMER')
+      .then(function(r){ leveranciers = r.relaties || []; return leveranciers; })
+      .catch(function(){ return []; });
+  }
 
   function esc(v){ return String(v==null?'':v).replace(/[&<>"]/g,function(c){
     return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
@@ -3218,6 +3227,7 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
   // Raadt de soort uit de bestandsnaam.
   function raadSoort(naam){
     var n = naam.toLowerCase();
+    if (/bron|lekdetectie|loodgieter|dakdekker.*bron/.test(n)) return 'factuur_bron';
     if (/factuur|nota|invoice/.test(n)) return 'factuur_onder';
     if (/rapport|expertise|opname/.test(n)) return 'schaderapport';
     if (/offerte|calculatie|begroting/.test(n)) return 'offerte';
@@ -3284,7 +3294,8 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
 
   window.fwLaadDocs = function(){
     var nr = dossier(); if (!nr) return Promise.resolve([]);
-    return window.fwApi('/api/schades/' + encodeURIComponent(nr) + '/documenten')
+    return laadLeveranciers()
+      .then(function(){ return window.fwApi('/api/schades/' + encodeURIComponent(nr) + '/documenten'); })
       .then(function(res){ docs = res.documenten || []; teken(); return docs; })
       .catch(function(){ docs = []; teken(); return []; });
   };
@@ -3296,13 +3307,15 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
       return Promise.resolve();
     }
     var soort = raadSoort(file.name);
-    return Promise.all([lees64(file), soort === 'factuur_onder' || soort === 'offerte' ? leesPdf(file) : null])
+    var leesGeld = soort === 'factuur_onder' || soort === 'offerte';
+    return Promise.all([lees64(file), leesGeld ? leesPdf(file) : null])
       .then(function(r){
         return window.fwApi('/api/schades/' + encodeURIComponent(nr) + '/documenten', {
           method:'POST',
           body: JSON.stringify({
             bestandsnaam: file.name, mime: file.type || 'application/pdf',
-            data: r[0], soort: soort, bedrag: r[1]
+            data: r[0], soort: soort,
+            bedrag: r[1], bedragTotaal: r[1]
           })
         });
       });
@@ -3323,6 +3336,26 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
       if (typeof toast === 'function') toast('Uploaden mislukt', e.message, 'err');
       window.fwLaadDocs();
     });
+  };
+
+  window.fwDocLeverancier = function(sel, id){
+    var lev = leveranciers.find(function(l){ return l.id === sel.value; });
+    var verzamel = !!(lev && lev.factuurwijze === 'verzamel');
+    window.fwApi('/api/documenten/' + id, {
+      method:'PATCH', body: JSON.stringify({ leverancierId: sel.value || null, verzamel: verzamel })
+    }).then(function(){
+      if (verzamel && typeof toast === 'function') {
+        toast('Verzamelfactuur', 'Vul zelf het deel in dat bij dit dossier hoort.', 'info');
+      }
+      return window.fwLaadDocs();
+    }).catch(function(e){ if (typeof toast === 'function') toast('Niet gelukt', e.message, 'err'); });
+  };
+
+  window.fwDocVerzamel = function(box, id){
+    window.fwApi('/api/documenten/' + id, {
+      method:'PATCH', body: JSON.stringify({ verzamel: box.checked })
+    }).then(function(){ return window.fwLaadDocs(); })
+      .catch(function(e){ if (typeof toast === 'function') toast('Niet gelukt', e.message, 'err'); });
   };
 
   window.fwDocBedrag = function(inp, id){
@@ -3365,16 +3398,40 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
       var groep = docs.filter(function(d){ return d.soort === k; });
       if (!groep.length) return;
       h += '<div class="fwd-groep"><h5>' + SOORT[k].toUpperCase() + '</h5>';
+      if (k === 'factuur_bron') h += '<div style="font-size:11.5px;color:var(--muted);margin:-2px 0 6px">' +
+        'Telt niet mee in je marge \u2014 ook als de VvE of klant het zelf heeft laten doen.</div>';
       groep.forEach(function(d){
-        var geld = (k === 'factuur_onder' || k === 'offerte');
+        var geld = (k === 'factuur_onder' || k === 'offerte' || k === 'factuur_bron');
+        if (k === 'factuur_onder') {
+          h += '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px 0 2px">' +
+            '<select onchange="fwDocLeverancier(this,\'' + d.id + '\')" style="font-size:12px;padding:5px 8px;' +
+              'border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--text);max-width:220px">' +
+              '<option value="">Leverancier kiezen\u2026</option>' +
+              leveranciers.map(function(l){
+                return '<option value="' + l.id + '"' + (d.leverancierId === l.id ? ' selected' : '') + '>' +
+                  esc(l.naam) + (l.factuurwijze === 'verzamel' ? ' \u00b7 verzamelt' : '') + '</option>';
+              }).join('') +
+            '</select>' +
+            '<label style="font-size:11.5px;color:var(--muted);display:flex;align-items:center;gap:5px">' +
+              '<input type="checkbox"' + (d.verzamel ? ' checked' : '') +
+              ' onchange="fwDocVerzamel(this,\'' + d.id + '\')" style="width:14px;height:14px;accent-color:var(--teal)">' +
+              'verzamelfactuur</label>' +
+            (d.verzamel && d.bedragTotaal
+              ? '<span style="font-size:11.5px;color:var(--muted)">totaal op factuur ' + eur(d.bedragTotaal) + '</span>'
+              : '') +
+          '</div>';
+        }
         h += '<div class="fwd-item">' +
           '<a href="/api/documenten/' + d.id + '/bestand" target="_blank" rel="noopener" title="Openen" ' +
             'style="color:var(--teal);text-decoration:none;font-size:17px">\u2197</a>' +
           '<div><div class="nm">' + esc(d.bestandsnaam) + '</div>' +
             '<div class="mt">' + kb(d.grootte) + (d.doorNaam ? ' \u00b7 ' + esc(d.doorNaam) : '') + '</div></div>' +
           (geld
-            ? '<input type="text" value="' + (d.bedrag != null ? d.bedrag : '') + '" placeholder="bedrag" ' +
-              (d.bedrag != null && !d.bedragBevestigd ? 'class="sug" title="Automatisch gelezen \u2014 controleer even" ' : '') +
+            ? '<input type="text" value="' + (d.verzamel && !d.bedragBevestigd ? '' : (d.bedrag != null ? d.bedrag : '')) + '" ' +
+              'placeholder="' + (d.verzamel ? 'aandeel' : 'bedrag') + '" ' +
+              'title="' + (d.verzamel ? 'Verzamelfactuur \u2014 vul zelf het deel voor dit dossier in'
+                                       : 'Automatisch gelezen \u2014 controleer even') + '" ' +
+              (!d.verzamel && d.bedrag != null && !d.bedragBevestigd ? 'class="sug" ' : '') +
               'onchange="fwDocBedrag(this,\'' + d.id + '\')">'
             : '<span></span>') +
           '<button class="fwd-x" onclick="fwDocWeg(\'' + d.id + '\',\'' + esc(d.bestandsnaam).replace(/'/g,"") + '\')" title="Verwijderen">\u00d7</button>' +
@@ -3393,6 +3450,9 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
           '<button class="btn" onclick="fwNeemUitbesteed()">Overnemen in marge</button></span></div>';
       if (open) h += '<div style="font-size:11.5px;color:#8A5A0B;margin-top:4px">' +
         open + ' bedrag(en) automatisch gelezen \u2014 controleer ze voordat je overneemt.</div>';
+      var leeg = facturen.filter(function(d){ return d.verzamel && d.bedrag == null; }).length;
+      if (leeg) h += '<div style="font-size:11.5px;color:#8A5A0B;margin-top:4px">' +
+        leeg + ' verzamelfactuur zonder aandeel \u2014 vul in welk deel bij dit dossier hoort.</div>';
     }
 
     if (!docs.length) h = '<div style="padding:6px 0;font-size:12.5px;color:var(--muted)">Nog geen documenten.</div>';
