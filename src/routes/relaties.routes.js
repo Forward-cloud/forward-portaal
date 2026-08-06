@@ -5,7 +5,7 @@ const { requireAuth, requireDirectie } = require('../auth/middleware');
 const router = express.Router();
 router.use(requireAuth);
 
-const SOORTEN = ['VERZEKERAAR', 'TUSSENPERSOON'];
+const SOORTEN = ['VERZEKERAAR', 'TUSSENPERSOON', 'ONDERAANNEMER'];
 
 function schoon(b) {
   const d = {};
@@ -15,6 +15,11 @@ function schoon(b) {
     const s = String(b.soort).toUpperCase();
     if (!SOORTEN.includes(s)) return { fout: 'Kies verzekeraar of tussenpersoon' };
     d.soort = s;
+  }
+  if (b.factuurwijze !== undefined) {
+    const w = String(b.factuurwijze);
+    if (!['per_klus', 'verzamel'].includes(w)) return { fout: 'Kies per klus of verzamelfactuur' };
+    d.factuurwijze = w;
   }
   if (b.reactietermijn !== undefined) {
     const n = Number(b.reactietermijn);

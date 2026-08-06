@@ -15,6 +15,7 @@ const SOORTEN = {
   schaderapport: 'Schaderapport',
   offerte: 'Offerte herstel',
   factuur_onder: 'Onderaannemersfactuur',
+  factuur_bron: 'Bronherstel · ter info',
   polis: 'Polisblad',
   foto: "Foto's",
   uitkeringsbericht: 'Uitkeringsbericht',
@@ -57,6 +58,7 @@ router.get('/schades/:nummer/documenten', async (req, res) => {
   const documenten = await prisma.document.findMany({
     where: { schadeId: schade.id },
     orderBy: { createdAt: 'desc' },
+    include: { leverancier: { select: { id: true, naam: true, factuurwijze: true } } },
   });
   res.json({ documenten, soorten: SOORTEN });
 });
@@ -102,6 +104,9 @@ router.post('/schades/:nummer/documenten', async (req, res) => {
       mime,
       grootte: buffer.length,
       bedrag: b.bedrag != null ? Math.round(Number(b.bedrag) || 0) : null,
+      bedragTotaal: b.bedragTotaal != null ? Math.round(Number(b.bedragTotaal) || 0) : null,
+      verzamel: !!b.verzamel,
+      leverancierId: b.leverancierId || null,
       bedragBevestigd: false,
       doorNaam: req.user.naam,
     },
@@ -137,6 +142,11 @@ router.patch('/documenten/:id', async (req, res) => {
     data.bedragBevestigd = true;
   }
   if (b.bedragBevestigd !== undefined) data.bedragBevestigd = !!b.bedragBevestigd;
+  if (b.verzamel !== undefined) data.verzamel = !!b.verzamel;
+  if (b.leverancierId !== undefined) data.leverancierId = b.leverancierId || null;
+  if (b.bedragTotaal !== undefined) {
+    data.bedragTotaal = b.bedragTotaal === null || b.bedragTotaal === '' ? null : Math.round(Number(b.bedragTotaal) || 0);
+  }
 
   const doc = await prisma.document.update({ where: { id: req.params.id }, data });
   res.json({ document: doc });
