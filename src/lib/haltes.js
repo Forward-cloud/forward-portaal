@@ -4,7 +4,7 @@ const HALTES = [
   'Schademelding ontvangen',   // 1
   'Schade-opname ingepland',   // 2
   'Schaderapport opgesteld',   // 3
-  'Offerte naar verzekeraar',  // 4
+  'Dossier ingediend bij verzekeraar', // 4
   'Akkoord verzekeraar',       // 5
   'Herstel ingepland',         // 6
   'Herstel in uitvoering',     // 7
