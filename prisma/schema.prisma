@@ -138,4 +138,10 @@ model Document {
 }
 
 model LogEntry {
-  id        String   @id
+  id        String   @id @default(cuid())
+  text      String
+  byUser    User?    @relation(fields: [byUserId], references: [id])
+  byUserId  String?
+  byName    String
+  createdAt DateTime @default(now())
+}
