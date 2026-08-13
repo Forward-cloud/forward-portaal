@@ -7,8 +7,18 @@ const { VERSIE, PRESETS, BRON_STATUS, haltesVoorPreset, normaliseerHaltes, leidA
 const router = express.Router();
 router.use(requireAuth);
 
-async function log(user, text) {
-  await prisma.logEntry.create({ data: { text, byUserId: user.id, byName: user.naam } });
+async function log(user, text, opties) {
+  const o = opties || {};
+  await prisma.logEntry.create({
+    data: {
+      text,
+      detail: o.detail || null,
+      soort: o.soort || 'actie',
+      schadeId: o.schadeId || null,
+      byUserId: user.id,
+      byName: user.naam,
+    },
+  });
 }
 
 const PREFIX = 'FS';
@@ -71,7 +81,11 @@ router.get('/', async (req, res) => {
     delete where.archived; // zoeken doorzoekt altijd alles, ook archief
   }
 
-  const schades = await prisma.schade.findMany({ where, orderBy: { createdAt: 'desc' } });
+  const schades = await prisma.schade.findMany({
+    where,
+    orderBy: { createdAt: 'desc' },
+    include: { offertes: { orderBy: { verstuurdAt: 'desc' } } },
+  });
   res.json({ schades: schades.map((s) => schadeForUser(s, req.user)) });
 });
 
@@ -85,6 +99,47 @@ router.get('/:nummer', async (req, res) => {
   const s = await prisma.schade.findUnique({ where: { nummer: req.params.nummer } });
   if (!s) return res.status(404).json({ error: 'Dossier niet gevonden' });
   res.json({ schade: schadeForUser(s, req.user) });
+});
+
+/* ─────────── logboek van een dossier ─────────── */
+router.get('/:nummer/logboek', async (req, res) => {
+  const s = await prisma.schade.findUnique({ where: { nummer: req.params.nummer }, select: { id: true } });
+  if (!s) return res.status(404).json({ error: 'Dossier niet gevonden' });
+  const regels = await prisma.logEntry.findMany({
+    where: { schadeId: s.id },
+    orderBy: { createdAt: 'desc' },
+    take: 200,
+  });
+  res.json({ regels });
+});
+
+/* ─────────── besluit na afwijzing ─────────── */
+router.post('/:nummer/na-afwijzing', async (req, res) => {
+  const b = req.body || {};
+  const keuze = b.keuze === 'herstel' ? 'herstel' : 'gesloten';
+  const s = await prisma.schade.findUnique({ where: { nummer: req.params.nummer } });
+  if (!s) return res.status(404).json({ error: 'Dossier niet gevonden' });
+
+  const data = { naAfwijzing: keuze };
+
+  if (keuze === 'herstel') {
+    const betaler = b.betaler === 'vve' ? 'vve' : 'eigenaar';
+    data.betalerNaAfwijzing = betaler;
+    data.preset = 'er_offerte';
+    data.haltes = haltesVoorPreset('er_offerte');
+    data.status = 'open';
+    if (s.step > 3) data.step = 3;
+    await log(req.user, `Herstel gaat door op kosten van ${betaler === 'vve' ? 'de VvE' : 'de eigenaar'}`, {
+      schadeId: s.id, soort: 'besluit',
+    });
+  } else {
+    data.archived = true;
+    data.archivedAt = new Date();
+    await log(req.user, 'Dossier gesloten na afwijzing', { schadeId: s.id, soort: 'besluit' });
+  }
+
+  const bij = await prisma.schade.update({ where: { id: s.id }, data });
+  res.json({ schade: schadeForUser(bij, req.user) });
 });
 
 /* ─────────── aanmaken ─────────── */
@@ -115,6 +170,9 @@ router.post('/', async (req, res) => {
         },
       });
       await log(req.user, `Dossier aangemaakt: ${s.nummer} — ${s.owner}`);
+      if (b.notitie && String(b.notitie).trim()) {
+        await log(req.user, `${s.nummer} · melding: ${String(b.notitie).trim()}`);
+      }
       return res.status(201).json({ schade: schadeForUser(s, req.user) });
     } catch (e) {
       if (e.code === 'P2002') continue; // nummer net vergeven, opnieuw
@@ -131,7 +189,9 @@ router.patch('/:nummer', async (req, res) => {
 
   ['owner', 'email', 'adres', 'plaats', 'ins', 'status', 'traject',
    'opdrachtnummer', 'opdrachtgever', 'verzSchadenummer', 'verzEmail',
-   'tussenpersoon'].forEach((k) => {
+   'tussenpersoon', 'polisnummer', 'oorzaak', 'beheerderEmail', 'polisvorm',
+   'telefoon', 'postcode', 'beheerderTel', 'bewonerSoort', 'contactpersoon',
+   'afwijzingReden', 'naAfwijzing', 'betalerNaAfwijzing'].forEach((k) => {
     if (b[k] !== undefined) data[k] = b[k] || null;
   });
 
@@ -145,6 +205,8 @@ router.patch('/:nummer', async (req, res) => {
   if (b.bronDoorReden !== undefined) data.bronDoorReden = b.bronDoorReden || null;
   if (b.gefactureerd !== undefined) data.gefactureerd = !!b.gefactureerd;
   if (b.uitvoeringAt !== undefined) data.uitvoeringAt = datum(b.uitvoeringAt);
+  if (b.opnameAt !== undefined) data.opnameAt = datum(b.opnameAt);
+  if (b.schadedatum !== undefined) data.schadedatum = datum(b.schadedatum);
   if (b.verzIngediendAt !== undefined) data.verzIngediendAt = datum(b.verzIngediendAt);
 
   if (b.preset !== undefined) {
@@ -156,7 +218,7 @@ router.patch('/:nummer', async (req, res) => {
 
   // Verzekeraarstatus — afwijzing sluit het dossier
   if (b.verzStatus !== undefined) {
-    const geldig = ['geen', 'ingediend', 'akkoord', 'afgewezen', 'doorverwezen'];
+    const geldig = ['geen', 'ingediend', 'informatie', 'akkoord', 'afgewezen', 'doorverwezen'];
     if (!geldig.includes(b.verzStatus)) return res.status(400).json({ error: 'Onbekende verzekeraarstatus' });
     data.verzStatus = b.verzStatus;
     // Indienen zet de indieningsdatum automatisch, tenzij die wordt meegegeven.
@@ -172,9 +234,14 @@ router.patch('/:nummer', async (req, res) => {
     }
     if (b.verzStatus === 'afgewezen') {
       data.status = 'afgewezen';
-      data.archived = true;
-      data.archivedAt = new Date();
+      data.afwijzingAt = new Date();
       data.afwijzingReden = b.afwijzingReden || null;
+      // Nog niet archiveren: eerst bepalen of er toch hersteld wordt.
+    }
+    if (b.verzStatus === 'akkoord') {
+      const nu2 = await prisma.schade.findUnique({ where: { nummer: req.params.nummer } });
+      const act = normaliseerHaltes(nu2.haltes);
+      if (act.includes(6) && nu2.step < 6) data.step = 6;
     }
   }
 
@@ -199,6 +266,18 @@ router.patch('/:nummer', async (req, res) => {
     }
   }
 
+  // Marge altijd door de server laten rekenen: omzet minus inkoop minus uitbesteed.
+  if (data.amount !== undefined || data.finHerstelInkoop !== undefined ||
+      data.finHerstelUitbesteed !== undefined || data.finHerstelOmzet !== undefined) {
+    const nu = await prisma.schade.findUnique({ where: { nummer: req.params.nummer } });
+    if (!nu) return res.status(404).json({ error: 'Dossier niet gevonden' });
+    const omzet = data.finHerstelOmzet !== undefined ? data.finHerstelOmzet
+      : (nu.finHerstelOmzet || (data.amount !== undefined ? data.amount : nu.amount));
+    const inkoop = data.finHerstelInkoop !== undefined ? data.finHerstelInkoop : nu.finHerstelInkoop;
+    const uitbesteed = data.finHerstelUitbesteed !== undefined ? data.finHerstelUitbesteed : nu.finHerstelUitbesteed;
+    data.profit = Math.round(omzet - inkoop - uitbesteed);
+  }
+
   if (data.step !== undefined) {
     const huidig = await prisma.schade.findUnique({ where: { nummer: req.params.nummer } });
     if (!huidig) return res.status(404).json({ error: 'Dossier niet gevonden' });
@@ -207,6 +286,19 @@ router.patch('/:nummer', async (req, res) => {
       data.step
     );
     if (blok) return res.status(409).json({ error: blok, bronWaarschuwing: true });
+  }
+
+  // Laatste halte bereikt? Dan is het dossier klaar en gaat het naar het archief.
+  if (data.step !== undefined) {
+    const nu = await prisma.schade.findUnique({ where: { nummer: req.params.nummer } });
+    const actief = normaliseerHaltes(data.haltes !== undefined ? data.haltes : nu.haltes);
+    const laatste = actief[actief.length - 1];
+    if (Number(data.step) >= laatste && !nu.archived) {
+      data.status = 'done';
+      data.gefactureerd = true;
+      data.archived = true;
+      data.archivedAt = new Date();
+    }
   }
 
   const s = await prisma.schade.update({ where: { nummer: req.params.nummer }, data });

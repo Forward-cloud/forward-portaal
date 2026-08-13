@@ -16,6 +16,19 @@ function schoon(b) {
     if (!SOORTEN.includes(s)) return { fout: 'Kies verzekeraar of tussenpersoon' };
     d.soort = s;
   }
+  if (b.contacten !== undefined) {
+    // Vrije lijst met extra e-mailadressen: [{ label, email }]
+    var lijst = Array.isArray(b.contacten) ? b.contacten : [];
+    d.contacten = lijst
+      .map(function (c) {
+        return {
+          label: String((c && c.label) || '').trim().slice(0, 60),
+          email: String((c && c.email) || '').trim().slice(0, 160),
+        };
+      })
+      .filter(function (c) { return c.email; })
+      .slice(0, 12);
+  }
   if (b.factuurwijze !== undefined) {
     const w = String(b.factuurwijze);
     if (!['per_klus', 'verzamel'].includes(w)) return { fout: 'Kies per klus of verzamelfactuur' };

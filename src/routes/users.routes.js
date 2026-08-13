@@ -41,6 +41,44 @@ router.post('/wachtwoord', requireAuth, async (req, res) => {
   res.json({ ok: true });
 });
 
+/* ─────────── eigen handtekening ─────────── */
+const MAX_HANDTEKENING = 300 * 1024; // ruim voldoende voor een getekende krabbel
+
+router.get('/handtekening', requireAuth, async (req, res) => {
+  const u = await prisma.user.findUnique({
+    where: { id: req.user.id },
+    select: { handtekening: true, functie: true, telefoon: true },
+  });
+  res.json({ handtekening: u.handtekening || null, functie: u.functie || null, telefoon: u.telefoon || null });
+});
+
+router.put('/handtekening', requireAuth, async (req, res) => {
+  const b = req.body || {};
+  const data = {
+    functie: b.functie !== undefined ? (b.functie || null) : undefined,
+    telefoon: b.telefoon !== undefined ? (b.telefoon || null) : undefined,
+  };
+
+  if (b.handtekening !== undefined) {
+    const h = b.handtekening;
+    if (h === null || h === '') {
+      data.handtekening = null;
+    } else {
+      if (typeof h !== 'string' || !h.startsWith('data:image/png;base64,')) {
+        return res.status(400).json({ error: 'De handtekening kon niet worden gelezen' });
+      }
+      if (h.length > MAX_HANDTEKENING) {
+        return res.status(413).json({ error: 'De handtekening is te groot' });
+      }
+      data.handtekening = h;
+    }
+  }
+
+  const u = await prisma.user.update({ where: { id: req.user.id }, data });
+  await log(req.user, data.handtekening === null ? 'Handtekening verwijderd' : 'Handtekening opgeslagen');
+  res.json({ handtekening: u.handtekening || null, functie: u.functie || null, telefoon: u.telefoon || null });
+});
+
 /* ─────────── vanaf hier alleen directie ─────────── */
 router.use(requireAuth, requireDirectie);
 
