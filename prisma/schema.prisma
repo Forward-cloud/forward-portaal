@@ -20,6 +20,7 @@ enum RelatieSoort {
   VERZEKERAAR
   TUSSENPERSOON
   ONDERAANNEMER
+  LEVERANCIER
 }
 
 model User {
@@ -122,7 +123,12 @@ model Schade {
   archived   Boolean   @default(false)
   archivedAt DateTime?
 
+  weigerReden String?
+  weigerAt    DateTime?
+
   bronStatus     String    @default("nvt")
+  bronFactuur    Boolean   @default(false)
+  bronDoorOns    Boolean   @default(false)
   bronOpmerking  String?
   bronHersteldAt DateTime?
   bronDoorReden  String?
@@ -142,6 +148,7 @@ model Schade {
   documenten     Document[]
   verzendingen   Verzending[]
   offertes       Offerte[]
+  afspraken      Afspraak[]
   opdrachtbonnen Opdrachtbon[]
   logs           LogEntry[]
 
@@ -199,10 +206,13 @@ model Document {
   gedeeld         Boolean  @default(false)
   leverancier     Relatie? @relation(fields: [leverancierId], references: [id])
   leverancierId   String?
+  bon             Opdrachtbon? @relation(fields: [bonId], references: [id])
+  bonId           String?
   doorNaam        String?
   createdAt       DateTime @default(now())
 
   @@index([schadeId, soort])
+  @@index([bonId])
 }
 
 model Opdrachtbon {
@@ -215,8 +225,12 @@ model Opdrachtbon {
   werk          String
   uitvoerenOp   DateTime?
   tijdvak       String?
+  soort         String    @default("opdracht") // aanvraag | opdracht
   bedrag        Int       @default(0)   // in centen, exclusief btw
   prijsvorm     String    @default("vast") // vast | mandaat | regie
+  reactieVoor   DateTime?
+  reactieAt     DateTime?
+  reactieNotitie String?
   uurtarief     Int?
   btwVerlegd    Boolean   @default(true)
   bewonerMee    Boolean   @default(true)
@@ -224,9 +238,42 @@ model Opdrachtbon {
   status        String    @default("concept") // concept | verstuurd | afgemeld | gefactureerd
   verstuurdAt   DateTime?
   afgemeldAt    DateTime?
+  herinnerdAt   DateTime?
+  herinneringen Int       @default(0)
+  documenten    Document[]
   doorNaam      String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+
+  @@index([schadeId, status])
+}
+
+model Afspraak {
+  id           String    @id @default(cuid())
+  schade       Schade    @relation(fields: [schadeId], references: [id], onDelete: Cascade)
+  schadeId     String
+  token        String    @unique
+  soort        String    @default("opname") // opname | herstel
+  omschrijving String?   // bijvoorbeeld 'Stucwerk, drie dagen'
+  vakman       String?
+  duur         String?   // 'één dag', 'drie dagen'
+  locatieId    String?
+
+  opties       Json      @default("[]") // [{ datum, tijdvak }]
+  gekozenDatum DateTime?
+  gekozenTijd  String?
+
+  status       String    @default("open") // open | gekozen | geweigerd | vervallen
+  besluitAt    DateTime?
+  naam         String?
+  reden        String?
+  ip           String?
+
+  geopendAt    DateTime?
+  openCount    Int       @default(0)
+  herinnerdAt  DateTime?
+  verstuurdAt  DateTime  @default(now())
+  geldigTot    DateTime?
 
   @@index([schadeId, status])
 }
@@ -275,6 +322,7 @@ model LogEntry {
   text      String
   detail    String?
   soort     String   @default("actie")
+  intern    Boolean  @default(false)
   schade    Schade?  @relation(fields: [schadeId], references: [id], onDelete: Cascade)
   schadeId  String?
   byUser    User?    @relation(fields: [byUserId], references: [id])
