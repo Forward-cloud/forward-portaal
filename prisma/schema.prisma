@@ -138,6 +138,7 @@ model Schade {
   ingediendAt DateTime?
   docVisible  Json      @default("{}")
 
+  locaties       Locatie[]
   documenten     Document[]
   verzendingen   Verzending[]
   offertes       Offerte[]
@@ -149,6 +150,37 @@ model Schade {
 
   @@index([archived, status])
   @@index([verzekeraarId])
+}
+
+model Locatie {
+  id           String    @id @default(cuid())
+  schade       Schade    @relation(fields: [schadeId], references: [id], onDelete: Cascade)
+  schadeId     String
+  volgorde     Int       @default(0)
+  hoofd        Boolean   @default(false)
+
+  adres        String
+  postcode     String?
+  plaats       String?
+  aanduiding   String?   // bijvoorbeeld 'begane grond' of 'gemeenschappelijke hal'
+
+  // Wie er woont of eigenaar is
+  bewoner      String?
+  bewonerSoort String?   // eigenaar | huurder | leeg | gemeenschappelijk
+  telefoon     String?
+  email        String?
+
+  // Eigen planning per adres
+  status       String    @default("open") // open | ingepland | uitvoering | opgeleverd
+  ingepland    DateTime?
+  tijdvak      String?
+  opgeleverdAt DateTime?
+  notitie      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([schadeId, volgorde])
 }
 
 model Document {
