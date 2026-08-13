@@ -23,6 +23,17 @@ function schadeForUser(s, user) {
     adres: s.adres,
     plaats: s.plaats,
     ins: s.ins,
+    verzekeraarId: s.verzekeraarId,
+    tussenpersoonId: s.tussenpersoonId,
+    verzekeraar: s.verzekeraar
+      ? { id: s.verzekeraar.id, naam: s.verzekeraar.naam, email: s.verzekeraar.email,
+          telefoon: s.verzekeraar.telefoon, contactpersoon: s.verzekeraar.contactpersoon,
+          reactietermijn: s.verzekeraar.reactietermijn }
+      : null,
+    tussenpersoonRel: s.tussenpersoonRel
+      ? { id: s.tussenpersoonRel.id, naam: s.tussenpersoonRel.naam,
+          email: s.tussenpersoonRel.email, telefoon: s.tussenpersoonRel.telefoon }
+      : null,
     amount: s.amount,
     status: s.status,
     step: s.step,
@@ -36,6 +47,9 @@ function schadeForUser(s, user) {
     totaal: positie(s.step, haltes).totaal,
 
     bronStatus: s.bronStatus,
+    bronFactuur: s.bronFactuur,
+    bronDoorOns: s.bronDoorOns,
+    weigerReden: s.weigerReden,
     bronOpmerking: s.bronOpmerking,
     bronHersteldAt: s.bronHersteldAt,
     bronDoorReden: s.bronDoorReden,
@@ -66,6 +80,9 @@ function schadeForUser(s, user) {
     offerteOpen: !!(s.offertes || []).find((o) => o.status === 'open'),
     offerteVerstuurdAt: ((s.offertes || []).find((o) => o.status === 'open') || {}).verstuurdAt || null,
     offerteGeopendAt: ((s.offertes || []).find((o) => o.status === 'open') || {}).geopendAt || null,
+    uitvraagTeLaat: (s.opdrachtbonnen || []).filter((b) =>
+      b.soort === 'aanvraag' && !b.bedrag && b.status !== 'vervallen' &&
+      b.reactieVoor && new Date(b.reactieVoor) < new Date()).length || null,
     offerteStatus: ((s.offertes || [])[0] || {}).status || null,
     bronStatus: s.bronStatus,
 

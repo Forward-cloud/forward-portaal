@@ -97,4 +97,60 @@ async function herschrijf({ tekst, aanwijzing, context }) {
   return uit;
 }
 
-module.exports = { herschrijf, beschikbaar, MODEL };
+/**
+ * Maakt van een korte notitie een net bericht in huisstijl.
+ * notitie   — wat de gebruiker in eigen woorden opschreef
+ * ontvanger — aan wie het gaat (klant, beheerder, verzekeraar)
+ * context   — feiten uit het dossier
+ */
+async function opstellen({ notitie, ontvanger, context }) {
+  if (!SLEUTEL) {
+    const e = new Error('Er is nog geen AI-sleutel ingesteld op de server.');
+    e.code = 'GEEN_SLEUTEL';
+    throw e;
+  }
+
+  const bericht =
+    `Schrijf een bericht aan ${ontvanger || 'de ontvanger'}.\n\n` +
+    `Dit wil de afzender kwijt, in eigen woorden:\n---\n${notitie}\n---\n\n` +
+    (context ? `Feiten uit het dossier (gebruik alleen wat nodig is):\n${context}\n\n` : '') +
+    `Maak er een net bericht van in onze huisstijl. Begin met de aanhef en eindig met de afsluiting.\n` +
+    `Verzin niets bij wat er niet staat. Blijf dicht bij wat de afzender bedoelt.\n` +
+    `Geef daarnaast een korte onderwerpregel.\n\n` +
+    `Antwoord precies zo:\nONDERWERP: <de onderwerpregel>\nTEKST:\n<het bericht>`;
+
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': SLEUTEL,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: MODEL,
+      max_tokens: 1500,
+      system: HUISREGELS,
+      messages: [{ role: 'user', content: bericht }],
+    }),
+  });
+
+  if (!res.ok) {
+    let melding = 'De AI-dienst gaf een fout terug.';
+    try { const j = await res.json(); if (j && j.error && j.error.message) melding = j.error.message; }
+    catch (e) { /* standaardmelding */ }
+    const err = new Error(melding);
+    err.status = res.status;
+    throw err;
+  }
+
+  const data = await res.json();
+  const uit = (data.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n').trim();
+  if (!uit) throw new Error('De AI gaf geen tekst terug.');
+
+  const m = /ONDERWERP:\s*(.+?)\s*\nTEKST:\s*([\s\S]+)/i.exec(uit);
+  return m
+    ? { onderwerp: m[1].trim(), tekst: m[2].trim() }
+    : { onderwerp: '', tekst: uit };
+}
+
+module.exports = { herschrijf, opstellen, beschikbaar, MODEL };

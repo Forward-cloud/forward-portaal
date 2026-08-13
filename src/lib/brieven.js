@@ -79,6 +79,45 @@ const SOORTEN = {
     bijlagen: [],
     uitleg: 'Bij een offerte waar nog geen antwoord op is.',
   },
+  machtiging: {
+    label: 'Machtiging aanvragen',
+    naar: 'klant',
+    bijlagen: ['machtiging'],
+    uitleg: 'Vraag toestemming om de schade namens de eigenaar af te handelen.',
+  },
+  weigering: {
+    label: 'Melding niet aannemen',
+    naar: 'klant',
+    bijlagen: [],
+    uitleg: 'Laat weten dat wij hier niets in kunnen betekenen.',
+  },
+  afspraak_opname: {
+    label: 'Opname inplannen',
+    naar: 'klant',
+    vereist: 2,
+    bijlagen: [],
+    uitleg: 'Stuur drie momenten voor de schade-opname.',
+  },
+  afspraak_herstel: {
+    label: 'Herstel inplannen',
+    naar: 'klant',
+    vereist: 7,
+    bijlagen: [],
+    uitleg: 'Stuur momenten voor de herstelwerkzaamheden.',
+  },
+  bron_verzoek: {
+    label: 'Bronherstel aanvragen',
+    naar: 'beheerder',
+    vereist: 3,
+    bijlagen: [],
+    uitleg: 'Vraag de opdrachtgever de oorzaak te laten verhelpen.',
+  },
+  vrij: {
+    label: 'Vrij bericht',
+    naar: 'zelf kiezen',
+    bijlagen: [],
+    uitleg: 'Zelf een bericht schrijven; wij maken er huisstijl van.',
+  },
   afronding_eigenaar: {
     label: 'Werk afgerond \u2014 bericht aan de eigenaar',
     naar: 'eigenaar',
@@ -143,7 +182,10 @@ function adresblok(soort, schade) {
     if (!v) return [schade.ins || 'De verzekeraar'];
     return [v.naam, v.adres, [v.postcode, v.plaats].filter(Boolean).join(' ')].filter(Boolean);
   }
-  if (['rapport', 'melding_beheerder', 'update_beheerder', 'afronding_beheerder'].includes(soort)) {
+  if (soort === 'vrij') {
+    return schade.vrijOntvanger || [schade.owner, schade.adres, schade.plaats].filter(Boolean);
+  }
+  if (['rapport', 'melding_beheerder', 'update_beheerder', 'afronding_beheerder', 'bron_verzoek'].includes(soort)) {
     return [schade.opdrachtgever || schade.owner].filter(Boolean);
   }
   return [schade.owner, schade.adres, schade.plaats].filter(Boolean);
@@ -157,6 +199,12 @@ const AANHEF = {
   melding_beheerder: 'Claim ingediend bij de verzekeraar',
   melding_eigenaar: 'Uw schade is aangemeld',
   offerte_rappel: 'Uw offerte',
+  vrij: 'Bericht',
+  weigering: 'Uw melding',
+  machtiging: 'Machtiging voor de schadeafhandeling',
+  afspraak_opname: 'Afspraak voor de schade-opname',
+  afspraak_herstel: 'Afspraak voor het herstel',
+  bron_verzoek: 'De oorzaak moet eerst verholpen worden',
   afronding_eigenaar: 'Het herstel is afgerond',
   afronding_beheerder: 'Het herstel is afgerond',
   update_eigenaar: 'Stand van zaken',
@@ -165,6 +213,7 @@ const AANHEF = {
 
 function betreft(soort, schade) {
   const waar = [schade.adres, schade.plaats].filter(Boolean).join(', ');
+  if (soort === 'vrij' && schade.vrijOnderwerp) return schade.vrijOnderwerp;
   return `${AANHEF[soort] || AANHEF.claim} \u2014 ${waar}`;
 }
 
@@ -504,6 +553,76 @@ function stelOp(soort, schade, documenten, gekozenIds) {
         ? `Dossiernummer ${schade.nummer}.`
         : `Inloggen met dossiernummer ${schade.nummer} en uw postcode.`,
     };
+  }
+
+  if (type === 'machtiging') {
+    const verz = (schade.verzekeraar && schade.verzekeraar.naam) || 'uw verzekeraar';
+    body =
+      `Dank voor uw melding over de schade aan ${waar}. Wij pakken die graag voor u op.`;
+    body +=
+      `\n\nOm de schade bij ${verz} te kunnen indienen en met hen te schakelen, hebben wij uw ` +
+      `toestemming nodig. Daarvoor sturen wij u een machtiging mee. Zet daar uw handtekening onder ` +
+      `en stuur hem terug; daarna nemen wij het van u over.`;
+    body +=
+      `\n\nMet die machtiging melden wij de schade aan, sturen wij de stukken in, bewaken wij de ` +
+      `termijnen en verzorgen wij het herstel. U hoeft zelf niets meer te regelen.`;
+    slot = `Zodra wij de getekende machtiging binnen hebben, plannen wij de schade-opname in.`;
+  }
+
+  if (type === 'weigering') {
+    body =
+      `Dank voor uw melding over de schade aan ${waar}. Wij hebben die bekeken en moeten u helaas ` +
+      `laten weten dat wij hier niets in kunnen betekenen.`;
+    if (schade.weigerReden) body += `\n\n${schade.weigerReden}`;
+    slot =
+      `Wij hebben het dossier gesloten. Weet u niet bij wie u wel terechtkunt, bel ons dan gerust \u2014 ` +
+      `wij denken graag even mee.`;
+  }
+
+  if (type === 'bron_verzoek') {
+    body =
+      `Bij onze opname aan ${waar} hebben wij vastgesteld dat de oorzaak van de schade nog niet is verholpen.`;
+    if (schade.oorzaak) body += ` Het gaat om ${schade.oorzaak}.`;
+    body +=
+      `\n\nZolang de oorzaak niet is aangepakt, kunnen wij niet met het herstel beginnen. ` +
+      `De schade zou dan opnieuw ontstaan.`;
+    if (schade.bronDoorOns) {
+      body +=
+        `\n\nWij kunnen het verhelpen van de oorzaak zelf voor u verzorgen. Laat het ons weten, ` +
+        `dan sturen wij u een prijsopgave. Gaat het om beperkt werk, dan kunnen wij ook met een ` +
+        `mandaat werken: wij pakken het direct aan tot een afgesproken maximumbedrag.`;
+    }
+    slot =
+      `Laat u ons weten hoe u het wilt aanpakken? Zodra de oorzaak is verholpen, pakken wij het ` +
+      `herstel op en hoort u van ons.`;
+  }
+
+  if (type === 'afspraak_opname' || type === 'afspraak_herstel') {
+    const opname = type === 'afspraak_opname';
+    body = opname
+      ? `Wij willen graag langskomen om de schade aan ${waar} op te nemen.`
+      : `Het herstel van de schade aan ${waar} kan worden ingepland.`;
+    if (schade.afspraakWat) body += ` ${schade.afspraakWat}`;
+
+    if (schade.afspraakLink) {
+      portaalblok = {
+        titel: 'Kies een moment dat u schikt',
+        tekst: opname
+          ? 'Op de pagina hieronder ziet u drie momenten. Kies er \u00e9\u00e9n \u2014 dat is genoeg, ' +
+            'wij regelen de rest.'
+          : 'Op de pagina hieronder ziet u de momenten die wij kunnen. Kies er \u00e9\u00e9n.',
+        link: schade.afspraakLink,
+        inlog: schade.afspraakTot ? `Laat het ons weten v\u00f3\u00f3r ${datumNL(schade.afspraakTot)}.` : '',
+      };
+      slot = `Schikt geen van de momenten? Geef dat op dezelfde pagina aan, dan zoeken wij iets anders.`;
+    } else {
+      slot = `Laat u ons weten wanneer het u schikt?`;
+    }
+  }
+
+  if (type === 'vrij') {
+    body = schade.vrijTekst || '';
+    slot = '';
   }
 
   if (type === 'offerte_rappel') {
