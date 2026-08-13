@@ -12,7 +12,6 @@ app.use(
     credentials: true,
   })
 );
-// Ruim genoeg voor een document van 20 MB, dat als tekst ~27 MB wordt.
 app.use(express.json({ limit: '32mb' }));
 app.use(cookieParser());
 
@@ -23,12 +22,18 @@ app.use('/api/users', require('./routes/users.routes'));
 app.use('/api/schades', require('./routes/schades.routes'));
 app.use('/api/relaties', require('./routes/relaties.routes'));
 app.use('/api', require('./routes/documenten.routes').router);
+app.use('/api', require('./routes/verzenden.routes'));
+app.use('/api', require('./routes/opdrachtbonnen.routes'));
+app.use('/api', require('./routes/offerte.routes'));
+// De klant opent de offerte zonder in te loggen.
+app.use('/', require('./routes/offerte.routes'));
+app.use('/api', require('./routes/offerte.routes'));
+// De klant opent de offerte zonder in te loggen.
+app.use('/', require('./routes/offerte.routes'));
 app.use('/api/portal', require('./routes/portal.routes'));
 
-// Frontend serveren
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
-// Foutafhandeling
 app.use((err, req, res, next) => {
   if (err && err.type === 'entity.too.large') {
     return res.status(413).json({ error: 'Het bestand is te groot. Maximaal 20 MB per document.' });
