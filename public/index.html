@@ -507,6 +507,25 @@
     </div>
   </div>
 </div>
+
+<div class="fwv-wrap" id="fwvWrap">
+  <div class="fwv">
+    <div class="fwv-head">
+      <div><h3 id="fwvTitel">Versturen</h3><p id="fwvSub"></p></div>
+      <button class="icon-btn" onclick="fwvSluit()" aria-label="Sluiten">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <div class="fwv-body" id="fwvBody"></div>
+    <div class="fwv-foot">
+      <button class="btn" id="fwvBrief" onclick="fwvBrief()">Brief bekijken</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn" onclick="fwvSluit()">Annuleren</button>
+        <button class="btn primary" id="fwvOk" onclick="fwvVerstuur()">Versturen</button>
+      </div>
+    </div>
+  </div>
+</div>
 <div class="app" id="internApp" style="display:none">
   <aside class="sidebar">
     <div class="side-logo" id="logoSidebar"></div>
@@ -3128,13 +3147,16 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
 
   window.fwAfgehandeld = function(){
     var s = huidig(); if (!s) return;
-    if (!window.confirm('Dit dossier markeren als volledig afgehandeld?\n\n' +
-        'De laatste halte wordt afgevinkt, het dossier telt als gefactureerd en verdwijnt uit je acties. ' +
-        'Je kunt het altijd terugdraaien.')) return;
+    if (!window.confirm('Dossier afronden?\n\n' +
+        'De laatste halte wordt afgevinkt en het dossier gaat naar het archief. ' +
+        'Je kunt het daar altijd weer uithalen.')) return;
     var laatste = (s.haltes && s.haltes.length) ? s.haltes[s.haltes.length - 1] : 10;
     window.fwApi('/api/schades/' + encodeURIComponent(s.nr), {
       method:'PATCH', body: JSON.stringify({ step: laatste, gefactureerd: true, status: 'done' })
-    }).then(function(){ melden('Afgehandeld', s.nr + ' staat nu op afgerond.'); return na(); }).catch(mis);
+    }).then(function(){
+      melden('Afgerond', s.nr + ' is afgehandeld en gearchiveerd.');
+      return na();
+    }).catch(mis);
   };
 
   window.fwArchiveer = function(aan){
@@ -3147,88 +3169,121 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
     var doel = document.getElementById('fwPaneel');
     if (!doel) return;
     var h = '';
+    var actief = s.haltes || [];
+    var pos = s.positie || 1, tot = s.totaal || actief.length || 10;
+    var volgende = actief.filter(function(x){ return x > (s.step || 1); })[0];
+    var bronOk = s.bronStatus === 'hersteld' || s.bronStatus === 'nvt';
 
+    /* ── meldingen bovenaan ── */
+    if (s.archived) {
+      h += '<div class="fwp-vlag amber"><b>Gearchiveerd.</b> Haal het dossier terug om te bewerken.</div>';
+    }
     if (s.inWacht) {
       h += '<div class="fwp-vlag amber"><b>In de wacht.</b> ' + esc(s.wachtReden) +
            (s.wachtTot ? ' \u00b7 opnieuw bekijken op ' + dag(s.wachtTot) : '') + '</div>';
     }
-    if (s.bronStatus === 'onvoldoende') {
-      h += '<div class="fwp-vlag rood"><b>Bron onvoldoende hersteld.</b> ' + esc(s.bronOpmerking || '') + '</div>';
-    }
-    if (s.archived) {
-      h += '<div class="fwp-vlag amber"><b>Gearchiveerd.</b> Haal het dossier terug om het te bewerken.</div>';
+    if (!bronOk && (s.step || 1) > 3) {
+      h += '<div class="fwp-vlag rood"><b>Let op \u2014 de bron is ' +
+        (s.bronStatus === 'open' ? 'nog niet hersteld' : 'onvoldoende hersteld') + '.</b> ' +
+        esc(s.bronOpmerking || 'Het dossier staat verder dan halte 3 terwijl de oorzaak nog niet rond is.') +
+        (s.bronDoorReden ? '<br><span style="opacity:.85">Doorgegaan omdat: ' + esc(s.bronDoorReden) + '</span>' : '') +
+        '</div>';
     }
 
-    h += '<div class="fwp-rij"><span class="fwp-lab">Route</span><select onchange="fwZetPreset(this)">' +
-      PRESETS.map(function(p){
-        return '<option value="' + p[0] + '"' + (p[0] === s.preset ? ' selected' : '') + '>' + p[1] + '</option>';
-      }).join('') + '</select>' +
-      '<span style="font-size:12px;color:var(--muted)">halte ' + (s.positie || 1) + ' van ' + (s.totaal || 10) + '</span></div>';
-
-    var volgende = (s.haltes || []).filter(function(x){ return x > (s.step || 1); })[0];
-    h += '<div class="fwp-rij"><span class="fwp-lab">Nu op halte</span>' +
-      '<select onchange="fwZetHalteNaar(this.value)">' +
-        (s.haltes || []).map(function(n){
-          return '<option value="' + n + '"' + (n === s.step ? ' selected' : '') + '>' +
-            n + '. ' + HALTES[n - 1] + '</option>';
+    /* ── voortgang ── */
+    h += '<div class="fwp-vak">' +
+      '<div class="fwp-vak-kop"><span>Voortgang</span><span class="fwp-tel">' + pos + ' van ' + tot + '</span></div>' +
+      '<div class="fwp-balk">' +
+        actief.map(function(n){
+          var af = n < (s.step || 1), nu = n === (s.step || 1);
+          return '<span class="fwp-stip' + (af ? ' af' : nu ? ' nu' : '') + '" title="' + esc(HALTES[n-1]) + '"></span>';
         }).join('') +
-      '</select>' +
+      '</div>' +
+      '<div class="fwp-nu">' + esc(HALTES[(s.step || 1) - 1]) + '</div>' +
       (volgende
-        ? '<button class="btn primary" onclick="fwVolgendeHalte()">' +
-          HALTES[volgende - 1] + ' afvinken</button>'
-        : '<span style="font-size:12px;color:var(--muted)">laatste halte bereikt</span>') +
-      '</div>';
+        ? '<button class="btn primary fwp-door" onclick="fwVolgendeHalte()">' +
+            esc(HALTES[volgende - 1]) + ' afvinken' +
+            '<svg viewBox="0 0 24 24" fill="none"><path d="M5 12h13M13 6l6 6-6 6" stroke="currentColor" ' +
+            'stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>'
+        : '<div class="fwp-klaar">Laatste halte bereikt</div>') +
+      '<button class="fwp-meer" onclick="fwpKlap(\'fwpHalte\')">Halte handmatig aanpassen</button>' +
+      '<div class="fwp-klap" id="fwpHalte"><select onchange="fwZetHalteNaar(this.value)">' +
+        actief.map(function(n){
+          return '<option value="' + n + '"' + (n === s.step ? ' selected' : '') + '>' + n + '. ' + esc(HALTES[n-1]) + '</option>';
+        }).join('') + '</select></div>' +
+    '</div>';
 
-    h += '<div class="fwp-rij"><span class="fwp-lab">Bronherstel</span><select onchange="fwZetBron(this)">' +
-      Object.keys(BRON).map(function(k){
-        return '<option value="' + k + '"' + (k === s.bronStatus ? ' selected' : '') + '>' + BRON[k] + '</option>';
-      }).join('') + '</select></div>';
+    /* ── bronherstel ── */
+    h += '<div class="fwp-vak">' +
+      '<div class="fwp-vak-kop"><span>Bronherstel</span>' +
+        '<span class="fwp-pil ' + (bronOk ? 'ok' : 'let') + '">' + esc(BRON[s.bronStatus] || 'Onbekend') + '</span></div>' +
+      '<select onchange="fwZetBron(this)">' +
+        Object.keys(BRON).map(function(k){
+          return '<option value="' + k + '"' + (k === s.bronStatus ? ' selected' : '') + '>' + BRON[k] + '</option>';
+        }).join('') + '</select>' +
+      (s.bronOpmerking ? '<div class="fwp-notitie">' + esc(s.bronOpmerking) + '</div>' : '') +
+    '</div>';
 
-    h += '<div><div class="fwp-lab" style="margin-bottom:6px">Welke haltes gelden</div>';
-    HALTES.forEach(function(naam, i){
-      var nr = i + 1, vast = VAST.indexOf(nr) > -1, aan = (s.haltes || []).indexOf(nr) > -1;
-      h += '<label class="fwp-halte' + (vast ? ' vast' : '') + '">' +
-        '<input type="checkbox"' + (aan ? ' checked' : '') + (vast ? ' disabled' : '') +
-        ' onchange="fwZetHalte(this,' + nr + ')"><span>' + nr + '. ' + naam + '</span></label>';
-    });
-    h += '</div>';
+    /* ── route ── */
+    h += '<div class="fwp-vak">' +
+      '<div class="fwp-vak-kop"><span>Route</span><span class="fwp-tel">' + actief.length + ' haltes</span></div>' +
+      '<select onchange="fwZetPreset(this)">' +
+        PRESETS.map(function(p){
+          return '<option value="' + p[0] + '"' + (p[0] === s.preset ? ' selected' : '') + '>' + p[1] + '</option>';
+        }).join('') + '</select>' +
+      '<button class="fwp-meer" onclick="fwpKlap(\'fwpHaltes\')">Welke haltes gelden</button>' +
+      '<div class="fwp-klap" id="fwpHaltes">' +
+        HALTES.map(function(naam, i){
+          var n = i + 1, vast = VAST.indexOf(n) > -1, aan = actief.indexOf(n) > -1;
+          return '<label class="fwp-halte' + (vast ? ' vast' : '') + '">' +
+            '<input type="checkbox"' + (aan ? ' checked' : '') + (vast ? ' disabled' : '') +
+            ' onchange="fwZetHalte(this,' + n + ')"><span>' + n + '. ' + esc(naam) + '</span></label>';
+        }).join('') +
+        '<div class="fwp-hint">Halte 1, 2 en 10 gelden altijd.</div>' +
+      '</div>' +
+    '</div>';
 
+    /* ── financieel ── */
     if (s.magFin && s.fin) {
       var omzet = s.fin.herstel.omzet || s.amount || 0;
       var ink = s.fin.herstel.inkoop || 0, uit = s.fin.herstel.uitbesteed || 0;
       var marge = omzet - ink - uit;
       var pct = omzet > 0 ? Math.round((marge / omzet) * 100) : 0;
-      h += '<div style="border-top:1px solid var(--line);padding-top:12px">' +
-        '<div class="fwp-lab" style="margin-bottom:8px">Financieel</div>' +
-        '<div class="fwp-rij"><span class="fwp-lab">Offertesom</span>' +
-          '<input type="text" id="fwOmzet" value="' + omzet + '" style="width:120px"></div>' +
-        '<div class="fwp-rij"><span class="fwp-lab">Inkoop materiaal</span>' +
-          '<input type="text" id="fwInkoop" value="' + ink + '" style="width:120px"></div>' +
-        '<div class="fwp-rij"><span class="fwp-lab">Onderaanneming</span>' +
-          '<input type="text" id="fwUitb" value="' + uit + '" style="width:120px"></div>' +
-        '<div class="fwp-rij" style="margin-top:4px"><span class="fwp-lab">Netto marge</span>' +
-          '<b id="fwMarge" style="font-size:15px;font-variant-numeric:tabular-nums">' +
-          (marge < 0 ? '-' : '') + '\u20ac' + Math.abs(marge).toLocaleString('nl-NL') + '</b>' +
-          '<span id="fwPct" style="font-size:12px;color:var(--muted)">' + pct + '%</span>' +
-          '<button class="btn primary" onclick="fwBewaarFin()" style="margin-left:auto">Opslaan</button></div>' +
-        '<div style="font-size:11.5px;color:var(--muted);margin-top:2px">Geen onderaanneming? Vul 0 in.</div>' +
+      h += '<div class="fwp-vak">' +
+        '<div class="fwp-vak-kop"><span>Financieel</span>' +
+          '<span class="fwp-marge" id="fwMarge">' + (marge < 0 ? '-' : '') + '\u20ac' +
+          Math.abs(marge).toLocaleString('nl-NL') + '</span></div>' +
+        '<div class="fwp-geld">' +
+          '<label>Offertesom<input type="text" id="fwOmzet" value="' + omzet + '"></label>' +
+          '<label>Inkoop materiaal<input type="text" id="fwInkoop" value="' + ink + '"></label>' +
+          '<label>Onderaanneming<input type="text" id="fwUitb" value="' + uit + '"></label>' +
+        '</div>' +
+        '<div class="fwp-geld-voet"><span id="fwPct">' + pct + '% marge \u00b7 geen onderaanneming? vul 0 in</span>' +
+          '<button class="btn primary" onclick="fwBewaarFin()">Opslaan</button></div>' +
       '</div>';
     }
 
-    h += '<div class="fwp-rij" style="border-top:1px solid var(--line);padding-top:12px">' +
+    /* ── acties ── */
+    h += '<div class="fwp-acties">' +
       (s.inWacht
         ? '<button class="btn" onclick="fwUitWacht()">Weer oppakken</button>'
         : '<button class="btn" onclick="fwZetWacht()">In de wacht zetten</button>') +
       (s.archived
         ? '<button class="btn" onclick="fwArchiveer(false)">Uit archief halen</button>'
-        : '<button class="btn" onclick="fwArchiveer(true)">Archiveren</button>') +
-      (!s.afgerond && !s.archived
-        ? '<button class="btn" onclick="fwAfgehandeld()" title="Dossier is buiten het portaal al afgerond">Afgehandeld</button>'
-        : '') +
-      '</div>';
+        : '<button class="btn" onclick="fwAfgehandeld()">Dossier afronden</button>') +
+    '</div>';
 
     doel.innerHTML = h;
   }
+
+  window.fwpKlap = function(id){
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.classList.toggle('open');
+    var knop = el.previousElementSibling;
+    if (knop) knop.classList.toggle('op');
+  };
+
   window.fwTekenPaneel = teken;
 
   // Haak in op het openen van een dossier
@@ -3260,8 +3315,7 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
     };
     window.openDetail.__fw = true;
   }
-  var t = setInterval(function(){ haak(); if (window.openDetail && window.openDetail.__fw) clearInterval(t); }, 200);
-  setTimeout(function(){ clearInterval(t); }, 20000);
+  /* de schadekaart neemt openDetail over */
 })();
 </script>
 
@@ -3388,6 +3442,52 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
       .catch(function(){ docs = []; teken(); return []; });
   };
 
+  // Leest de tekst van een pdf uit (eerste pagina's).
+  function pdfTekst(file){
+    if (!window.pdfjsLib || file.type !== 'application/pdf') return Promise.resolve('');
+    return file.arrayBuffer().then(function(buf){
+      return pdfjsLib.getDocument({ data: buf }).promise;
+    }).then(function(pdf){
+      var n = Math.min(pdf.numPages, 5), stukken = [], keten = Promise.resolve();
+      for (var i = 1; i <= n; i++) (function(k){
+        keten = keten.then(function(){
+          return pdf.getPage(k).then(function(pg){ return pg.getTextContent(); })
+            .then(function(tc){ stukken.push(tc.items.map(function(x){ return x.str; }).join(' ')); });
+        });
+      })(i);
+      return keten.then(function(){ return stukken.join(' '); });
+    }).catch(function(){ return ''; });
+  }
+
+  // Vult dossiergegevens aan uit een net geüpload stuk.
+  function uitLezen(file, soort, nr){
+    if (soort !== 'schaderapport' && soort !== 'polis') return Promise.resolve();
+    return pdfTekst(file).then(function(tekst){
+      if (!tekst) return;
+      var s = SCHADES.find(function(x){ return x.nr === nr; }) || {};
+      var patch = {};
+      if (soort === 'schaderapport' && !s.oorzaak && window.fwZoekOorzaak) {
+        var o = window.fwZoekOorzaak(tekst);
+        if (o) patch.oorzaak = o;
+      }
+      if (soort === 'polis' && !s.polisnummer && window.fwZoekPolis) {
+        var pn = window.fwZoekPolis(tekst);
+        if (pn) patch.polisnummer = pn;
+      }
+      if (!Object.keys(patch).length) return;
+      return window.fwApi('/api/schades/' + encodeURIComponent(nr), {
+        method:'PATCH', body: JSON.stringify(patch)
+      }).then(function(){
+        if (typeof toast === 'function') {
+          toast('Overgenomen uit het stuk',
+            patch.oorzaak ? 'Schadeoorzaak ingevuld — controleer hem even.'
+                          : 'Polisnummer ingevuld — controleer het even.', 'ok');
+        }
+        return window.fwLaadDossiers();
+      }).catch(function(){});
+    });
+  }
+
   function upload(file){
     var nr = dossier(); if (!nr) return Promise.resolve();
     if (file.size > 20 * 1024 * 1024) {
@@ -3406,6 +3506,8 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
             bedrag: r[1], bedragTotaal: r[1]
           })
         });
+      }).then(function(res){
+        return uitLezen(file, soort, nr).then(function(){ return res; });
       });
   }
 
@@ -3583,14 +3685,7 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
     window.fwLaadDocs();
   }
 
-  var vorige = null;
-  setInterval(function(){
-    var nr = window.__fwDossier;
-    var view = document.getElementById('view-detail');
-    if (!view || !document.getElementById('fwPaneel')) { vorige = null; return; }
-    zone();
-    if (nr && nr !== vorige) { vorige = nr; window.fwLaadDocs(); }
-  }, 400);
+  /* documentenblok zit nu in de schadekaart */
 })();
 </script>
 
@@ -3861,6 +3956,19 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
         return;
       }
 
+      if (s.offerteOpen) {
+        var dg = s.offerteVerstuurdAt
+          ? Math.floor((Date.now() - new Date(s.offerteVerstuurdAt).getTime()) / 864e5) : 0;
+        if (dg >= 5) {
+          urgent.push({ s: s, kleur:'herinnering', titel:'Offerte: nog geen antwoord',
+            tekst: (s.offerteGeopendAt ? 'Wel bekeken' : 'Nog niet geopend') + ' \u00b7 ' + dg + ' dagen geleden verstuurd' });
+          return;
+        }
+        afwachting.push({ s: s, kleur:'stil', titel:'Offerte bij de klant',
+          tekst: s.offerteGeopendAt ? 'Bekeken, wacht op akkoord' : 'Verstuurd, nog niet geopend' });
+        return;
+      }
+
       if (s.verzStatus === 'akkoord' && stap < 7) {
         urgent.push({ s: s, kleur:'plannen', titel:'Herstel inplannen',
           tekst: 'Uitkeringsbericht binnen \u2014 datum afstemmen met de klant' });
@@ -4006,5 +4114,2311 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
     kop.appendChild(b);
   }
   setInterval(knop, 800);
+})();
+</script>
+
+<style>
+/* ── Relatiebeheer ── */
+.fwr-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+.fwr-kaart{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:15px 16px;
+  box-shadow:var(--shadow-s);transition:.15s;cursor:pointer}
+.fwr-kaart:hover{box-shadow:var(--shadow-m);border-color:var(--line-2)}
+.fwr-kaart h4{margin:0 0 2px;font-size:14.5px;font-weight:600}
+.fwr-kaart .sub{font-size:12.5px;color:var(--muted)}
+.fwr-kaart .rij{font-size:12.5px;color:var(--muted);margin-top:7px;display:flex;gap:7px;align-items:center}
+.fwr-kaart .rij svg{width:14px;height:14px;flex:none;opacity:.7}
+.fwr-vlag{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:20px;letter-spacing:.02em}
+.fwr-uit{opacity:.55}
+.fwr-form{display:grid;gap:11px}
+.fwr-form label{font-size:12px;color:var(--muted);display:block;margin-bottom:4px}
+.fwr-form input,.fwr-form select,.fwr-form textarea{width:100%;padding:10px 12px;border:1px solid var(--line);
+  border-radius:10px;font-family:inherit;font-size:14px;background:var(--surface);color:var(--text)}
+.fwr-form textarea{min-height:64px;resize:vertical}
+.fwr-2{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+@media (max-width:960px){ .fwr-2{grid-template-columns:1fr} }
+</style>
+
+<script>
+/* ══ Relaties: verzekeraars, tussenpersonen, onderaannemers ══ */
+(function(){
+  var SOORT = { VERZEKERAAR:'Verzekeraar', TUSSENPERSOON:'Tussenpersoon', ONDERAANNEMER:'Onderaannemer' };
+  var lijst = [], filter = 'VERZEKERAAR';
+
+  function $$(id){ return document.getElementById(id); }
+  function esc(v){ return String(v==null?'':v).replace(/[&<>"]/g,function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function melden(t,m,k){ if (typeof toast==='function') toast(t,m,k||'ok'); }
+
+  var IC_MAIL = '<svg viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M4 7l8 6 8-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
+  var IC_TEL  = '<svg viewBox="0 0 24 24" fill="none"><path d="M5 4h4l2 5-2.5 1.5a12 12 0 005 5L15 13l5 2v4a1 1 0 01-1 1A16 16 0 014 5a1 1 0 011-1z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>';
+  var IC_PERS = '<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="3.5" stroke="currentColor" stroke-width="1.8"/><path d="M5 20c0-3.5 3-6 7-6s7 2.5 7 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
+  var IC_KLOK = '<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.8"/><path d="M12 7.5V12l3 2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
+
+  window.fwrLaad = function(){
+    return window.fwApi('/api/relaties?soort=' + filter + '&alle=1')
+      .then(function(r){ lijst = r.relaties || []; teken(); return lijst; })
+      .catch(function(){ lijst = []; teken(); return []; });
+  };
+
+  // Ook bruikbaar voor andere schermen (nieuwe schade, documenten)
+  window.fwrOphalen = function(soort){
+    return window.fwApi('/api/relaties?soort=' + soort).then(function(r){ return r.relaties || []; })
+      .catch(function(){ return []; });
+  };
+
+  window.fwrFilter = function(soort, knop){
+    filter = soort;
+    var wrap = knop.parentNode;
+    Array.prototype.forEach.call(wrap.children, function(c){ c.classList.remove('active'); });
+    knop.classList.add('active');
+    window.fwrLaad();
+  };
+
+  window.fwrBewerk = function(id){
+    var r = lijst.find(function(x){ return x.id === id; }) || { soort: filter, reactietermijn: 7, factuurwijze: 'per_klus', actief: true };
+    var isOnder = (r.soort || filter) === 'ONDERAANNEMER';
+
+    $$('fwmTitel').textContent = id ? r.naam : 'Nieuwe ' + SOORT[filter].toLowerCase();
+    $$('fwmSub').textContent = '';
+    $$('fwmBody').innerHTML =
+      '<div id="fwmMelding" style="display:none"></div>' +
+      '<div class="fwr-form">' +
+        '<div><label>Naam</label><input type="text" id="fwrNaam" value="' + esc(r.naam || '') + '"></div>' +
+        '<div><label>Soort</label><select id="fwrSoort">' +
+          Object.keys(SOORT).map(function(k){
+            return '<option value="' + k + '"' + ((r.soort || filter) === k ? ' selected' : '') + '>' + SOORT[k] + '</option>';
+          }).join('') + '</select></div>' +
+        '<div class="fwr-2">' +
+          '<div><label>E-mail schademeldingen</label><input type="email" id="fwrMail" value="' + esc(r.email || '') + '"></div>' +
+          '<div><label>Telefoon</label><input type="text" id="fwrTel" value="' + esc(r.telefoon || '') + '"></div>' +
+        '</div>' +
+        '<div><label>Vaste contactpersoon</label><input type="text" id="fwrPers" value="' + esc(r.contactpersoon || '') + '"></div>' +
+        '<div><label>Extra e-mailadressen</label><div id="fwrContacten"></div>' +
+          '<button type="button" class="btn" onclick="fwrAdres()" style="margin-top:6px;font-size:12.5px;padding:7px 12px">' +
+          'Adres toevoegen</button>' +
+          '<div style="font-size:11.5px;color:var(--muted);margin-top:4px">' +
+          'Bijvoorbeeld facturatie, een schadebehandelaar of een regiokantoor.</div></div>' +
+        '<div><label>Adres</label><input type="text" id="fwrAdres" value="' + esc(r.adres || '') + '"></div>' +
+        '<div class="fwr-2">' +
+          '<div><label>Postcode</label><input type="text" id="fwrPc" value="' + esc(r.postcode || '') + '"></div>' +
+          '<div><label>Plaats</label><input type="text" id="fwrPlaats" value="' + esc(r.plaats || '') + '"></div>' +
+        '</div>' +
+        '<div><label>Website of schadeportaal</label><input type="text" id="fwrWeb" value="' + esc(r.website || '') + '"></div>' +
+        '<div class="fwr-2">' +
+          '<div><label>Reactietermijn (werkdagen)</label><input type="text" id="fwrTermijn" value="' + (r.reactietermijn || 7) + '"></div>' +
+          '<div id="fwrWijzeWrap"' + (isOnder ? '' : ' style="display:none"') + '><label>Factureert</label>' +
+            '<select id="fwrWijze">' +
+              '<option value="per_klus"' + (r.factuurwijze !== 'verzamel' ? ' selected' : '') + '>Per klus</option>' +
+              '<option value="verzamel"' + (r.factuurwijze === 'verzamel' ? ' selected' : '') + '>Verzamelfactuur</option>' +
+            '</select></div>' +
+        '</div>' +
+        '<div><label>Interne notitie</label><textarea id="fwrNotitie">' + esc(r.notitie || '') + '</textarea></div>' +
+        (id ? '<label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text)">' +
+          '<input type="checkbox" id="fwrActief"' + (r.actief !== false ? ' checked' : '') +
+          ' style="width:16px;height:16px;accent-color:var(--teal)">Actief</label>' : '') +
+      '</div>';
+
+    tekenContacten(r.contacten || []);
+
+    $$('fwrSoort').onchange = function(){
+      $$('fwrWijzeWrap').style.display = this.value === 'ONDERAANNEMER' ? '' : 'none';
+    };
+
+    $$('fwmOk').textContent = id ? 'Opslaan' : 'Toevoegen';
+    $$('fwmOk').onclick = function(){ bewaar(id); };
+    $$('fwmWrap').classList.add('on');
+  };
+
+  function tekenContacten(lijst){
+    var doel = $$('fwrContacten');
+    if (!doel) return;
+    doel.innerHTML = (lijst || []).map(function(c, i){
+      return '<div style="display:grid;grid-template-columns:120px minmax(0,1fr) 32px;gap:7px;margin-bottom:6px">' +
+        '<input type="text" class="fwrCL" placeholder="Label" value="' + esc(c.label || '') + '">' +
+        '<input type="email" class="fwrCE" placeholder="adres@verzekeraar.nl" value="' + esc(c.email || '') + '">' +
+        '<button type="button" onclick="fwrAdresWeg(' + i + ')" title="Verwijderen" ' +
+          'style="background:none;border:none;color:var(--muted-2);font-size:17px;cursor:pointer">\u00d7</button>' +
+      '</div>';
+    }).join('');
+  }
+
+  function leesContacten(){
+    var labels = document.querySelectorAll('.fwrCL'), mails = document.querySelectorAll('.fwrCE');
+    var uit = [];
+    for (var i = 0; i < mails.length; i++) {
+      var e = mails[i].value.trim();
+      if (e) uit.push({ label: (labels[i] ? labels[i].value : '').trim(), email: e });
+    }
+    return uit;
+  }
+
+  window.fwrAdres = function(){
+    var lijst = leesContacten();
+    lijst.push({ label: '', email: '' });
+    tekenContacten(lijst);
+    var v = document.querySelectorAll('.fwrCL');
+    if (v.length) v[v.length - 1].focus();
+  };
+
+  window.fwrAdresWeg = function(i){
+    var lijst = leesContacten();
+    lijst.splice(i, 1);
+    tekenContacten(lijst);
+  };
+
+  function bewaar(id){
+    var body = {
+      naam: $$('fwrNaam').value, soort: $$('fwrSoort').value,
+      email: $$('fwrMail').value, telefoon: $$('fwrTel').value,
+      contactpersoon: $$('fwrPers').value, adres: $$('fwrAdres').value,
+      postcode: $$('fwrPc').value, plaats: $$('fwrPlaats').value,
+      website: $$('fwrWeb').value, notitie: $$('fwrNotitie').value,
+      reactietermijn: Number(String($$('fwrTermijn').value).replace(/[^0-9]/g,'')) || 7,
+      factuurwijze: $$('fwrWijze') ? $$('fwrWijze').value : 'per_klus',
+      contacten: leesContacten()
+    };
+    if ($$('fwrActief')) body.actief = $$('fwrActief').checked;
+    if (!body.naam.trim()) {
+      var m = $$('fwmMelding'); m.className = 'fwm-err'; m.textContent = 'Vul een naam in'; m.style.display = '';
+      return;
+    }
+    var knop = $$('fwmOk');
+    knop.disabled = true;
+    window.fwApi('/api/relaties' + (id ? '/' + id : ''), {
+      method: id ? 'PATCH' : 'POST', body: JSON.stringify(body)
+    }).then(function(){
+      window.fwmSluit();
+      melden('Opgeslagen', body.naam + ' is bijgewerkt.');
+      filter = body.soort;
+      window.fwrLaad();
+    }).catch(function(e){
+      var m = $$('fwmMelding'); m.className = 'fwm-err'; m.textContent = e.message; m.style.display = '';
+    }).then(function(){ knop.disabled = false; });
+  }
+
+  function kaart(r){
+    var wijze = r.soort === 'ONDERAANNEMER'
+      ? (r.factuurwijze === 'verzamel' ? 'verzamelfactuur' : 'per klus') : null;
+    return '<div class="fwr-kaart' + (r.actief === false ? ' fwr-uit' : '') + '" onclick="fwrBewerk(\'' + r.id + '\')">' +
+      '<div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">' +
+        '<div style="min-width:0"><h4>' + esc(r.naam) + '</h4>' +
+          '<div class="sub">' + SOORT[r.soort] + (r.actief === false ? ' \u00b7 niet actief' : '') + '</div></div>' +
+        (wijze ? '<span class="fwr-vlag" style="background:var(--teal-soft);color:var(--teal-ink)">' + wijze + '</span>' : '') +
+      '</div>' +
+      (r.contactpersoon ? '<div class="rij">' + IC_PERS + esc(r.contactpersoon) + '</div>' : '') +
+      (r.email ? '<div class="rij">' + IC_MAIL + '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(r.email) + '</span></div>' : '') +
+      (r.telefoon ? '<div class="rij">' + IC_TEL + esc(r.telefoon) + '</div>' : '') +
+      ((r.contacten && r.contacten.length)
+        ? '<div class="rij">' + IC_MAIL + '+ ' + r.contacten.length + ' ander adres' +
+          (r.contacten.length > 1 ? 'sen' : '') + '</div>' : '') +
+      (r.soort !== 'ONDERAANNEMER' ? '<div class="rij">' + IC_KLOK + 'reageert binnen ' + (r.reactietermijn || 7) + ' werkdagen</div>' : '') +
+      (!r.email && !r.telefoon ? '<div class="rij" style="color:var(--amber)">Nog geen contactgegevens</div>' : '') +
+    '</div>';
+  }
+
+  function teken(){
+    var doel = $$('fwrLijst');
+    if (!doel) return;
+    doel.innerHTML = lijst.length
+      ? lijst.map(kaart).join('')
+      : '<div class="empty" style="padding:30px 12px">Nog geen ' + SOORT[filter].toLowerCase() + 's. Voeg de eerste toe.</div>';
+  }
+
+  function scherm(viewId, soort, titel, uitleg){
+    var view = $$(viewId);
+    if (!view || view.dataset.fw) return;
+    view.dataset.fw = '1';
+    view.innerHTML =
+      '<div class="page-head"><div class="eyebrow">Relaties</div><h1>' + titel + '</h1><p>' + uitleg + '</p></div>' +
+      '<div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap" class="filters">' +
+        Object.keys(SOORT).map(function(k){
+          return '<button class="chip' + (k === soort ? ' active' : '') + '" onclick="fwrFilter(\'' + k + '\',this)">' +
+            SOORT[k] + 's</button>';
+        }).join('') +
+      '</div>' +
+      '<div style="margin-bottom:14px"><button class="btn primary" onclick="fwrBewerk()">Relatie toevoegen</button></div>' +
+      '<div class="fwr-grid" id="fwrLijst"></div>';
+    filter = soort;
+    window.fwrLaad();
+  }
+
+  setInterval(function(){
+    var app = $$('internApp');
+    if (!app || app.style.display === 'none') return;
+    scherm('view-verz', 'VERZEKERAAR', 'Verzekeraars', 'Contactgegevens en reactietermijnen van verzekeraars en tussenpersonen.');
+    scherm('view-onder', 'ONDERAANNEMER', 'Onderaannemers', 'Wie voor je werkt en hoe zij factureren.');
+  }, 700);
+})();
+</script>
+
+<script>
+/* ══ Nieuwe schade aanmaken ══ */
+(function(){
+  var PRESETS = [
+    ['volledig','Volledig \u00b7 via verzekeraar'],
+    ['expertise','Alleen expertise'],
+    ['er_rapport','Eigen risico \u00b7 met rapport'],
+    ['er_offerte','Eigen risico \u00b7 offerte'],
+    ['er_mandaat','Eigen risico \u00b7 mandaat']
+  ];
+
+  function $$(id){ return document.getElementById(id); }
+  function esc(v){ return String(v==null?'':v).replace(/[&<>"]/g,function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+
+  window.fwNieuweSchade = function(){
+    $$('fwmTitel').textContent = 'Nieuwe schademelding';
+    $$('fwmSub').textContent = 'Het schadenummer wordt automatisch toegekend.';
+    $$('fwmBody').innerHTML =
+      '<div id="fwmMelding" style="display:none"></div>' +
+      '<div class="fwr-form">' +
+        '<div><label>Klant of VvE</label>' +
+          '<input type="text" id="fwnOwner" placeholder="VvE Voorbeeldstraat 1 t/m 20"></div>' +
+        '<div><label>Adres schadeobject</label>' +
+          '<input type="text" id="fwnAdres" placeholder="Voorbeeldstraat 12A"></div>' +
+        '<div class="fwr-2">' +
+          '<div><label>Plaats</label><input type="text" id="fwnPlaats"></div>' +
+          '<div><label>Route</label><select id="fwnPreset">' +
+            PRESETS.map(function(p){ return '<option value="' + p[0] + '">' + p[1] + '</option>'; }).join('') +
+          '</select></div>' +
+        '</div>' +
+        '<div><div id="fwnExtra"></div>' +
+          '<button type="button" class="btn" onclick="fwnAdresErbij()" ' +
+            'style="font-size:12.5px;padding:8px 13px;min-height:auto">Nog een adres toevoegen</button>' +
+          '<div style="font-size:11.5px;color:var(--muted);margin-top:5px">' +
+            'Raakt de schade meerdere woningen? Voeg ze hier toe \u2014 \u00e9\u00e9n dossier, ' +
+            '\u00e9\u00e9n claim, eigen planning per adres.</div></div>' +
+        '<div><label>Waar gaat het over?</label>' +
+          '<textarea id="fwnNotitie" placeholder="Lekkage in de badkamer, water komt door bij de benedenbuur\u2026"></textarea>' +
+          '<div style="font-size:11.5px;color:var(--muted);margin-top:3px">' +
+            'Wat de melder vertelde. De rest vul je later op het dossier aan.</div></div>' +
+      '</div>';
+    extraAdressen = [];
+    $$('fwmOk').textContent = 'Dossier aanmaken';
+    $$('fwmOk').onclick = aanmaken;
+    $$('fwmWrap').classList.add('on');
+    setTimeout(function(){ var e = $$('fwnOwner'); if (e) e.focus(); }, 60);
+  };
+
+  var extraAdressen = [];
+
+  function tekenExtra(){
+    var d = $$('fwnExtra');
+    if (!d) return;
+    d.innerHTML = extraAdressen.map(function(a, i){
+      return '<div style="border:1px solid var(--line);border-radius:11px;padding:11px 12px;margin-bottom:8px">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:7px">' +
+          '<span style="font-size:11.5px;font-weight:600;color:var(--muted)">Adres ' + (i + 2) + '</span>' +
+          '<button type="button" onclick="fwnAdresWeg(' + i + ')" style="background:none;border:none;' +
+            'color:var(--muted-2);font-size:16px;cursor:pointer">\u00d7</button></div>' +
+        '<input type="text" class="fwnA" placeholder="Adres" value="' + esc(a.adres || '') + '" ' +
+          'style="width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:9px;' +
+          'font-family:inherit;font-size:13.5px;margin-bottom:6px;background:var(--surface);color:var(--text)">' +
+        '<input type="text" class="fwnB" placeholder="Naam bewoner" value="' + esc(a.bewoner || '') + '" ' +
+          'style="width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:9px;' +
+          'font-family:inherit;font-size:13.5px;margin-bottom:6px;background:var(--surface);color:var(--text)">' +
+        '<div style="display:flex;gap:6px;flex-wrap:wrap">' +
+          '<input type="text" class="fwnT" placeholder="Telefoon" value="' + esc(a.telefoon || '') + '" ' +
+            'style="flex:1;min-width:110px;padding:9px 11px;border:1px solid var(--line);border-radius:9px;' +
+            'font-family:inherit;font-size:13.5px;background:var(--surface);color:var(--text)">' +
+          '<select class="fwnS" style="flex:1;min-width:120px;padding:9px 11px;border:1px solid var(--line);' +
+            'border-radius:9px;font-family:inherit;font-size:13.5px;background:var(--surface);color:var(--text)">' +
+            '<option value="eigenaar"' + (a.bewonerSoort === 'eigenaar' ? ' selected' : '') + '>Eigenaar</option>' +
+            '<option value="huurder"' + (a.bewonerSoort === 'huurder' ? ' selected' : '') + '>Huurder</option>' +
+            '<option value="leeg"' + (a.bewonerSoort === 'leeg' ? ' selected' : '') + '>Staat leeg</option>' +
+            '<option value="gemeenschappelijk"' + (a.bewonerSoort === 'gemeenschappelijk' ? ' selected' : '') + '>Gemeenschappelijk</option>' +
+          '</select></div></div>';
+    }).join('');
+  }
+
+  function leesExtra(){
+    var a = document.querySelectorAll('.fwnA'), b = document.querySelectorAll('.fwnB');
+    var t = document.querySelectorAll('.fwnT'), st = document.querySelectorAll('.fwnS');
+    var uit = [];
+    for (var i = 0; i < a.length; i++) {
+      if (!a[i].value.trim()) continue;
+      uit.push({ adres: a[i].value.trim(), bewoner: (b[i] || {}).value || '',
+        telefoon: (t[i] || {}).value || '', bewonerSoort: (st[i] || {}).value || 'eigenaar' });
+    }
+    return uit;
+  }
+
+  window.fwnAdresErbij = function(){
+    extraAdressen = leesExtra();
+    extraAdressen.push({ adres: '', bewoner: '', telefoon: '', bewonerSoort: 'eigenaar' });
+    tekenExtra();
+    var v = document.querySelectorAll('.fwnA');
+    if (v.length) v[v.length - 1].focus();
+  };
+  window.fwnAdresWeg = function(i){
+    extraAdressen = leesExtra();
+    extraAdressen.splice(i, 1);
+    tekenExtra();
+  };
+
+  function aanmaken(){
+    var owner = $$('fwnOwner').value.trim();
+    var adres = $$('fwnAdres').value.trim();
+    if (!owner && !adres) {
+      var m = $$('fwmMelding');
+      m.className = 'fwm-err'; m.textContent = 'Vul minstens een klant of een adres in'; m.style.display = '';
+      return;
+    }
+    var knop = $$('fwmOk');
+    knop.disabled = true; knop.textContent = 'Bezig\u2026';
+
+    window.fwApi('/api/schades', {
+      method:'POST',
+      body: JSON.stringify({
+        owner: owner || adres,
+        adres: adres,
+        plaats: $$('fwnPlaats').value.trim(),
+        preset: $$('fwnPreset').value,
+        notitie: $$('fwnNotitie').value.trim(),
+        locaties: leesExtra()
+      })
+    }).then(function(res){
+      var nr = res.schade.nummer;
+      $$('fwmSub').textContent = '';
+      $$('fwmBody').innerHTML =
+        '<div class="fwm-ok">Dossier aangemaakt. Geef dit nummer door aan de melder.</div>' +
+        '<div style="text-align:center;padding:16px 0"><span class="fwm-code" style="font-size:20px">' + esc(nr) + '</span></div>' +
+        '<div style="font-size:12.5px;color:var(--muted)">Vul verzekeraar, contactgegevens en bedragen aan op het dossier zelf.</div>';
+      $$('fwmOk').textContent = 'Dossier openen';
+      $$('fwmOk').onclick = function(){
+        window.fwmSluit();
+        window.fwLaadDossiers().then(function(){ if (typeof openDetail === 'function') openDetail(nr); });
+      };
+      if (typeof toast === 'function') toast('Aangemaakt', nr + ' staat klaar.', 'ok');
+    }).catch(function(e){
+      var m = $$('fwmMelding');
+      m.className = 'fwm-err'; m.textContent = e.message; m.style.display = '';
+    }).then(function(){
+      knop.disabled = false;
+      if (knop.textContent === 'Bezig\u2026') knop.textContent = 'Dossier aanmaken';
+    });
+  }
+
+  // De bestaande knoppen omleiden naar dit formulier
+  function haak(){
+    Array.prototype.forEach.call(document.querySelectorAll('.top-btn, .btn'), function(b){
+      if (b.dataset.fwn) return;
+      if (/nieuwe schade/i.test(b.textContent || '')) {
+        b.dataset.fwn = '1';
+        b.onclick = window.fwNieuweSchade;
+      }
+    });
+  }
+  setInterval(haak, 800);
+})();
+</script>
+
+<style>
+/* ── Versturen ── */
+.fwv-wrap{position:fixed;inset:0;z-index:430;background:rgba(13,20,38,.55);
+  -webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);display:none;
+  align-items:center;justify-content:center;padding:22px}
+.fwv-wrap.on{display:flex}
+.fwv{background:var(--surface);border-radius:16px;width:100%;max-width:720px;max-height:88vh;
+  display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 70px rgba(9,14,26,.35)}
+.fwv-head{padding:16px 20px;border-bottom:1px solid var(--line);display:flex;
+  justify-content:space-between;align-items:flex-start;gap:12px}
+.fwv-head h3{margin:0;font-size:16px;font-weight:600}
+.fwv-head p{margin:3px 0 0;font-size:12.5px;color:var(--muted)}
+.fwv-body{flex:1;overflow-y:auto;padding:16px 20px}
+.fwv-foot{padding:14px 20px;border-top:1px solid var(--line);display:flex;gap:8px;
+  justify-content:space-between;align-items:center;flex-wrap:wrap}
+.fwv-sec{margin-bottom:18px}
+.fwv-sec h5{margin:0 0 8px;font-size:11px;font-weight:700;color:var(--muted-2,#8a94a6);letter-spacing:.04em}
+.fwv-vink{display:flex;align-items:flex-start;gap:9px;padding:9px 11px;border:1px solid var(--line);
+  border-radius:10px;margin-bottom:6px;cursor:pointer;transition:.14s;background:var(--surface)}
+.fwv-vink:hover{border-color:var(--teal);background:rgba(0,155,168,.03)}
+.fwv-vink input{width:16px;height:16px;accent-color:var(--teal);margin-top:1px;flex:none}
+.fwv-vink .nm{font-size:13.5px;font-weight:500}
+.fwv-vink .sub{font-size:11.5px;color:var(--muted);margin-top:1px}
+.fwv-vink .bed{margin-left:auto;font-size:12.5px;font-variant-numeric:tabular-nums;color:var(--muted);white-space:nowrap}
+.fwv-let{background:#FDF3E0;color:#8A5A0B;font-size:12.5px;padding:10px 12px;border-radius:10px;margin-bottom:14px}
+.fwv-tot{display:flex;justify-content:space-between;padding:10px 11px;background:var(--canvas);
+  border-radius:10px;font-size:13.5px;font-weight:600;margin-top:4px}
+.fwv-tot span:last-child{font-variant-numeric:tabular-nums}
+.fwv-body textarea{width:100%;min-height:190px;padding:12px;border:1px solid var(--line);border-radius:10px;
+  font-family:inherit;font-size:13px;line-height:1.55;background:var(--surface);color:var(--text);resize:vertical}
+.fwv-body select{padding:9px 11px;border:1px solid var(--line);border-radius:10px;
+  font-family:inherit;font-size:13.5px;background:var(--surface);color:var(--text);width:100%}
+@media (max-width:960px){ .fwv-wrap{padding:0} .fwv{max-width:none;max-height:100dvh;min-height:100dvh;border-radius:0} }
+</style>
+
+<script>
+/* ══ Versturen: stukken kiezen, brief volgt ══ */
+(function(){
+  var data = null, soort = 'claim', nr = null;
+
+  function $$(id){ return document.getElementById(id); }
+  function esc(v){ return String(v==null?'':v).replace(/[&<>"]/g,function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function eur(n){ return '\u20ac ' + (Number(n)||0).toLocaleString('nl-NL',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+  function melden(t,m,k){ if (typeof toast==='function') toast(t,m,k||'ok'); }
+
+  window.fwvSluit = function(){ $$('fwvWrap').classList.remove('on'); };
+
+  window.fwvOpen = function(dossierNr, start){
+    nr = dossierNr || window.__fwDossier;
+    soort = start || 'claim';
+    if (!nr) return;
+    $$('fwvWrap').classList.add('on');
+    $$('fwvBody').innerHTML = '<div style="padding:40px;text-align:center;color:var(--muted);font-size:13.5px">Brief opstellen\u2026</div>';
+    laad();
+  };
+
+  function gekozen(){
+    return Array.prototype.slice.call(document.querySelectorAll('.fwvDoc:checked'))
+      .map(function(b){ return b.value; });
+  }
+
+  function laad(docs){
+    var q = '/api/schades/' + encodeURIComponent(nr) + '/brief?soort=' + soort;
+    if (docs) q += '&docs=' + docs.join(',');
+    return window.fwApi(q).then(function(res){ data = res; teken(); return res; })
+      .catch(function(e){
+        $$('fwvBody').innerHTML = '<div class="fwm-err">' + esc(e.message) + '</div>';
+      });
+  }
+
+  // Opnieuw opstellen zodra de selectie wijzigt
+  window.fwvHerbereken = function(){
+    var d = gekozen();
+    var q = '/api/schades/' + encodeURIComponent(nr) + '/brief?soort=' + soort + '&docs=' + d.join(',');
+    window.fwApi(q).then(function(res){
+      data.brief = res.brief;
+      data.tekst = res.tekst;
+      var t = $$('fwvTekst');
+      if (t && !t.dataset.aangepast) t.value = res.tekst;
+      var tot = $$('fwvTotaal');
+      if (tot) tot.innerHTML = '<span>Schadebedrag in de brief</span><span>' + eur(res.brief.totaal) + '</span>';
+    });
+  };
+
+  window.fwvSoort = function(sel){
+    soort = sel.value;
+    $$('fwvBody').innerHTML = '<div style="padding:40px;text-align:center;color:var(--muted);font-size:13.5px">Brief opstellen\u2026</div>';
+    laad();
+  };
+
+  window.fwvBrief = function(){
+    var d = gekozen();
+    window.open('/api/schades/' + encodeURIComponent(nr) + '/brief.html?soort=' + soort +
+      '&docs=' + d.join(','), '_blank');
+  };
+
+  function teken(){
+    var b = data.brief;
+    $$('fwvTitel').textContent = b.label;
+    $$('fwvSub').textContent = nr + ' \u00b7 naar de ' + b.naar;
+
+    var h = '';
+
+    // Ontbrekende gegevens meteen hier invullen — scheelt heen en weer klikken.
+    var d = data.dossier || {};
+    var mist = [];
+    if (soort === 'claim' || soort === 'herinnering') {
+      if (!d.polisnummer) mist.push('polis');
+      if (!d.oorzaak) mist.push('oorzaak');
+    }
+    if (mist.length || soort === 'claim') {
+      h += '<div class="fwv-sec"><h5>' + (mist.length ? 'NOG AAN TE VULLEN' : 'GEGEVENS VOOR DE BRIEF') + '</h5>' +
+        '<div class="fwv-let" style="margin-bottom:10px">Deze gegevens komen in de brief te staan. ' +
+          'Vul ze hier aan, dan hoef je niet terug naar het dossier.</div>';
+
+      if (mist.indexOf('polis') > -1) {
+        h += '<div style="margin-bottom:10px"><div style="font-size:12px;color:var(--muted);margin-bottom:4px">Polisnummer</div>' +
+          '<input type="text" id="fwvPolis" placeholder="Staat op het polisblad" ' +
+          'style="width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;' +
+          'font-family:JetBrains Mono,monospace;font-size:13px;background:var(--surface);color:var(--text)"></div>';
+      }
+      if (soort === 'claim') {
+        var VORMEN = [
+          ['vve_opstal','Opstalverzekering van de VvE'],
+          ['particulier_opstal','Opstalverzekering van de eigenaar'],
+          ['inboedel','Inboedelverzekering'],
+          ['aansprakelijkheid','Aansprakelijkheid'],
+          ['anders','Niet vermelden']
+        ];
+        h += '<div style="margin-bottom:10px"><div style="font-size:12px;color:var(--muted);margin-bottom:4px">' +
+          'Onder welke dekking dienen we in?</div><select id="fwvPolisvorm" style="width:100%">' +
+          VORMEN.map(function(v){
+            return '<option value="' + v[0] + '"' + ((d.polisvorm || 'vve_opstal') === v[0] ? ' selected' : '') +
+              '>' + v[1] + '</option>';
+          }).join('') + '</select></div>';
+      }
+      if (mist.indexOf('oorzaak') > -1) {
+        h += '<div style="margin-bottom:6px"><div style="font-size:12px;color:var(--muted);margin-bottom:4px">Schadeoorzaak</div>' +
+          '<select id="fwvOorzaakKies" onchange="fwvOorzaakGekozen(this)" ' +
+            'style="width:100%;margin-bottom:6px">' +
+            '<option value="">Kies de oorzaak\u2026</option>' +
+            (window.FW_OORZAKEN || []).map(function(o){
+              return '<option value="' + esc(o) + '">' + esc(o.charAt(0).toUpperCase() + o.slice(1)) + '</option>';
+            }).join('') +
+            '<option value="__vrij">Anders \u2014 zelf omschrijven</option>' +
+          '</select>' +
+          '<input type="text" id="fwvOorzaak" placeholder="Zoals vastgesteld in het schaderapport" ' +
+          'style="width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;' +
+          'font-family:inherit;font-size:13px;background:var(--surface);color:var(--text)">' +
+          '<div style="font-size:11.5px;color:var(--muted);margin-top:4px">' +
+            'Wordt in de brief genoemd als bevinding uit het rapport.</div></div>';
+      }
+      h += '<button class="btn" onclick="fwvAanvullen()" style="margin-top:4px">Aanvullen en opnieuw opstellen</button></div>';
+    }
+
+    if (data.ontbreekt && data.ontbreekt.length) {
+      var rest = data.ontbreekt.filter(function(x){ return !/polis|oorzaak/i.test(x); });
+      if (rest.length) {
+        h += '<div class="fwv-let"><b>Let op.</b> Ontbreekt nog: ' + esc(rest.join(', ')) + '.</div>';
+      }
+    }
+
+    h += '<div class="fwv-sec"><h5>SOORT VERZENDING</h5><select onchange="fwvSoort(this)">' +
+      (data.soorten || []).map(function(o){
+        return '<option value="' + o.key + '"' + (o.key === soort ? ' selected' : '') + '>' +
+          esc(o.label) + ' \u2014 ' + esc(o.uitleg) + '</option>';
+      }).join('') + '</select></div>';
+
+    h += '<div class="fwv-sec"><h5>NAAR WIE</h5>' +
+      ((data.ontvangers || []).length
+        ? data.ontvangers.map(function(o, i){
+            return '<label class="fwv-vink"><input type="checkbox" class="fwvNaar" value="' + esc(o.email) + '"' +
+              (o.standaard ? ' checked' : '') + '>' +
+              '<span><span class="nm">' + esc(o.label) + '</span>' +
+              '<span class="sub">' + esc(o.email) + '</span></span></label>';
+          }).join('')
+        : '<div class="fwv-let">Geen e-mailadres bekend. Vul die in bij de relatie of op het dossier.</div>') +
+      '</div>';
+
+    h += '<div class="fwv-sec"><h5>STUKKEN DIE MEEGAAN</h5>' +
+      ((data.documenten || []).length
+        ? data.documenten.map(function(d){
+            return '<label class="fwv-vink"><input type="checkbox" class="fwvDoc" value="' + d.id + '"' +
+              (d.voorstel ? ' checked' : '') + ' onchange="fwvHerbereken()">' +
+              '<span style="min-width:0"><span class="nm">' + esc(d.briefnaam) + '</span>' +
+              '<span class="sub">' + esc(d.bestandsnaam) + '</span></span>' +
+              (d.telt ? '<span class="bed">' + eur(d.bedrag) + '</span>' : '') +
+              '</label>';
+          }).join('')
+        : '<div class="fwv-let">Nog geen documenten bij dit dossier. Sleep ze eerst in het documentenblok.</div>') +
+      '<div class="fwv-tot" id="fwvTotaal"><span>Schadebedrag in de brief</span><span>' + eur(b.totaal) + '</span></div>' +
+      '<div style="font-size:11.5px;color:var(--muted);margin-top:5px">' +
+        'Alleen offertes en facturen tellen mee. De brief neemt de aangevinkte stukken op als bijlage.</div></div>';
+
+    if ((data.meesturen || []).length) {
+      h += '<div class="fwv-sec"><h5>OOK INFORMEREN</h5>';
+      data.meesturen.forEach(function(m){
+        var heeftMail = !!m.email;
+        h += '<div style="border:1px solid var(--line);border-radius:11px;padding:11px 12px;margin-bottom:8px">' +
+          '<label style="display:flex;align-items:flex-start;gap:9px;cursor:pointer">' +
+            '<input type="checkbox" class="fwvMee" data-soort="' + m.soort + '"' +
+              (heeftMail ? ' checked' : ' disabled') +
+              ' onchange="fwvMeeWissel(this)" style="width:16px;height:16px;accent-color:var(--teal);margin-top:1px">' +
+            '<span style="min-width:0"><span style="font-size:13.5px;font-weight:500">' + esc(m.label) +
+              (m.naam ? ' \u00b7 ' + esc(m.naam) : '') + '</span>' +
+              '<span style="display:block;font-size:11.5px;color:var(--muted);margin-top:1px">' +
+                (heeftMail ? esc(m.email) + ' \u2014 ' + esc(m.uitleg)
+                           : 'Geen e-mailadres bekend \u2014 vul het in op het dossier') + '</span></span>' +
+          '</label>' +
+          (m.soort === 'melding_eigenaar' && heeftMail
+            ? '<div id="fwvEigDocs" style="display:none;margin-top:9px;padding-top:9px;border-top:1px solid var(--line)">' +
+                '<div style="font-size:11.5px;color:var(--muted);margin-bottom:6px">' +
+                  'De eigenaar krijgt standaard alleen de melding. Vink aan wat hij daarnaast mag ontvangen.</div>' +
+                (data.documenten || []).map(function(d){
+                  return '<label style="display:flex;align-items:center;gap:8px;font-size:12.5px;padding:3px 0;cursor:pointer">' +
+                    '<input type="checkbox" class="fwvEigDoc" value="' + d.id + '" ' +
+                    'style="width:15px;height:15px;accent-color:var(--teal)">' + esc(d.briefnaam) + '</label>';
+                }).join('') +
+              '</div>'
+            : '') +
+        '</div>';
+      });
+      h += '</div>';
+    }
+
+    h += '<div class="fwv-sec"><h5>ONDERWERP</h5>' +
+      '<input type="text" id="fwvOnderwerp" value="' + esc(b.onderwerp) + '" ' +
+      'style="width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;' +
+      'font-family:inherit;font-size:13.5px;background:var(--surface);color:var(--text)"></div>';
+
+    var SNEL = ['Korter en zakelijker', 'Iets vriendelijker van toon',
+      'Vraag om een reactie binnen twee weken', 'Benadruk de urgentie',
+      'Voeg toe dat de vloer onder eigenaarsbelang valt'];
+
+    h += '<div class="fwv-sec"><h5>BEGELEIDEND BERICHT</h5>' +
+      (data.concept ? '<div class="fwv-concept"><span>Je hebt hier een concept staan.</span>' +
+        '<button class="fwa-snel" onclick="fwvConceptWeg()">Terug naar de standaardtekst</button></div>' : '') +
+      '<textarea id="fwvTekst" oninput="this.dataset.aangepast=1">' + esc(data.tekst) + '</textarea>' +
+
+      '<div class="fwa">' +
+        '<div class="kop">Iets anders wensen?</div>' +
+        '<div class="uit">Schrijf op wat er moet veranderen \u2014 in gewone taal. ' +
+          'De tekst wordt netjes herschreven in onze huisstijl.</div>' +
+        '<textarea id="fwvAanwijzing" placeholder="Bijvoorbeeld: benoem dat het laminaat onder eigenaarsbelang valt, ' +
+          'en houd het geheel wat korter."></textarea>' +
+        '<div class="fwa-rij">' +
+          SNEL.map(function(t){
+            return '<button class="fwa-snel" onclick="fwvSnel(\'' + esc(t).replace(/'/g, '') + '\')">' + esc(t) + '</button>';
+          }).join('') +
+        '</div>' +
+        '<div class="fwa-rij" style="margin-top:10px">' +
+          '<button class="btn primary" id="fwvAiBtn" onclick="fwvBijwerken()">Tekst laten bijwerken</button>' +
+          '<button class="btn" onclick="fwvBewaar()">Concept bewaren</button>' +
+        '</div>' +
+        '<div id="fwvAiStatus"></div>' +
+      '</div></div>';
+
+    $$('fwvBody').innerHTML = h;
+  }
+
+  window.fwvOorzaakGekozen = function(sel){
+    var vrij = $$('fwvOorzaak');
+    if (!vrij) return;
+    if (sel.value && sel.value !== '__vrij') { vrij.value = sel.value; }
+    else if (sel.value === '__vrij') { vrij.value = ''; vrij.focus(); }
+  };
+
+  window.fwvAanvullen = function(){
+    var patch = {};
+    var pol = $$('fwvPolis'), oor = $$('fwvOorzaak');
+    if (pol && pol.value.trim()) patch.polisnummer = pol.value.trim();
+    var pv = $$('fwvPolisvorm');
+    if (pv) patch.polisvorm = pv.value;
+    if (oor && oor.value.trim()) patch.oorzaak = oor.value.trim();
+    if (!Object.keys(patch).length) { melden('Niets ingevuld', 'Vul minstens \u00e9\u00e9n veld in.', 'err'); return; }
+    window.fwApi('/api/schades/' + encodeURIComponent(nr), {
+      method:'PATCH', body: JSON.stringify(patch)
+    }).then(function(){
+      melden('Aangevuld', 'De brief is opnieuw opgesteld.');
+      window.fwLaadDossiers();
+      var keuze = gekozen();
+      return laad(keuze.length ? keuze : null);
+    }).catch(function(e){ melden('Niet gelukt', e.message, 'err'); });
+  };
+
+  window.fwvSnel = function(t){
+    var v = $$('fwvAanwijzing');
+    if (!v) return;
+    v.value = v.value.trim() ? v.value.trim() + ' ' + t.toLowerCase() + '.' : t + '.';
+    v.focus();
+  };
+
+  window.fwvBijwerken = function(){
+    var aanw = $$('fwvAanwijzing'), tekst = $$('fwvTekst'), status = $$('fwvAiStatus');
+    if (!aanw || !aanw.value.trim()) { melden('Geen aanwijzing', 'Schrijf op wat er anders moet.', 'err'); return; }
+    var knop = $$('fwvAiBtn');
+    knop.disabled = true;
+    status.innerHTML = '<div class="fwa-bezig"><span class="fwa-punt"></span>De tekst wordt bijgewerkt\u2026</div>';
+
+    window.fwApi('/api/schades/' + encodeURIComponent(nr) + '/brief/bijwerken', {
+      method:'POST',
+      body: JSON.stringify({ soort: soort, tekst: tekst.value, aanwijzing: aanw.value.trim() })
+    }).then(function(res){
+      tekst.value = res.tekst;
+      tekst.dataset.aangepast = 1;
+      aanw.value = '';
+      status.innerHTML = '<div style="font-size:12px;color:var(--teal-ink);padding:6px 0">' +
+        'Bijgewerkt. Lees hem even na en bewaar als het klopt.</div>';
+      window.fwvBewaar(true);
+    }).catch(function(e){
+      status.innerHTML = '<div class="fwm-err" style="margin-top:8px">' + esc(e.message) + '</div>';
+    }).then(function(){ knop.disabled = false; });
+  };
+
+  window.fwvBewaar = function(stil){
+    var naar = Array.prototype.slice.call(document.querySelectorAll('.fwvNaar:checked')).map(function(b){ return b.value; });
+    return window.fwApi('/api/schades/' + encodeURIComponent(nr) + '/brief/concept', {
+      method:'POST',
+      body: JSON.stringify({
+        soort: soort, onderwerp: $$('fwvOnderwerp').value,
+        tekst: $$('fwvTekst').value, documentIds: gekozen(), naar: naar
+      })
+    }).then(function(){
+      if (!stil) melden('Bewaard', 'Het concept staat klaar bij dit dossier.');
+    }).catch(function(e){
+      if (!stil) melden('Niet bewaard', e.message, 'err');
+    });
+  };
+
+  window.fwvConceptWeg = function(){
+    if (!window.confirm('Terug naar de automatisch opgestelde tekst? Je aanpassingen gaan verloren.')) return;
+    window.fwApi('/api/schades/' + encodeURIComponent(nr) + '/brief/concept?soort=' + soort, { method:'DELETE' })
+      .then(function(){ return laad(gekozen()); })
+      .catch(function(e){ melden('Niet gelukt', e.message, 'err'); });
+  };
+
+  window.fwvMeeWissel = function(box){
+    if (box.dataset.soort !== 'melding_eigenaar') return;
+    var vak = $$('fwvEigDocs');
+    if (vak) vak.style.display = box.checked ? '' : 'none';
+  };
+
+  function kopieen(){
+    var uit = [];
+    Array.prototype.forEach.call(document.querySelectorAll('.fwvMee:checked'), function(box){
+      var m = (data.meesturen || []).find(function(x){ return x.soort === box.dataset.soort; });
+      if (!m || !m.email) return;
+      var docs = [];
+      if (m.soort === 'melding_beheerder') {
+        docs = gekozen();                       // beheerder krijgt hetzelfde pakket
+      } else {
+        docs = Array.prototype.slice.call(document.querySelectorAll('.fwvEigDoc:checked'))
+          .map(function(b){ return b.value; }); // eigenaar alleen wat je aanvinkt
+      }
+      uit.push({ soort: m.soort, naar: [m.email], documentIds: docs });
+    });
+    return uit;
+  }
+
+  window.fwvVerstuur = function(){
+    var naar = Array.prototype.slice.call(document.querySelectorAll('.fwvNaar:checked')).map(function(b){ return b.value; });
+    if (!naar.length) { melden('Geen ontvanger', 'Vink minstens \u00e9\u00e9n adres aan.', 'err'); return; }
+
+    var mee = kopieen();
+    var knop = $$('fwvOk');
+    knop.disabled = true; knop.textContent = 'Bezig\u2026';
+    window.fwApi('/api/schades/' + encodeURIComponent(nr) + '/verzenden', {
+      method:'POST',
+      body: JSON.stringify({
+        soort: soort, naar: naar,
+        onderwerp: $$('fwvOnderwerp').value,
+        tekst: $$('fwvTekst').value,
+        documentIds: gekozen(),
+        kopieen: mee
+      })
+    }).then(function(res){
+      window.fwvSluit();
+      var n = naar.length + (res.kopieen || 0);
+      melden('Verstuurd', n + ' bericht(en) \u00b7 vastgelegd bij ' + nr);
+      if (window.fwLaadCorrespondentie) window.fwLaadCorrespondentie();
+      return window.fwLaadDossiers();
+    }).catch(function(e){
+      melden('Niet gelukt', e.message, 'err');
+    }).then(function(){
+      knop.disabled = false; knop.textContent = 'Versturen';
+    });
+  };
+
+  // Knop op het dossier
+  function knop(){
+    var paneel = $$('fwPaneel');
+    if (!paneel || $$('fwvBtn')) return;
+    var kop = paneel.parentNode.querySelector('.fwp-head');
+    if (!kop) return;
+    var b = document.createElement('button');
+    b.id = 'fwvBtn';
+    b.className = 'btn primary';
+    b.style.cssText = 'font-size:12.5px;padding:8px 14px';
+    b.textContent = 'Versturen';
+    b.onclick = function(){ window.fwvOpen(window.__fwDossier); };
+    kop.appendChild(b);
+  }
+  /* vervangen door de schadekaart */
+})();
+</script>
+
+<script>
+/* ══ Schadeoorzaak: kiezen of laten herkennen ══ */
+(function(){
+  // De oorzaken die in dit vak steeds terugkomen.
+  window.FW_OORZAKEN = [
+    'een defecte inlaatcombinatie van de cv-installatie',
+    'een lekkage in de aanvoerleiding van de cv-installatie',
+    'een lekkage in de waterleiding',
+    'een lekkage in de afvoer- of rioleringsleiding',
+    'een lekkage bij de aansluiting van de wasmachine of vaatwasser',
+    'een verstopte of gebroken hemelwaterafvoer',
+    'een lekkage in de dakbedekking',
+    'een lekkage door aangetaste kitvoegen in de doucheruimte',
+    'een lekkage bij de boiler of geiser',
+    'een lekkage vanuit het bovengelegen appartement',
+    'vorstschade aan een waterleiding',
+    'doorslaand vocht via de gevel'
+  ];
+
+  // Zoekt de oorzaak in de tekst van een schaderapport.
+  window.fwZoekOorzaak = function(tekst){
+    var t = String(tekst || '').replace(/\s+/g, ' ');
+    var re = /(oorzaak|schadeoorzaak|oorzaakdiagnose)[^a-z0-9]{0,40}([^.]{12,180})\./i;
+    var m = re.exec(t);
+    if (!m) return null;
+    var zin = m[2].trim().replace(/^(is|was|betreft|luidt)\s+/i, '');
+    zin = zin.charAt(0).toLowerCase() + zin.slice(1);
+    return zin.length > 12 ? zin : null;
+  };
+
+  // Zoekt een polisnummer in de tekst van een polisblad.
+  window.fwZoekPolis = function(tekst){
+    var t = String(tekst || '').replace(/\s+/g, ' ');
+    var m = /(polisnummer|polisnr\.?)[^0-9A-Z]{0,20}([0-9A-Z][0-9A-Z.\-\/]{5,24})/i.exec(t);
+    return m ? m[2].replace(/[.\-]$/, '') : null;
+  };
+})();
+</script>
+
+<style>
+/* ── Aanwijzing aan de tekst ── */
+.fwa{border:1px solid var(--line);border-radius:12px;padding:12px 13px;margin-top:10px;background:var(--canvas)}
+.fwa .kop{font-size:12px;font-weight:600;color:var(--text);margin-bottom:3px}
+.fwa .uit{font-size:11.5px;color:var(--muted);margin-bottom:9px}
+.fwa textarea{width:100%;min-height:62px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;
+  font-family:inherit;font-size:13px;background:var(--surface);color:var(--text);resize:vertical}
+.fwa-rij{display:flex;gap:7px;align-items:center;margin-top:8px;flex-wrap:wrap}
+.fwa-snel{font-size:11.5px;padding:5px 10px;border-radius:20px;border:1px solid var(--line);
+  background:var(--surface);color:var(--muted);cursor:pointer;transition:.14s}
+.fwa-snel:hover{border-color:var(--teal);color:var(--teal-ink);background:rgba(0,155,168,.05)}
+.fwa-bezig{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--muted);padding:6px 0}
+.fwa-punt{width:7px;height:7px;border-radius:50%;background:var(--teal);animation:fwaPuls 1.1s infinite}
+@keyframes fwaPuls{0%,100%{opacity:.3}50%{opacity:1}}
+.fwv-concept{font-size:11.5px;color:var(--teal-ink);background:var(--teal-soft);
+  padding:7px 11px;border-radius:8px;margin-bottom:10px;display:flex;justify-content:space-between;gap:10px;align-items:center}
+</style>
+
+<style>
+/* ── Correspondentie ── */
+.fwc-rij{display:flex;gap:11px;padding:11px 0;border-bottom:1px solid var(--line);align-items:flex-start}
+.fwc-rij:last-child{border-bottom:none}
+.fwc-ico{width:30px;height:30px;border-radius:9px;flex:none;display:flex;align-items:center;justify-content:center}
+.fwc-ico svg{width:15px;height:15px}
+.fwc-txt{min-width:0;flex:1}
+.fwc-t{font-size:13.5px;font-weight:500}
+.fwc-s{font-size:11.5px;color:var(--muted);margin-top:1px;overflow:hidden;text-overflow:ellipsis}
+.fwc-d{font-size:11.5px;color:var(--muted-2,#97A2B2);white-space:nowrap;flex:none;padding-top:1px}
+.fwc-bij{font-size:11px;color:var(--muted);margin-top:3px}
+</style>
+
+<script>
+/* ══ Correspondentie bij het dossier ══ */
+(function(){
+  var KLEUR = {
+    claim:             ['#378ADD', '#E6F1FB'],
+    rapport:           ['#1D9E75', '#E1F5EE'],
+    offerte:           ['#7F77DD', '#EEEDFE'],
+    herinnering:       ['#BA7517', '#FAEEDA'],
+    melding_beheerder: ['#00838F', '#E0F4F6'],
+    melding_eigenaar:  ['#00838F', '#E0F4F6']
+  };
+  var LABEL = {
+    claim:'Claim ingediend bij verzekeraar', rapport:'Schaderapport verstuurd',
+    offerte:'Offerte verstuurd', herinnering:'Herinnering gestuurd',
+    melding_beheerder:'Beheerder ge\u00efnformeerd', melding_eigenaar:'Eigenaar ge\u00efnformeerd'
+  };
+
+  function esc(v){ return String(v==null?'':v).replace(/[&<>"]/g,function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+
+  function wanneer(d){
+    var x = new Date(d);
+    if (isNaN(x.getTime())) return '';
+    var nu = new Date(), dag = 864e5;
+    var verschil = Math.floor((nu - x) / dag);
+    if (verschil === 0) return 'vandaag';
+    if (verschil === 1) return 'gisteren';
+    if (verschil < 7) return verschil + ' dagen geleden';
+    return x.toLocaleDateString('nl-NL', { day:'numeric', month:'short', year:'numeric' });
+  }
+
+  window.fwLaadCorrespondentie = function(){
+    var nr = window.__fwDossier;
+    var doel = document.getElementById('fwCorr');
+    if (!nr || !doel) return Promise.resolve();
+    return window.fwApi('/api/schades/' + encodeURIComponent(nr) + '/verzendingen')
+      .then(function(res){
+        var lijst = (res.verzendingen || []).filter(function(v){ return v.status !== 'concept'; });
+        doel.innerHTML = lijst.length ? lijst.map(rij).join('')
+          : '<div style="font-size:12.5px;color:var(--muted);padding:4px 0">' +
+            'Nog niets verstuurd vanuit dit dossier.</div>';
+        var teller = document.getElementById('fwCorrCnt');
+        if (teller) teller.textContent = lijst.length ? lijst.length + ' bericht' + (lijst.length > 1 ? 'en' : '') : '';
+      })
+      .catch(function(){ doel.innerHTML = ''; });
+  };
+
+  function rij(v){
+    var k = KLEUR[v.soort] || ['#8a94a6', '#F1EFE8'];
+    var aantal = (v.documentIds || []).length;
+    return '<div class="fwc-rij">' +
+      '<div class="fwc-ico" style="background:' + k[1] + ';color:' + k[0] + '">' +
+        '<svg viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="14" rx="2" ' +
+        'stroke="currentColor" stroke-width="1.9"/><path d="M4 7l8 6 8-6" stroke="currentColor" ' +
+        'stroke-width="1.9" stroke-linecap="round"/></svg></div>' +
+      '<div class="fwc-txt">' +
+        '<div class="fwc-t">' + esc(LABEL[v.soort] || v.soort) + '</div>' +
+        '<div class="fwc-s">' + esc((v.naar || []).join(', ')) + '</div>' +
+        (aantal ? '<div class="fwc-bij">' + aantal + ' stuk' + (aantal > 1 ? 'ken' : '') + ' meegestuurd</div>' : '') +
+        (v.doorNaam ? '<div class="fwc-bij">door ' + esc(v.doorNaam) + '</div>' : '') +
+      '</div>' +
+      '<div class="fwc-d">' + wanneer(v.createdAt) + '</div>' +
+    '</div>';
+  }
+
+  // Kaart onder het documentenblok
+  function kaart(){
+    var docKaart = document.getElementById('fwDocKaart');
+    if (!docKaart || document.getElementById('fwCorrKaart')) return;
+    var k = document.createElement('div');
+    k.className = 'fwp';
+    k.id = 'fwCorrKaart';
+    k.innerHTML =
+      '<div class="fwp-head"><h4>Correspondentie</h4>' +
+        '<span id="fwCorrCnt" style="font-size:11.5px;color:var(--muted)"></span></div>' +
+      '<div class="fwp-body" id="fwCorr"></div>';
+    docKaart.parentNode.insertBefore(k, docKaart.nextSibling);
+    window.fwLaadCorrespondentie();
+  }
+
+  /* correspondentie zit nu in de schadekaart */
+})();
+</script>
+
+<style>
+/* ── Handtekening zetten ── */
+.fws-pad{border:1.5px dashed var(--line-2,#cfd8e3);border-radius:12px;background:#fff;
+  position:relative;overflow:hidden;touch-action:none;cursor:crosshair}
+.fws-pad canvas{display:block;width:100%;height:150px}
+.fws-lijn{position:absolute;left:22px;right:22px;bottom:34px;border-bottom:1px solid var(--line);
+  pointer-events:none}
+.fws-hint{position:absolute;left:22px;bottom:14px;font-size:11.5px;color:var(--muted-2,#97A2B2);
+  pointer-events:none}
+.fws-rij{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap}
+.fws-huidig{border:1px solid var(--line);border-radius:12px;padding:14px 16px;background:#fff;
+  display:flex;align-items:flex-end;justify-content:space-between;gap:14px}
+.fws-huidig img{max-height:60px;max-width:220px}
+</style>
+
+<script>
+/* ══ Handtekening zetten en bewaren ══ */
+(function(){
+  var pad = null, ctx = null, bezig = false, getekend = false, laatste = null;
+
+  function $$(id){ return document.getElementById(id); }
+  function esc(v){ return String(v==null?'':v).replace(/[&<>"]/g,function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function melden(t,m,k){ if (typeof toast==='function') toast(t,m,k||'ok'); }
+
+  window.fwsOpen = function(){
+    $$('fwmTitel').textContent = 'Mijn handtekening';
+    $$('fwmSub').textContent = 'Zet hem één keer; hij komt dan onder elke brief die jij verstuurt.';
+    $$('fwmBody').innerHTML =
+      '<div id="fwmMelding" style="display:none"></div>' +
+      '<div id="fwsHuidig"></div>' +
+      '<div style="font-size:12px;color:var(--muted);margin:4px 0 6px">Teken hieronder met je muis of vinger</div>' +
+      '<div class="fws-pad" id="fwsPad">' +
+        '<canvas id="fwsCanvas"></canvas>' +
+        '<div class="fws-lijn"></div>' +
+        '<div class="fws-hint" id="fwsHint">handtekening</div>' +
+      '</div>' +
+      '<div class="fws-rij"><button class="btn" onclick="fwsWis()">Opnieuw</button></div>' +
+      '<div style="margin-top:12px"><label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">' +
+        'Functie onder je naam</label>' +
+        '<input type="text" id="fwsFunctie" placeholder="bijvoorbeeld Managing Partner" ' +
+        'style="width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;' +
+        'font-family:inherit;font-size:14px;background:var(--surface);color:var(--text)"></div>';
+
+    $$('fwmOk').textContent = 'Opslaan';
+    $$('fwmOk').onclick = bewaar;
+    $$('fwmWrap').classList.add('on');
+
+    setTimeout(function(){ start(); haalOp(); }, 60);
+  };
+
+  function haalOp(){
+    window.fwApi('/api/users/handtekening').then(function(res){
+      laatste = res.handtekening;
+      var f = $$('fwsFunctie');
+      if (f && res.functie) f.value = res.functie;
+      toonHuidig();
+    }).catch(function(){});
+  }
+
+  function toonHuidig(){
+    var doel = $$('fwsHuidig');
+    if (!doel) return;
+    doel.innerHTML = laatste
+      ? '<div class="fws-huidig"><div><div style="font-size:11.5px;color:var(--muted);margin-bottom:6px">' +
+        'Nu in gebruik</div><img src="' + esc(laatste) + '" alt="handtekening"></div>' +
+        '<button class="btn" onclick="fwsWeg()" style="font-size:12.5px;padding:7px 12px">Verwijderen</button></div>' +
+        '<div style="height:12px"></div>'
+      : '';
+  }
+
+  function start(){
+    pad = $$('fwsCanvas');
+    if (!pad) return;
+    var breedte = pad.parentNode.clientWidth;
+    var schaal = window.devicePixelRatio || 1;
+    pad.width = breedte * schaal;
+    pad.height = 150 * schaal;
+    ctx = pad.getContext('2d');
+    ctx.scale(schaal, schaal);
+    ctx.lineWidth = 2.2;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = '#151F35';
+    getekend = false;
+
+    function punt(e){
+      var r = pad.getBoundingClientRect();
+      var x = (e.touches ? e.touches[0].clientX : e.clientX) - r.left;
+      var y = (e.touches ? e.touches[0].clientY : e.clientY) - r.top;
+      return { x: x, y: y };
+    }
+    function neer(e){
+      e.preventDefault();
+      bezig = true; getekend = true;
+      var h = $$('fwsHint'); if (h) h.style.display = 'none';
+      var p = punt(e);
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+    }
+    function beweeg(e){
+      if (!bezig) return;
+      e.preventDefault();
+      var p = punt(e);
+      ctx.lineTo(p.x, p.y);
+      ctx.stroke();
+    }
+    function op(){ bezig = false; }
+
+    pad.addEventListener('mousedown', neer);
+    pad.addEventListener('mousemove', beweeg);
+    window.addEventListener('mouseup', op);
+    pad.addEventListener('touchstart', neer, { passive: false });
+    pad.addEventListener('touchmove', beweeg, { passive: false });
+    pad.addEventListener('touchend', op);
+  }
+
+  window.fwsWis = function(){
+    if (!ctx || !pad) return;
+    ctx.clearRect(0, 0, pad.width, pad.height);
+    getekend = false;
+    var h = $$('fwsHint'); if (h) h.style.display = '';
+  };
+
+  window.fwsWeg = function(){
+    if (!window.confirm('Je handtekening verwijderen? Brieven krijgen dan weer een lege ruimte.')) return;
+    window.fwApi('/api/users/handtekening', {
+      method:'PUT', body: JSON.stringify({ handtekening: null })
+    }).then(function(){ laatste = null; toonHuidig(); melden('Verwijderd', 'Je handtekening is weg.'); })
+      .catch(function(e){ melden('Niet gelukt', e.message, 'err'); });
+  };
+
+  // Knipt de witruimte eromheen weg, zodat hij strak onder de brief staat.
+  function bijsnijden(c){
+    var w = c.width, h = c.height;
+    var d = c.getContext('2d').getImageData(0, 0, w, h).data;
+    var x0 = w, y0 = h, x1 = 0, y1 = 0, leeg = true;
+    for (var y = 0; y < h; y++) {
+      for (var x = 0; x < w; x++) {
+        if (d[(y * w + x) * 4 + 3] > 8) {
+          leeg = false;
+          if (x < x0) x0 = x; if (x > x1) x1 = x;
+          if (y < y0) y0 = y; if (y > y1) y1 = y;
+        }
+      }
+    }
+    if (leeg) return null;
+    var m = 6;
+    x0 = Math.max(0, x0 - m); y0 = Math.max(0, y0 - m);
+    x1 = Math.min(w, x1 + m); y1 = Math.min(h, y1 + m);
+    var uit = document.createElement('canvas');
+    uit.width = x1 - x0; uit.height = y1 - y0;
+    uit.getContext('2d').drawImage(c, x0, y0, uit.width, uit.height, 0, 0, uit.width, uit.height);
+    return uit.toDataURL('image/png');
+  }
+
+  function bewaar(){
+    var functie = $$('fwsFunctie') ? $$('fwsFunctie').value.trim() : '';
+    var body = { functie: functie };
+
+    if (getekend) {
+      var data = bijsnijden(pad);
+      if (!data) { melden('Leeg', 'Er staat nog niets in het vak.', 'err'); return; }
+      body.handtekening = data;
+    } else if (!laatste && !functie) {
+      melden('Niets gedaan', 'Teken je handtekening of vul je functie in.', 'err');
+      return;
+    }
+
+    var knop = $$('fwmOk');
+    knop.disabled = true;
+    window.fwApi('/api/users/handtekening', { method:'PUT', body: JSON.stringify(body) })
+      .then(function(res){
+        laatste = res.handtekening;
+        window.fwmSluit();
+        melden('Opgeslagen', 'Je handtekening komt nu onder je brieven.');
+      })
+      .catch(function(e){
+        var m = $$('fwmMelding');
+        m.className = 'fwm-err'; m.textContent = e.message; m.style.display = '';
+      })
+      .then(function(){ knop.disabled = false; });
+  }
+
+  // Knop in de zijbalk
+  function knop(){
+    if (document.getElementById('fwsBtn')) return;
+    var ww = document.getElementById('fwmWwBtn');
+    if (!ww) return;
+    var b = document.createElement('button');
+    b.id = 'fwsBtn';
+    b.textContent = 'Mijn handtekening';
+    b.style.cssText = 'margin-top:8px;width:100%;padding:9px;border-radius:10px;' +
+      'background:rgba(255,255,255,.06);color:#fff;font-size:12.5px;font-family:inherit;cursor:pointer;border:none';
+    b.onclick = window.fwsOpen;
+    ww.parentNode.insertBefore(b, ww.nextSibling);
+  }
+  setInterval(knop, 800);
+})();
+</script>
+
+<style>
+/* ── Offertestatus ── */
+.fwo{border:1px solid var(--line);border-radius:12px;padding:13px 14px;margin-bottom:8px;background:var(--surface)}
+.fwo-kop{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px}
+.fwo-st{font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;letter-spacing:.02em}
+.fwo-st.open{background:#FDF3E0;color:#8A5A0B}
+.fwo-st.akkoord{background:var(--green-soft);color:#12704A}
+.fwo-st.geweigerd{background:var(--red-soft);color:var(--red)}
+.fwo-st.vervallen{background:var(--canvas);color:var(--muted)}
+.fwo-bed{font-size:16px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--navy)}
+.fwo-r{display:flex;gap:8px;align-items:center;font-size:12.5px;color:var(--muted);padding:3px 0}
+.fwo-r svg{width:14px;height:14px;flex:none;opacity:.7}
+.fwo-link{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--teal);
+  word-break:break-all;margin-top:7px;padding-top:7px;border-top:1px solid var(--line)}
+</style>
+
+<script>
+/* ══ Offertes: geopend, akkoord of niet ══ */
+(function(){
+  var IC_OOG = '<svg viewBox="0 0 24 24" fill="none"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="12" r="2.8" stroke="currentColor" stroke-width="1.7"/></svg>';
+  var IC_KLOK = '<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.7"/><path d="M12 7.5V12l3 2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>';
+  var IC_PEN = '<svg viewBox="0 0 24 24" fill="none"><path d="M4 20h4l10-10a2.8 2.8 0 10-4-4L4 16v4z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>';
+  var IC_BEL = '<svg viewBox="0 0 24 24" fill="none"><path d="M18 15V10a6 6 0 10-12 0v5l-1.5 2.5h15L18 15z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>';
+
+  var ST = { open:'Wacht op antwoord', akkoord:'Akkoord', geweigerd:'Niet akkoord', vervallen:'Vervallen' };
+
+  function esc(v){ return String(v==null?'':v).replace(/[&<>"]/g,function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function eur(n){ return '\u20ac' + (Math.round(Number(n)||0)).toLocaleString('nl-NL'); }
+  function dag(d){
+    if (!d) return '';
+    var x = new Date(d);
+    return isNaN(x.getTime()) ? '' : x.toLocaleDateString('nl-NL', { day:'numeric', month:'short' });
+  }
+  function dagenGeleden(d){
+    if (!d) return 0;
+    return Math.floor((Date.now() - new Date(d).getTime()) / 864e5);
+  }
+
+  window.fwLaadOffertes = function(){
+    var nr = window.__fwDossier;
+    var doel = document.getElementById('fwOff');
+    if (!nr || !doel) return Promise.resolve();
+    return window.fwApi('/api/schades/' + encodeURIComponent(nr) + '/offertes')
+      .then(function(res){
+        var l = res.offertes || [];
+        window.__fwOffertes = l;
+        doel.innerHTML = l.length ? l.map(kaart).join('')
+          : '<div style="font-size:12.5px;color:var(--muted)">Nog geen offerte verstuurd. ' +
+            'Zodra je er een verstuurt, kan de klant hier online akkoord geven.</div>';
+      })
+      .catch(function(){ doel.innerHTML = ''; });
+  };
+
+  function kaart(o){
+    var h = '<div class="fwo"><div class="fwo-kop">' +
+      '<span class="fwo-st ' + o.status + '">' + esc(ST[o.status] || o.status) + '</span>' +
+      (o.bedrag ? '<span class="fwo-bed">' + eur(o.bedrag) + '</span>' : '') + '</div>';
+
+    h += '<div class="fwo-r">' + IC_KLOK + 'Verstuurd op ' + dag(o.verstuurdAt) +
+      (o.geldigTot ? ' \u00b7 geldig tot ' + dag(o.geldigTot) : '') + '</div>';
+
+    if (o.geopendAt) {
+      h += '<div class="fwo-r" style="color:var(--teal-ink)">' + IC_OOG + 'Geopend op ' + dag(o.geopendAt) +
+        (o.openCount > 1 ? ' \u00b7 ' + o.openCount + ' keer bekeken' : '') + '</div>';
+    } else if (o.status === 'open') {
+      h += '<div class="fwo-r" style="color:#8A5A0B">' + IC_OOG + 'Nog niet geopend' +
+        (dagenGeleden(o.verstuurdAt) >= 3 ? ' \u2014 al ' + dagenGeleden(o.verstuurdAt) + ' dagen' : '') + '</div>';
+    }
+
+    if (o.besluitAt) {
+      h += '<div class="fwo-r" style="color:' + (o.status === 'akkoord' ? 'var(--green)' : 'var(--red)') + '">' +
+        IC_PEN + (o.status === 'akkoord' ? 'Akkoord' : 'Afgewezen') + ' op ' + dag(o.besluitAt) +
+        (o.naam ? ' door ' + esc(o.naam) : '') + '</div>';
+      if (o.reden) h += '<div class="fwo-r" style="padding-left:22px">' + esc(o.reden) + '</div>';
+    }
+
+    if (o.herinneringen) {
+      h += '<div class="fwo-r">' + IC_BEL + o.herinneringen + ' herinnering' +
+        (o.herinneringen > 1 ? 'en' : '') + ' gestuurd' + (o.herinnerdAt ? ', laatst ' + dag(o.herinnerdAt) : '') + '</div>';
+    }
+
+    if (o.status === 'open') {
+      h += '<div class="fwo-link">' + esc(o.link) + '</div>' +
+        '<div style="display:flex;gap:7px;margin-top:9px;flex-wrap:wrap">' +
+          '<button class="jbtn" onclick="fwOffKopie(\'' + esc(o.link) + '\')">Link kopi\u00ebren</button>' +
+          '<button class="jbtn" onclick="fwvOpen(null,\'offerte_rappel\')">Herinnering sturen</button>' +
+        '</div>';
+    }
+    return h + '</div>';
+  }
+
+  window.fwOffKopie = function(link){
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(link).then(function(){
+        if (typeof toast === 'function') toast('Gekopieerd', 'De link staat op je klembord.');
+      });
+    }
+  };
+
+  function kaartje(){
+    var corr = document.getElementById('fwCorrKaart');
+    if (!corr || document.getElementById('fwOffKaart')) return;
+    var k = document.createElement('div');
+    k.className = 'fwp';
+    k.id = 'fwOffKaart';
+    k.innerHTML =
+      '<div class="fwp-head"><h4>Offerte &middot; akkoord van de klant</h4></div>' +
+      '<div class="fwp-body" id="fwOff"></div>';
+    corr.parentNode.insertBefore(k, corr);
+    window.fwLaadOffertes();
+  }
+
+  /* offertes zitten nu in de schadekaart */
+})();
+</script>
+<style>
+/* ── Dossierbeheer, opgeruimd ── */
+.fwp-vak{border:1px solid var(--line);border-radius:12px;padding:13px 14px;margin-bottom:10px;background:var(--surface)}
+.fwp-vak-kop{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px}
+.fwp-vak-kop>span:first-child{font-size:11px;font-weight:700;color:var(--muted-2,#97A2B2);letter-spacing:.05em;text-transform:uppercase}
+.fwp-tel{font-size:12px;color:var(--muted)}
+.fwp-vak select{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;
+  font-family:inherit;font-size:13.5px;background:var(--surface);color:var(--text);min-height:42px}
+
+/* voortgangsbalk */
+.fwp-balk{display:flex;gap:4px;margin-bottom:9px}
+.fwp-stip{flex:1;height:6px;border-radius:3px;background:var(--line)}
+.fwp-stip.af{background:var(--teal)}
+.fwp-stip.nu{background:var(--teal-2);box-shadow:0 0 0 2.5px rgba(0,182,196,.22)}
+.fwp-nu{font-size:14px;font-weight:600;color:var(--navy);margin-bottom:11px}
+.fwp-door{width:100%;display:flex;align-items:center;justify-content:center;gap:8px;min-height:44px;font-size:13.5px}
+.fwp-door svg{width:17px;height:17px}
+.fwp-klaar{font-size:12.5px;color:var(--muted);padding:9px 0;text-align:center;
+  background:var(--canvas);border-radius:10px}
+
+/* uitklappers */
+.fwp-meer{width:100%;text-align:left;font-size:12.5px;color:var(--muted);padding:9px 0 3px;
+  background:none;border:none;cursor:pointer;display:flex;align-items:center;gap:6px;font-family:inherit}
+.fwp-meer::after{content:'';width:6px;height:6px;border-right:1.6px solid currentColor;
+  border-bottom:1.6px solid currentColor;transform:rotate(45deg);margin-left:1px;margin-top:-3px;transition:.18s}
+.fwp-meer.op::after{transform:rotate(-135deg);margin-top:2px}
+.fwp-meer:hover{color:var(--teal-ink)}
+.fwp-klap{display:none;padding-top:8px}
+.fwp-klap.open{display:block}
+.fwp-hint{font-size:11.5px;color:var(--muted-2,#97A2B2);margin-top:7px}
+
+/* labels */
+.fwp-pil{font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px}
+.fwp-pil.ok{background:var(--green-soft);color:#12704A}
+.fwp-pil.let{background:#FDF3E0;color:#8A5A0B}
+.fwp-notitie{font-size:12.5px;color:var(--muted);margin-top:8px;padding-top:8px;border-top:1px solid var(--line)}
+
+/* financieel */
+.fwp-marge{font-size:16px;font-weight:700;color:var(--navy);font-variant-numeric:tabular-nums}
+.fwp-geld{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+.fwp-geld label{font-size:11.5px;color:var(--muted);display:block}
+.fwp-geld input{width:100%;margin-top:4px;padding:9px 10px;border:1px solid var(--line);border-radius:9px;
+  font-family:inherit;font-size:13.5px;text-align:right;background:var(--surface);color:var(--text);
+  font-variant-numeric:tabular-nums}
+.fwp-geld-voet{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:11px;flex-wrap:wrap}
+.fwp-geld-voet span{font-size:11.5px;color:var(--muted)}
+
+.fwp-acties{display:flex;gap:8px;flex-wrap:wrap;padding-top:2px}
+.fwp-acties .btn{flex:1;min-width:150px;justify-content:center}
+
+@media (max-width:960px){ .fwp-geld{grid-template-columns:1fr} }
+</style>
+<style>
+/* ══════ SCHADEKAART ══════ */
+#view-detail.fwk{padding:0}
+.fwk-wrap{max-width:960px;margin:0 auto}
+.fwk-terug{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);
+  margin-bottom:12px;padding:4px 0;background:none;border:none;cursor:pointer;font-family:inherit}
+.fwk-terug svg{width:15px;height:15px}
+.fwk-terug:hover{color:var(--teal-ink)}
+
+.fwk-kop{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;margin-bottom:16px}
+.fwk-nr{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted);
+  display:flex;align-items:center;gap:9px;margin-bottom:4px;flex-wrap:wrap}
+.fwk-kop h1{font-size:25px;line-height:1.22;margin:0}
+.fwk-kop .sub{color:var(--muted);font-size:13.5px;margin-top:4px}
+.fwk-pil{font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:20px;letter-spacing:.02em;
+  border:1px solid transparent;cursor:pointer;font-family:inherit}
+.fwk-pil.teal{background:var(--teal-soft);color:var(--teal-ink)}
+.fwk-pil.groen{background:var(--green-soft);color:#12704A}
+.fwk-pil.amber{background:#FDF3E0;color:#8A5A0B}
+.fwk-pil.rood{background:var(--red-soft);color:var(--red)}
+.fwk-pil.grijs{background:var(--canvas);color:var(--muted)}
+.fwk-pil.klik:hover{border-color:var(--teal);background:var(--surface)}
+
+.fwk-rp{display:none;background:var(--surface);border:1px solid var(--line);border-radius:14px;
+  padding:15px 17px;margin-bottom:14px;box-shadow:var(--shadow-m)}
+.fwk-rp.open{display:block}
+.fwk-rp-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.fwk-rp label{font-size:11.5px;color:var(--muted);display:block;margin-bottom:5px}
+
+/* stuurkaart */
+.fwk-stuur{background:var(--surface);border:1px solid var(--line);border-radius:16px;
+  box-shadow:var(--shadow-m);margin-bottom:14px;overflow:hidden}
+.fwk-stuur.klant{border-color:var(--teal);box-shadow:0 0 0 3px rgba(0,155,168,.09),var(--shadow-m)}
+.fwk-blok{padding:12px 18px;font-size:13px;display:flex;gap:10px;align-items:flex-start;line-height:1.45}
+.fwk-blok svg{width:17px;height:17px;flex:none;margin-top:1px}
+.fwk-blok.amber{background:#FDF3E0;color:#8A5A0B}
+.fwk-blok.rood{background:var(--red-soft);color:#A8352F}
+.fwk-blok button{margin-left:auto;flex:none}
+
+.fwk-lijn-wrap{padding:20px 18px 4px;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.fwk-lijn{display:flex;min-width:min-content}
+.fwk-halte{flex:1 0 88px;text-align:center;position:relative;padding:0 2px;background:none;border:none;
+  border-radius:9px;cursor:pointer;font-family:inherit;transition:.14s}
+.fwk-halte:hover{background:var(--canvas)}
+.fwk-halte::before{content:'';position:absolute;top:24px;left:-50%;right:50%;height:2px;background:var(--line)}
+.fwk-halte:first-child::before{display:none}
+.fwk-halte.af::before,.fwk-halte.nu::before,.fwk-halte.dood::before{background:var(--teal)}
+.fwk-bol{width:26px;height:26px;border-radius:50%;background:var(--surface);border:2px solid var(--line);
+  margin:11px auto 8px;position:relative;z-index:1;display:flex;align-items:center;justify-content:center;transition:.16s}
+.fwk-bol svg{width:13px;height:13px;color:#fff}
+.fwk-halte.af .fwk-bol{background:var(--teal);border-color:var(--teal)}
+.fwk-halte.nu .fwk-bol{border-color:var(--teal-2);border-width:3px;box-shadow:0 0 0 5px rgba(0,182,196,.16)}
+.fwk-halte.vraag .fwk-bol{border-color:#E0A030;border-width:3px;box-shadow:0 0 0 5px rgba(224,160,48,.18)}
+.fwk-halte.vraag .fwk-t{color:#8A5A0B}
+.fwk-halte.dood .fwk-bol{background:var(--red);border-color:var(--red)}
+.fwk-halte.dood .fwk-t{color:var(--red);font-weight:600}
+.fwk-halte.verv{opacity:.32}
+.fwk-halte.verv .fwk-t{text-decoration:line-through}
+.fwk-t{font-size:11px;color:var(--muted);line-height:1.35;padding:0 2px 10px;display:block}
+.fwk-halte.af .fwk-t{color:var(--text)}
+.fwk-halte.nu .fwk-t{color:var(--navy);font-weight:600}
+.fwk-slot{position:absolute;top:14px;right:calc(50% - 20px);width:13px;height:13px;border-radius:50%;
+  background:var(--muted-2);color:#fff;display:flex;align-items:center;justify-content:center}
+.fwk-slot svg{width:7px;height:7px}
+
+.fwk-verz{padding:12px 18px;border-top:1px solid var(--line-2);display:flex;align-items:center;
+  gap:12px;flex-wrap:wrap;background:#FBFCFD}
+.fwk-verz .l{font-size:11px;font-weight:700;color:var(--muted-2);letter-spacing:.05em;text-transform:uppercase}
+.fwk-verz select{width:auto;min-width:200px;flex:1;max-width:300px}
+.fwk-verz .ext{font-size:12px;color:var(--muted);flex:1 1 100%;display:flex;gap:7px;align-items:flex-start;line-height:1.45}
+.fwk-verz .ext svg{width:14px;height:14px;flex:none;margin-top:2px;color:var(--teal)}
+
+.fwk-nu{padding:14px 18px 16px;border-top:1px solid var(--line-2);display:flex;
+  justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap}
+.fwk-nu .l{font-size:11px;font-weight:700;color:var(--muted-2);letter-spacing:.05em;text-transform:uppercase}
+.fwk-nu .v{font-family:'Poppins',sans-serif;font-size:17px;font-weight:600;color:var(--navy);margin-top:2px}
+.fwk-nu .m{font-size:12.5px;color:var(--muted);margin-top:2px}
+.fwk-nu .m .let{color:#8A5A0B;font-weight:500}
+
+.fwk-kb{padding:10px 18px;border-top:1px solid var(--line-2);display:flex;align-items:center;
+  gap:11px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+.fwk-kbtn{font-size:12px;padding:6px 12px;border-radius:20px;border:1px solid var(--line);
+  background:var(--surface);color:var(--muted);display:flex;align-items:center;gap:7px;min-height:32px;
+  cursor:pointer;font-family:inherit}
+.fwk-kbtn.aan{background:var(--teal-soft);border-color:var(--teal);color:var(--teal-ink);font-weight:500}
+.fwk-kbtn svg{width:13px;height:13px}
+
+/* afwijzing */
+.fwk-afw{background:var(--red-soft);border-top:1px solid rgba(216,74,74,.18);padding:16px 18px}
+.fwk-afw-kop{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.fwk-afw-kop svg{width:18px;height:18px;color:var(--red);flex:none}
+.fwk-afw-kop b{font-family:'Poppins',sans-serif;font-size:14.5px;color:#A8352F}
+.fwk-afw-r{font-size:13px;color:#8E3A34;line-height:1.5;padding-left:12px;
+  border-left:2px solid rgba(216,74,74,.3);margin:0 0 14px 8px}
+.fwk-afw-v{font-size:12.5px;font-weight:600;color:#A8352F;margin-bottom:9px}
+.fwk-afw-k{display:flex;gap:8px;flex-wrap:wrap}
+.fwk-afw-k .btn{background:var(--surface);border-color:rgba(216,74,74,.25)}
+.fwk-afw-k .btn.primary{background:var(--teal);color:#fff;border-color:var(--teal)}
+
+/* duo-kaarten */
+.fwk-duo{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+.fwk-kaart{background:var(--surface);border:1px solid var(--line);border-radius:15px;
+  box-shadow:var(--shadow-s);overflow:hidden}
+.fwk-kkop{padding:13px 17px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;
+  align-items:center;gap:12px;flex-wrap:wrap}
+.fwk-kkop h4{font-size:13.5px;margin:0}
+.fwk-kkop .r{font-size:12px;color:var(--muted)}
+.fwk-kbody{padding:15px 17px}
+.fwk-ct{display:flex;align-items:center;gap:10px;padding:7px 0;font-size:13.5px}
+.fwk-ct svg{width:15px;height:15px;color:var(--muted-2);flex:none}
+.fwk-ct a{color:var(--teal-ink);text-decoration:none}
+.fwk-ct a:hover{text-decoration:underline}
+.fwk-ct .rol{font-size:11px;color:var(--muted-2);margin-left:auto}
+.fwk-fg{font-family:'Poppins',sans-serif;font-size:26px;font-weight:600;color:var(--navy);
+  font-variant-numeric:tabular-nums;line-height:1.15}
+.fwk-fl{font-size:11.5px;color:var(--muted);margin-top:2px}
+.fwk-fr{display:flex;justify-content:space-between;font-size:12.5px;color:var(--muted);
+  padding:5px 0;border-top:1px solid var(--line-2);margin-top:10px}
+.fwk-fr b{color:var(--text);font-variant-numeric:tabular-nums}
+
+/* tabs */
+.fwk-tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);padding:0 17px;overflow-x:auto;background:var(--surface)}
+.fwk-tab{padding:13px;font-size:13.5px;color:var(--muted);border-bottom:2px solid transparent;white-space:nowrap;
+  display:flex;align-items:center;gap:7px;margin-bottom:-1px;background:none;border-left:none;border-right:none;
+  border-top:none;cursor:pointer;font-family:inherit}
+.fwk-tab:hover{color:var(--text)}
+.fwk-tab.on{color:var(--teal-ink);border-bottom-color:var(--teal);font-weight:500}
+.fwk-tab .n{font-size:10.5px;background:var(--canvas);color:var(--muted);padding:1px 7px;border-radius:10px;font-weight:600}
+.fwk-tab.on .n{background:var(--teal-soft);color:var(--teal-ink)}
+.fwk-paneel{display:none;padding:16px 17px}
+.fwk-paneel.on{display:block}
+
+/* documenten */
+.fwk-zone{border:1.5px dashed #cfd8e3;border-radius:13px;padding:19px 16px;text-align:center;
+  background:var(--canvas);margin-bottom:16px;cursor:pointer;transition:.16s}
+.fwk-zone:hover,.fwk-zone.over{border-color:var(--teal);background:rgba(0,155,168,.04)}
+.fwk-zone .t{font-size:13.5px;font-weight:600}
+.fwk-zone .s{font-size:12px;color:var(--muted);margin-top:3px}
+.fwk-kd{background:var(--teal-soft);border-radius:11px;padding:12px 14px;margin-bottom:14px;
+  font-size:12.5px;color:var(--teal-ink);display:flex;gap:9px;align-items:flex-start;line-height:1.45}
+.fwk-kd svg{width:15px;height:15px;flex:none;margin-top:2px}
+.fwk-dg{margin-bottom:17px}
+.fwk-dg h5{margin:0 0 7px;font-size:10.5px;font-weight:700;color:var(--muted-2);letter-spacing:.05em}
+.fwk-dg .uit{font-size:11.5px;color:var(--muted);margin:-3px 0 8px}
+.fwk-dk{display:flex;align-items:flex-start;gap:12px;padding:10px 12px;border:1px solid var(--line);
+  border-radius:12px;margin-bottom:7px;transition:.15s}
+.fwk-dk:hover{border-color:var(--muted-2)}
+.fwk-dico{width:36px;height:36px;border-radius:10px;flex:none;display:flex;align-items:center;justify-content:center;
+  font-size:9px;font-weight:700;background:var(--red-soft);color:#B33A3A}
+.fwk-dico.jpg,.fwk-dico.png{background:var(--teal-soft);color:var(--teal-ink)}
+.fwk-dt{min-width:0;flex:1}
+.fwk-dn{font-size:13.5px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fwk-dm{font-size:11.5px;color:var(--muted);margin-top:1px}
+.fwk-dd{display:flex;align-items:center;gap:8px;margin-top:8px;padding-top:8px;border-top:1px solid var(--line-2)}
+.fwk-sw{width:36px;height:20px;border-radius:12px;background:var(--line);position:relative;flex:none;
+  transition:.18s;cursor:pointer;border:none;padding:0}
+.fwk-sw::after{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;
+  background:#fff;transition:.18s;box-shadow:0 1px 2px rgba(21,31,53,.25)}
+.fwk-sw.aan{background:var(--teal)}
+.fwk-sw.aan::after{left:18px}
+.fwk-dd .lb{font-size:12px;color:var(--muted)}
+.fwk-dd .lb b{color:var(--teal-ink);font-weight:600}
+.fwk-da{display:flex;gap:5px;flex:none}
+.fwk-da button,.fwk-da a{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;
+  justify-content:center;color:var(--muted);background:var(--canvas);border:1px solid var(--line);
+  text-decoration:none;transition:.14s;cursor:pointer}
+.fwk-da button:hover,.fwk-da a:hover{color:var(--teal-ink);border-color:var(--teal)}
+.fwk-da .weg:hover{color:var(--red);border-color:var(--red)}
+.fwk-da svg{width:16px;height:16px}
+.fwk-bed{width:96px;text-align:right;font-variant-numeric:tabular-nums;min-height:34px;padding:6px 9px;
+  border:1px solid var(--line);border-radius:9px;font-family:inherit;font-size:12.5px;
+  background:var(--surface);color:var(--text)}
+.fwk-bed.sug{border-color:#E0A030;background:#FDF8EE}
+
+/* opdrachtbon */
+.fwk-bon{border:1px solid var(--line);border-radius:12px;padding:12px 13px;margin-bottom:9px;background:#FCFDFE}
+.fwk-bon-kop{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:7px}
+.fwk-bon-nr{font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:500;color:var(--navy)}
+.fwk-bon-w{font-size:12.5px;color:var(--muted);line-height:1.45;margin-bottom:8px}
+.fwk-bon-r{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--muted);padding:2px 0}
+.fwk-bon-r svg{width:15px;height:15px;flex:none;color:var(--teal)}
+.fwk-bon-v{display:flex;gap:7px;margin-top:9px;flex-wrap:wrap}
+.fwk-som{display:flex;justify-content:space-between;align-items:center;padding:14px 15px;
+  background:var(--navy);color:#fff;border-radius:12px;gap:12px;flex-wrap:wrap;margin-top:4px}
+.fwk-som .l{font-size:13px;color:#9FB0C7}
+.fwk-som .v{font-family:'Poppins',sans-serif;font-size:20px;font-weight:600;font-variant-numeric:tabular-nums}
+
+/* logboek */
+.fwk-log{position:relative;padding-left:26px}
+.fwk-log::before{content:'';position:absolute;left:8px;top:6px;bottom:6px;width:1.5px;background:var(--line)}
+.fwk-lr{position:relative;padding:9px 0}
+.fwk-lr::before{content:'';position:absolute;left:-22px;top:15px;width:9px;height:9px;border-radius:50%;
+  background:var(--surface);border:2px solid var(--line)}
+.fwk-lr.teal::before{border-color:var(--teal);background:var(--teal)}
+.fwk-lr.amber::before{border-color:#E0A030;background:#E0A030}
+.fwk-lt{font-size:13.5px}
+.fwk-lm{font-size:11.5px;color:var(--muted-2);margin-top:1px}
+.fwk-ld{font-size:10.5px;font-weight:700;color:var(--muted-2);letter-spacing:.05em;padding:14px 0 2px;text-transform:uppercase}
+
+/* correspondentie */
+.fwk-c{display:flex;gap:11px;padding:11px 0;border-bottom:1px solid var(--line);align-items:flex-start}
+.fwk-c:last-child{border-bottom:none}
+.fwk-cico{width:30px;height:30px;border-radius:9px;flex:none;display:flex;align-items:center;justify-content:center}
+.fwk-cico svg{width:15px;height:15px}
+.fwk-ct2{font-size:13.5px;font-weight:500}
+.fwk-cs{font-size:11.5px;color:var(--muted);margin-top:1px}
+.fwk-cb{font-size:11px;color:var(--muted-2);margin-top:2px}
+.fwk-cd{font-size:11.5px;color:var(--muted-2);white-space:nowrap;flex:none}
+
+/* financieel */
+.fwk-hero{text-align:center;padding:8px 0 18px}
+.fwk-hero .v{font-family:'Poppins',sans-serif;font-size:36px;font-weight:600;color:var(--navy);
+  font-variant-numeric:tabular-nums;line-height:1.1;letter-spacing:-.02em}
+.fwk-hero .l{font-size:13px;color:var(--muted);margin-top:4px}
+.fwk-staaf{display:flex;height:12px;border-radius:7px;overflow:hidden;margin-bottom:7px;background:var(--line)}
+.fwk-leg{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;font-size:11.5px;color:var(--muted);margin-bottom:20px}
+.fwk-leg i{width:9px;height:9px;border-radius:3px;display:inline-block;margin-right:5px}
+.fwk-gr{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--line-2)}
+.fwk-gico{width:34px;height:34px;border-radius:10px;flex:none;display:flex;align-items:center;justify-content:center}
+.fwk-gico svg{width:17px;height:17px}
+.fwk-gn{font-size:13.5px;font-weight:500}
+.fwk-gm{font-size:11.5px;color:var(--muted);margin-top:1px}
+.fwk-gb{font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:500;font-variant-numeric:tabular-nums;white-space:nowrap}
+.fwk-gb.min{color:var(--red)}
+.fwk-gtot{display:flex;align-items:center;gap:12px;padding:15px;margin-top:8px;background:var(--navy);
+  color:#fff;border-radius:12px}
+.fwk-gtot .l{flex:1;font-size:13.5px;color:#9FB0C7}
+.fwk-gtot .v{font-family:'Poppins',sans-serif;font-size:21px;font-weight:600;font-variant-numeric:tabular-nums}
+.fwk-bewerk{margin-top:16px;padding-top:16px;border-top:1px solid var(--line)}
+.fwk-geld{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+.fwk-geld label{font-size:11.5px;color:var(--muted);display:block}
+.fwk-geld input{width:100%;margin-top:4px;text-align:right;font-variant-numeric:tabular-nums;min-height:38px;
+  padding:9px 10px;border:1px solid var(--line);border-radius:9px;font-family:inherit;font-size:13.5px;
+  background:var(--surface);color:var(--text)}
+.fwk-gv{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:11px;flex-wrap:wrap}
+.fwk-gv span{font-size:11.5px;color:var(--muted)}
+.fwk-acties{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.fwk-acties .btn{flex:1;min-width:150px;justify-content:center}
+.fwk-leeg{padding:26px 12px;text-align:center;color:var(--muted);font-size:13px}
+.fwk-hr{display:flex;align-items:center;gap:9px;font-size:12.5px;padding:5px 0}
+.fwk-hr input{width:16px;height:16px;accent-color:var(--teal)}
+.fwk-hr.vast{opacity:.5}
+.fwk-hint{font-size:11.5px;color:var(--muted-2);margin-top:7px}
+
+@media (max-width:760px){
+  .fwk-kop h1{font-size:21px}
+  .fwk-duo{grid-template-columns:1fr}
+  .fwk-geld{grid-template-columns:1fr}
+  .fwk-halte{flex:0 0 82px}
+  .fwk-rp-grid{grid-template-columns:1fr}
+}
+</style>
+<script>
+/* ══════ SCHADEKAART — vervangt het oude dossierscherm ══════ */
+(function(){
+  var HALTES = ['Schademelding ontvangen','Schade-opname ingepland','Bron hersteld','Schaderapport opgesteld',
+    'Dossier ingediend bij verzekeraar','Akkoord verzekeraar','Herstel ingepland','Herstel in uitvoering',
+    'Opgeleverd','Uitgefactureerd'];
+  var VAST = [1,2,10], INTERN = [10];
+  var PRESETS = [['volledig','Volledig'],['expertise','Alleen expertise'],
+    ['er_rapport','Eigen risico \u00b7 met rapport'],['er_offerte','Eigen risico \u00b7 offerte'],
+    ['er_mandaat','Eigen risico \u00b7 mandaat']];
+  var BRON = {nvt:'Niet van toepassing',open:'Nog niet hersteld',hersteld:'Hersteld',onvoldoende:'Onvoldoende hersteld'};
+  var VERZ = {
+    geen:{l:'Nog niet ingediend',k:'grijs',ext:''},
+    ingediend:{l:'Wacht op reactie',k:'grijs',ext:'Uw dossier ligt bij de verzekeraar. Wij bewaken de termijn.'},
+    informatie:{l:'Vraagt aanvullende informatie',k:'amber',ext:'De verzekeraar heeft ons om extra informatie gevraagd. Wij zorgen daarvoor.'},
+    akkoord:{l:'Akkoord',k:'groen',ext:'De verzekeraar gaat akkoord. Wij plannen het herstel in.'},
+    afgewezen:{l:'Afgewezen',k:'rood',ext:'De verzekeraar wijst de claim af. Wij nemen contact met u op.'},
+    doorverwezen:{l:'Doorverwezen',k:'amber',ext:'De verzekeraar verwijst door naar een andere polis. Wij dienen daar opnieuw in.'}
+  };
+  var DSOORT = {machtiging:'Getekende machtiging',schaderapport:'Schaderapport',offerte:'Offerte herstel',
+    factuur_expertise:'Factuur schade-expertise',factuur_bron:'Bewijsstuk bronherstel',
+    uitkeringsbericht:'Uitkeringsbericht verzekeraar',polis:'Polisblad',foto:"Foto's van de schade",
+    factuur_onder:'Onderaannemersfactuur',overig:'Overig'};
+  var DVOLG = ['machtiging','schaderapport','offerte','factuur_expertise','factuur_bron',
+    'uitkeringsbericht','polis','foto','overig'];
+  var LETOP = {machtiging:'bevat een handtekening',polis:'bevat polisgegevens'};
+
+  var I = {
+    vink:'<path d="M5 12.5l4.5 4.5L19 7" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>',
+    oog:'<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="2.8" stroke="currentColor" stroke-width="1.8"/>',
+    pijl:'<path d="M12 4v11M8 11l4 4 4-4M5 20h14" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>',
+    kruis:'<path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+    slot:'<path d="M7 10V8a5 5 0 0110 0v2M5 10h14v10H5z" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/>',
+    tel:'<path d="M5 4h4l2 5-2.5 1.5a12 12 0 005 5L15 13l5 2v4a1 1 0 01-1 1A16 16 0 014 5a1 1 0 011-1z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>',
+    mail:'<rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M4 7l8 6 8-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
+    huis:'<path d="M4 11l8-6 8 6v9a1 1 0 01-1 1h-5v-6H10v6H5a1 1 0 01-1-1v-9z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>',
+    pauze:'<circle cx="12" cy="12" r="8.6" stroke="currentColor" stroke-width="1.9"/><path d="M10 9.5v5M14 9.5v5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>',
+    klok:'<circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.7"/><path d="M12 7.5V12l3 2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>',
+    stop:'<circle cx="12" cy="12" r="8.6" stroke="currentColor" stroke-width="1.9"/><path d="M8.8 8.8l6.4 6.4M15.2 8.8l-6.4 6.4" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>',
+    info:'<circle cx="12" cy="12" r="8.6" stroke="currentColor" stroke-width="1.9"/><path d="M12 11v5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><circle cx="12" cy="8" r="1" fill="currentColor"/>',
+    euro:'<path d="M16.5 8.5A5.2 5.2 0 108 15M4.5 11h7M4.5 14h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
+    doos:'<path d="M4 8l8-4 8 4v8l-8 4-8-4V8z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M4 8l8 4 8-4M12 12v8" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>',
+    hamer:'<path d="M14.5 5.5l4 4M17 3l4 4-3 3-4-4 3-3zM14 8L4 18v2h2L16 10" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/>',
+    kalender:'<rect x="3.5" y="5.5" width="17" height="15" rx="2.4" stroke="currentColor" stroke-width="1.8"/><path d="M3.5 10h17M8.5 3.5v4M15.5 3.5v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
+    camera:'<rect x="3" y="4.5" width="18" height="15" rx="2.4" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="3.4" stroke="currentColor" stroke-width="1.8"/>',
+    plus:'<path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+    stuur:'<path d="M4 4l16 8-16 8 3-8-3-8z" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/>'
+  };
+  function svg(p){ return '<svg viewBox="0 0 24 24" fill="none">'+p+'</svg>'; }
+  function esc(v){ return String(v==null?'':v).replace(/[&<>"]/g,function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function eur(n){ return '\u20ac'+(Math.round(Number(n)||0)).toLocaleString('nl-NL'); }
+  function dag(d){ if(!d) return ''; var x=new Date(d); return isNaN(x.getTime())?'':x.toLocaleDateString('nl-NL',{day:'numeric',month:'short'}); }
+  function dagenGeleden(d){ return d ? Math.floor((Date.now()-new Date(d).getTime())/864e5) : 0; }
+  function melden(t,m,k){ if(typeof toast==='function') toast(t,m,k||'ok'); }
+
+  var S = null, tab = 'doc', klant = false, routeOpen = false;
+  var docs = [], bonnen = [], corr = [], logs = [], offertes = [], levs = [], locaties = [];
+
+  function api(pad, opts){ return window.fwApi(pad, opts); }
+
+  /* ── laden ── */
+  function laadAlles(nr){
+    return Promise.all([
+      api('/api/schades/'+encodeURIComponent(nr)+'/documenten').catch(function(){return{documenten:[]}}),
+      api('/api/schades/'+encodeURIComponent(nr)+'/opdrachtbonnen').catch(function(){return{bonnen:[]}}),
+      api('/api/schades/'+encodeURIComponent(nr)+'/verzendingen').catch(function(){return{verzendingen:[]}}),
+      api('/api/schades/'+encodeURIComponent(nr)+'/logboek').catch(function(){return{regels:[]}}),
+      api('/api/schades/'+encodeURIComponent(nr)+'/offertes').catch(function(){return{offertes:[]}}),
+      api('/api/relaties?soort=ONDERAANNEMER').catch(function(){return{relaties:[]}}),
+      api('/api/schades/'+encodeURIComponent(nr)+'/locaties').catch(function(){return{locaties:[]}})
+    ]).then(function(r){
+      docs = r[0].documenten || []; bonnen = r[1].bonnen || []; corr = r[2].verzendingen || [];
+      logs = r[3].regels || []; offertes = r[4].offertes || []; levs = r[5].relaties || [];
+      locaties = r[6].locaties || [];
+      teken();
+    });
+  }
+
+  window.fwkOpen = function(nr){
+    window.__fwDossier = nr;
+    S = SCHADES.find(function(x){ return x.nr === nr; });
+    if (!S) { melden('Niet gevonden','Dit dossier staat niet in de huidige lijst.','err'); return; }
+    tab = 'doc'; klant = false; routeOpen = false;
+    var v = document.getElementById('view-detail');
+    v.classList.add('fwk');
+    v.innerHTML = '<div class="fwk-wrap"><div class="fwk-leeg">Dossier laden\u2026</div></div>';
+    if (typeof show === 'function') show('detail');
+    laadAlles(nr);
+  };
+
+  function ververs(){
+    return window.fwLaadDossiers().then(function(){
+      S = SCHADES.find(function(x){ return x.nr === window.__fwDossier; });
+      return laadAlles(window.__fwDossier);
+    });
+  }
+  window.fwkVerversen = ververs;
+
+  /* ── acties ── */
+  function patch(body){
+    return api('/api/schades/'+encodeURIComponent(S.nr), {method:'PATCH', body:JSON.stringify(body)});
+  }
+  window.fwkHalte = function(n){
+    patch({step:Number(n)}).then(function(){ melden('Bijgewerkt', HALTES[n-1]); return ververs(); })
+      .catch(function(e){
+        if (/bron/i.test(e.message)) {
+          var r = window.prompt(e.message+'\n\nWaarom ga je toch door?','');
+          if (!r || !r.trim()) return;
+          return patch({step:Number(n), bronDoorReden:r.trim()}).then(ververs);
+        }
+        melden('Niet gelukt', e.message, 'err');
+      });
+  };
+  window.fwkVerz = function(v){
+    var body = {verzStatus:v};
+    if (v === 'afgewezen') {
+      var r = window.prompt('Wat is de reden van afwijzing? Deze komt in de brief aan de klant.','');
+      if (!r || !r.trim()) return;
+      body.afwijzingReden = r.trim();
+    }
+    patch(body).then(function(){ return ververs(); }).catch(function(e){ melden('Niet gelukt', e.message,'err'); });
+  };
+  window.fwkNaAfwijzing = function(keuze, betaler){
+    api('/api/schades/'+encodeURIComponent(S.nr)+'/na-afwijzing',
+      {method:'POST', body:JSON.stringify({keuze:keuze, betaler:betaler})})
+      .then(function(){ melden('Bijgewerkt', keuze==='herstel'?'Herstel gaat door.':'Dossier gesloten.'); return ververs(); })
+      .catch(function(e){ melden('Niet gelukt', e.message,'err'); });
+  };
+  window.fwkPreset = function(v){ patch({preset:v}).then(ververs).catch(function(e){melden('Niet gelukt',e.message,'err')}); };
+  window.fwkHalteAan = function(box,n){
+    var l = (S.haltes||[]).slice();
+    if (box.checked) { if (l.indexOf(n)===-1) l.push(n); } else l = l.filter(function(h){return h!==n});
+    patch({haltes:l}).then(ververs).catch(function(e){melden('Niet gelukt',e.message,'err')});
+  };
+  window.fwkBron = function(sel){
+    var st = sel.value, opm = null;
+    if (st === 'onvoldoende') {
+      opm = window.prompt('Wat is er niet goed aan het bronherstel?','');
+      if (!opm || !opm.trim()) { sel.value = S.bronStatus||'nvt'; return; }
+    }
+    api('/api/schades/'+encodeURIComponent(S.nr)+'/bron',
+      {method:'POST', body:JSON.stringify({status:st, opmerking:opm})})
+      .then(ververs).catch(function(e){melden('Niet gelukt',e.message,'err')});
+  };
+  window.fwkWacht = function(){
+    var r = window.prompt('Waarom ligt dit dossier stil? Je collega leest dit.', S.wachtReden||'');
+    if (!r || !r.trim()) return;
+    var t = window.prompt('Opnieuw bekijken op (jjjj-mm-dd) \u2014 leeg mag', '');
+    api('/api/schades/'+encodeURIComponent(S.nr)+'/wacht',
+      {method:'POST', body:JSON.stringify({reden:r.trim(), tot:t||null})}).then(ververs)
+      .catch(function(e){melden('Niet gelukt',e.message,'err')});
+  };
+  window.fwkUitWacht = function(){
+    api('/api/schades/'+encodeURIComponent(S.nr)+'/wacht',{method:'DELETE'}).then(ververs)
+      .catch(function(e){melden('Niet gelukt',e.message,'err')});
+  };
+  window.fwkAfronden = function(){
+    if (!window.confirm('Dossier afronden?\n\nDe laatste halte wordt afgevinkt en het dossier gaat naar het archief.')) return;
+    var l = S.haltes||[], laatste = l.length ? l[l.length-1] : 10;
+    patch({step:laatste, gefactureerd:true, status:'done'})
+      .then(function(){ melden('Afgerond', S.nr+' is gearchiveerd.'); return ververs(); })
+      .catch(function(e){melden('Niet gelukt',e.message,'err')});
+  };
+  window.fwkUitArchief = function(){
+    api('/api/schades/'+encodeURIComponent(S.nr)+'/archief',{method:'DELETE'}).then(ververs)
+      .catch(function(e){melden('Niet gelukt',e.message,'err')});
+  };
+  window.fwkKlant = function(){ klant = !klant; teken(); };
+  window.fwkRoute = function(){ routeOpen = !routeOpen; teken(); };
+  window.fwkTab = function(t){ tab = t; teken(); };
+
+  window.fwkDeel = function(id, aan){
+    api('/api/documenten/'+id,{method:'PATCH',body:JSON.stringify({gedeeld:aan})})
+      .then(function(){ return laadAlles(S.nr); })
+      .catch(function(e){melden('Niet gelukt',e.message,'err')});
+  };
+  window.fwkDocBedrag = function(inp,id){
+    var t = String(inp.value).replace(/[^0-9,.-]/g,'').replace(/\./g,'').replace(',','.');
+    api('/api/documenten/'+id,{method:'PATCH',body:JSON.stringify({bedrag:Math.round(Number(t)||0)})})
+      .then(function(){ return laadAlles(S.nr); }).catch(function(e){melden('Niet gelukt',e.message,'err')});
+  };
+  window.fwkDocLev = function(sel,id){
+    var lev = levs.find(function(l){return l.id===sel.value});
+    api('/api/documenten/'+id,{method:'PATCH',
+      body:JSON.stringify({leverancierId:sel.value||null, verzamel:!!(lev&&lev.factuurwijze==='verzamel')})})
+      .then(function(){ return laadAlles(S.nr); }).catch(function(e){melden('Niet gelukt',e.message,'err')});
+  };
+  window.fwkDocWeg = function(id,naam){
+    if (!window.confirm('"'+naam+'" verwijderen?')) return;
+    api('/api/documenten/'+id,{method:'DELETE'}).then(function(){ return laadAlles(S.nr); })
+      .catch(function(e){melden('Niet gelukt',e.message,'err')});
+  };
+  window.fwkNeemUitbesteed = function(){
+    var som = docs.filter(function(d){return d.soort==='factuur_onder'&&d.bedrag})
+      .reduce(function(a,d){return a+d.bedrag},0);
+    patch({fin:{herstelUitbesteed:som}}).then(function(){
+      melden('Marge bijgewerkt','Onderaanneming staat op '+eur(som)+'.'); return ververs();
+    }).catch(function(e){melden('Niet gelukt',e.message,'err')});
+  };
+  window.fwkBewaarFin = function(){
+    function g(id){ var e=document.getElementById(id); if(!e) return 0;
+      var t=String(e.value).replace(/[^0-9,.-]/g,'').replace(/\./g,'').replace(',','.');
+      return Math.round(Number(t)||0); }
+    var o=g('fwkOmzet');
+    patch({amount:o, fin:{herstelOmzet:o, herstelInkoop:g('fwkInkoop'), herstelUitbesteed:g('fwkUitb')}})
+      .then(function(){ melden('Opgeslagen','De marge is bijgewerkt.'); return ververs(); })
+      .catch(function(e){melden('Niet gelukt',e.message,'err')});
+  };
+  window.fwkContact = function(){
+    var v = window.prompt('Wie staat er als contactpersoon op brieven en opdrachtbonnen?',
+      S.contactpersoon || (window.__fwIk ? window.__fwIk.naam : ''));
+    if (v === null) return;
+    patch({contactpersoon:v.trim()||null}).then(ververs).catch(function(e){melden('Niet gelukt',e.message,'err')});
+  };
+  window.fwkBonNieuw = function(){
+    if (typeof window.fwkBonForm === 'function') return window.fwkBonForm();
+    melden('Nog niet beschikbaar','Het formulier voor opdrachtbonnen volgt.','info');
+  };
+  window.fwkBonStatus = function(id, st){
+    api('/api/opdrachtbonnen/'+id,{method:'PATCH',body:JSON.stringify({status:st})})
+      .then(function(){ return laadAlles(S.nr); }).catch(function(e){melden('Niet gelukt',e.message,'err')});
+  };
+
+  /* ══ tekenen ══ */
+  function teken(){
+    if (!S) return;
+    var v = document.getElementById('view-detail');
+    if (!v) return;
+    var h = (S.haltes||[]), stap = S.step||1;
+    var afgewezen = S.verzStatus === 'afgewezen' && S.naAfwijzing !== 'herstel';
+    var eigen = String(S.preset||'').indexOf('er_')===0;
+    var pos = h.indexOf(stap)+1;
+    var toon = klant ? h.filter(function(n){return INTERN.indexOf(n)===-1}) : h;
+
+    var x = '<div class="fwk-wrap">';
+
+    /* kop */
+    x += '<button class="fwk-terug" onclick="show(\'schades\')">'+
+      '<svg viewBox="0 0 24 24" fill="none"><path d="M15 6l-6 6 6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Alle schades</button>';
+
+    x += '<div class="fwk-kop"><div>'+
+      '<div class="fwk-nr">'+esc(S.nr)+' <button class="fwk-pil teal klik" onclick="fwkRoute()">'+
+        esc(S.presetLabel||'Volledig')+'</button>'+
+        (S.archived?' <span class="fwk-pil grijs">Gearchiveerd</span>':'')+'</div>'+
+      '<h1>'+esc(S.addr||S.owner)+
+        (locaties.length>1?' <span style="font-size:14px;font-weight:500;color:var(--muted)">+ '+
+          (locaties.length-1)+' '+(locaties.length===2?'adres':'adressen')+'</span>':'')+'</h1>'+
+      '<div class="sub">'+esc(S.owner)+
+        (eigen ? ' \u00b7 <b>eigen risico \u2014 geen verzekeraar</b>'
+               : (S.ins ? ' \u00b7 '+esc(S.ins) : '') +
+                 (S.polisnummer ? ' \u00b7 polis <span class="mono">'+esc(S.polisnummer)+'</span>' : ''))+
+      '</div></div>'+
+      '<div style="display:flex;gap:8px;flex-wrap:wrap">'+
+        '<button class="btn" onclick="window.open(\'/api/schades/'+encodeURIComponent(S.nr)+'/brief.html?soort=claim\',\'_blank\')">Brief bekijken</button>'+
+        '<button class="btn primary" onclick="fwvOpen(\''+S.nr+'\')">'+svg(I.stuur)+'Versturen</button>'+
+      '</div></div>';
+
+    /* routepaneel */
+    x += '<div class="fwk-rp'+(routeOpen?' open':'')+'">'+
+      '<div class="fwk-rp-grid">'+
+        '<div><label>Route van dit dossier</label><select onchange="fwkPreset(this.value)">'+
+          PRESETS.map(function(p){return '<option value="'+p[0]+'"'+(p[0]===S.preset?' selected':'')+'>'+p[1]+'</option>'}).join('')+
+        '</select></div>'+
+        '<div><label>Bronherstel</label><select onchange="fwkBron(this)">'+
+          Object.keys(BRON).map(function(k){return '<option value="'+k+'"'+(k===S.bronStatus?' selected':'')+'>'+BRON[k]+'</option>'}).join('')+
+        '</select></div>'+
+      '</div>'+
+      '<div style="margin-top:14px"><label style="font-size:11.5px;color:var(--muted);display:block;margin-bottom:6px">Welke haltes gelden</label>'+
+        HALTES.map(function(naam,i){
+          var n=i+1, vast=VAST.indexOf(n)>-1, aan=h.indexOf(n)>-1;
+          return '<label class="fwk-hr'+(vast?' vast':'')+'"><input type="checkbox"'+(aan?' checked':'')+
+            (vast?' disabled':'')+' onchange="fwkHalteAan(this,'+n+')"><span>'+n+'. '+esc(naam)+'</span></label>';
+        }).join('')+
+        '<div class="fwk-hint">Halte 1, 2 en 10 gelden altijd.</div></div></div>';
+
+    /* stuurkaart */
+    x += '<div class="fwk-stuur'+(klant?' klant':'')+'">';
+
+    if (S.archived) x += '<div class="fwk-blok amber">'+svg(I.info)+
+      '<span><b>Gearchiveerd.</b> Haal het dossier terug om te bewerken.</span>'+
+      '<button class="jbtn" onclick="fwkUitArchief()">Uit archief</button></div>';
+    if (S.inWacht) x += '<div class="fwk-blok amber">'+svg(I.pauze)+
+      '<span><b>In de wacht.</b> '+esc(S.wachtReden)+(S.wachtTot?' \u00b7 opnieuw bekijken op '+dag(S.wachtTot):'')+'</span>'+
+      '<button class="jbtn" onclick="fwkUitWacht()">Weer oppakken</button></div>';
+    if (S.bronStatus!=='hersteld' && S.bronStatus!=='nvt' && stap>3)
+      x += '<div class="fwk-blok rood">'+svg(I.stop)+'<span><b>Let op \u2014 de bron is '+
+        (S.bronStatus==='open'?'nog niet hersteld':'onvoldoende hersteld')+'.</b> '+
+        esc(S.bronOpmerking||'Het dossier staat verder dan halte 3.')+'</span></div>';
+
+    /* afwijzing */
+    if (afgewezen) {
+      x += '<div class="fwk-afw"><div class="fwk-afw-kop">'+svg(I.stop)+
+        '<b>Claim afgewezen'+(S.ins?' door '+esc(S.ins):'')+(S.afwijzingAt?' op '+dag(S.afwijzingAt):'')+'</b></div>';
+      if (S.afwijzingReden) x += '<div class="fwk-afw-r">'+esc(S.afwijzingReden)+'</div>';
+      if (S.naAfwijzing === 'gesloten') {
+        x += '<div class="fwk-afw-v">Dossier gesloten.</div>';
+      } else if (window.__fwkBetaler) {
+        x += '<div class="fwk-afw-v">Wie draagt de kosten?</div><div class="fwk-afw-k">'+
+          (S.opdrachtgever?'<button class="btn primary" onclick="fwkNaAfwijzing(\'herstel\',\'vve\')">De VvE \u2014 '+esc(S.opdrachtgever)+'</button>':'')+
+          '<button class="btn primary" onclick="fwkNaAfwijzing(\'herstel\',\'eigenaar\')">De eigenaar \u2014 '+esc(S.owner)+'</button>'+
+          '<button class="btn" onclick="window.__fwkBetaler=false;fwkTab(\''+tab+'\')">Terug</button></div>'+
+          '<div style="font-size:12px;color:#8E3A34;margin-top:10px">Degene die je kiest krijgt de offerte en moet die digitaal goedkeuren.</div>';
+      } else {
+        x += '<div class="fwk-afw-v">Hoe gaat het verder?</div><div class="fwk-afw-k">'+
+          '<button class="btn primary" onclick="window.__fwkBetaler=true;fwkTab(\''+tab+'\')">Toch herstellen \u2014 op eigen kosten</button>'+
+          '<button class="btn" onclick="fwkNaAfwijzing(\'gesloten\')">Dossier sluiten</button></div>';
+      }
+      x += '</div>';
+    }
+
+    /* haltelijn */
+    x += '<div class="fwk-lijn-wrap"><div class="fwk-lijn">'+
+      toon.map(function(n){
+        var kl = n<stap?'af':n===stap?'nu':'';
+        if (n===5 && S.verzStatus==='informatie') kl += ' vraag';
+        if (afgewezen){ if(n===5) kl='dood'; else if(n>5) kl='verv'; }
+        return '<button class="fwk-halte '+kl+'"'+(klant?'':' onclick="fwkHalte('+n+')"')+
+          ' title="'+esc(HALTES[n-1])+'"><div class="fwk-bol">'+(n<stap?svg(I.vink):'')+'</div>'+
+          (!klant&&INTERN.indexOf(n)>-1?'<span class="fwk-slot">'+svg(I.slot)+'</span>':'')+
+          '<span class="fwk-t">'+esc(HALTES[n-1])+'</span></button>';
+      }).join('')+'</div></div>';
+
+    /* verzekeraarstand */
+    if (!eigen && stap>=5 && !afgewezen) {
+      var vz = VERZ[S.verzStatus] || VERZ.geen;
+      x += '<div class="fwk-verz"><span class="l">Bij de verzekeraar</span>'+
+        (klant ? '<span class="fwk-pil '+vz.k+'">'+vz.l+'</span>'
+               : '<select onchange="fwkVerz(this.value)">'+
+                 Object.keys(VERZ).map(function(k){return '<option value="'+k+'"'+(k===S.verzStatus?' selected':'')+'>'+VERZ[k].l+'</option>'}).join('')+
+                 '</select><span class="fwk-pil '+vz.k+'">'+vz.l+'</span>')+
+        (vz.ext?'<span class="ext">'+svg(I.oog)+'<span><b>Wat de klant leest:</b> '+vz.ext+'</span></span>':'')+
+        '</div>';
+    }
+
+    /* nu-rij */
+    var vlg = h.filter(function(n){return n>stap})[0];
+    var meta = 'halte '+pos+' van '+h.length;
+    if (afgewezen) meta = 'eindbestemming bereikt \u00b7 <span class="let" style="color:var(--red)">claim afgewezen</span>';
+    else if (stap===5 && S.verzStatus==='ingediend' && S.verzIngediendAt) {
+      var wk = Math.floor(dagenGeleden(S.verzIngediendAt)/7);
+      if (wk>=1) meta += ' \u00b7 <span class="let">'+wk+' '+(wk===1?'week':'weken')+' geen reactie</span>';
+    }
+    x += '<div class="fwk-nu"><div><div class="l">Nu op halte</div>'+
+      '<div class="v">'+esc(HALTES[stap-1])+'</div><div class="m">'+meta+'</div></div><div>'+
+      (afgewezen ? '<button class="btn" onclick="fwvOpen(\''+S.nr+'\')">Klant informeren</button>'
+       : vlg ? '<button class="btn primary" onclick="fwkHalte('+vlg+')">'+esc(HALTES[vlg-1])+' afvinken</button>'
+             : '<button class="btn primary" onclick="fwkAfronden()">Dossier afronden</button>')+
+      '</div></div>';
+
+    x += '<div class="fwk-kb"><button class="fwk-kbtn'+(klant?' aan':'')+'" onclick="fwkKlant()">'+
+      svg(I.oog)+(klant?'Klantweergave aan':'Bekijk als klant')+'</button>'+
+      '<span>'+(klant?'Dit ziet de eigenaar en de beheerder. De facturatie blijft verborgen.'
+                     :'Zie wat de eigenaar en de beheerder van dit dossier zien.')+'</span></div>';
+    x += '</div>';
+
+    /* contact + geld */
+    x += '<div class="fwk-duo">'+
+      '<div class="fwk-kaart"><div class="fwk-kkop"><h4>Contact</h4>'+
+        '<button class="jbtn" onclick="fwkContact()">Contactpersoon</button></div><div class="fwk-kbody">'+
+        '<div class="fwk-ct">'+svg(I.huis)+'<span>'+esc(S.owner)+'</span><span class="rol">'+
+          (S.bewonerSoort==='huurder'?'huurder':'eigenaar')+'</span></div>'+
+        (S.phone||S.telefoon?'<div class="fwk-ct">'+svg(I.tel)+'<a href="tel:'+esc(S.telefoon||S.phone)+'">'+esc(S.telefoon||S.phone)+'</a></div>':'')+
+        (S.email?'<div class="fwk-ct">'+svg(I.mail)+'<a href="mailto:'+esc(S.email)+'">'+esc(S.email)+'</a></div>':'')+
+        (S.opdrachtgever?'<div class="fwk-ct" style="border-top:1px solid var(--line-2);margin-top:6px;padding-top:11px">'+
+          svg(I.huis)+'<span>'+esc(S.opdrachtgever)+'</span><span class="rol">beheerder</span></div>':'')+
+        (S.beheerderEmail?'<div class="fwk-ct">'+svg(I.mail)+'<a href="mailto:'+esc(S.beheerderEmail)+'">'+esc(S.beheerderEmail)+'</a></div>':'')+
+        '<div class="fwk-ct" style="border-top:1px solid var(--line-2);margin-top:6px;padding-top:11px;color:var(--muted);font-size:12.5px">'+
+          'Op brieven en bonnen: <b style="color:var(--text);margin-left:4px">'+
+          esc(S.contactpersoon || (window.__fwIk?window.__fwIk.naam:'\u2014'))+'</b></div>'+
+      '</div></div>';
+
+    if (S.magFin && S.fin) {
+      var om = S.fin.herstel.omzet||S.amount||0, ik2 = S.fin.herstel.inkoop||0, ut = S.fin.herstel.uitbesteed||0;
+      var marge = om-ik2-ut, pct = om>0?Math.round(marge/om*100):0;
+      x += '<div class="fwk-kaart"><div class="fwk-kkop"><h4>Financieel</h4><div class="r">alleen directie</div></div>'+
+        '<div class="fwk-kbody"><div class="fwk-fg">'+eur(marge)+'</div>'+
+        '<div class="fwk-fl">netto marge \u00b7 '+pct+'% van de omzet</div>'+
+        '<div class="fwk-fr"><span>Offertesom</span><b>'+eur(om)+'</b></div>'+
+        '<div class="fwk-fr"><span>Inkoop materiaal</span><b>'+eur(ik2)+'</b></div>'+
+        '<div class="fwk-fr"><span>Onderaanneming</span><b>'+eur(ut)+'</b></div></div></div>';
+    }
+    x += '</div>';
+
+    /* tabs */
+    var tabs = [];
+    if (locaties.length > 1) tabs.push(['loc','Adressen',locaties.length]);
+    tabs.push(['doc','Documenten',docs.length],['onder','Onderaanneming',bonnen.length]);
+    if (eigen) tabs.push(['off','Offerte klant','']);
+    tabs.push(['corr','Verstuurd',corr.length],['log','Logboek',logs.length],['fin','Financieel','']);
+
+    x += '<div class="fwk-kaart"><div class="fwk-tabs">'+
+      tabs.map(function(t){
+        return '<button class="fwk-tab'+(tab===t[0]?' on':'')+'" onclick="fwkTab(\''+t[0]+'\')">'+t[1]+
+          (t[2]?' <span class="n">'+t[2]+'</span>':'')+'</button>';
+      }).join('')+'</div>'+
+      '<div class="fwk-paneel on">'+paneel(tab)+'</div></div>';
+
+    x += '</div>';
+    v.innerHTML = x;
+    haakSleep();
+  }
+
+  /* ══ panelen ══ */
+  function paneel(t){
+    if (t==='loc') return panLoc();
+    if (t==='doc') return panDoc();
+    if (t==='onder') return panOnder();
+    if (t==='off') return panOff();
+    if (t==='corr') return panCorr();
+    if (t==='log') return panLog();
+    return panFin();
+  }
+
+  var LSTAT = {open:['grijs','Nog niet ingepland'],ingepland:['teal','Ingepland'],
+    uitvoering:['amber','In uitvoering'],opgeleverd:['groen','Opgeleverd']};
+  var LSOORT = {eigenaar:'eigenaar',huurder:'huurder',leeg:'staat leeg',gemeenschappelijk:'gemeenschappelijk'};
+
+  window.fwkLocStatus = function(id, st){
+    api('/api/locaties/'+id,{method:'PATCH',body:JSON.stringify({status:st})})
+      .then(function(){ return ververs(); }).catch(function(e){melden('Niet gelukt',e.message,'err')});
+  };
+  window.fwkLocPlan = function(id){
+    var d = window.prompt('Wanneer wordt hier hersteld? (jjjj-mm-dd)','');
+    if (!d) return;
+    var t = window.prompt('Tijdvak, bijvoorbeeld 08.00 \u2013 12.00 uur \u2014 leeg mag','');
+    api('/api/locaties/'+id,{method:'PATCH',
+      body:JSON.stringify({ingepland:d, tijdvak:t||null, status:'ingepland'})})
+      .then(function(){ return ververs(); }).catch(function(e){melden('Niet gelukt',e.message,'err')});
+  };
+  window.fwkLocHoofd = function(id){
+    api('/api/locaties/'+id+'/hoofd',{method:'POST'}).then(function(){ return ververs(); })
+      .catch(function(e){melden('Niet gelukt',e.message,'err')});
+  };
+  window.fwkLocWeg = function(id, adres){
+    if (!window.confirm('"'+adres+'" uit dit dossier halen?')) return;
+    api('/api/locaties/'+id,{method:'DELETE'}).then(function(){ return ververs(); })
+      .catch(function(e){melden('Niet gelukt',e.message,'err')});
+  };
+  window.fwkLocErbij = function(){
+    var a = window.prompt('Welk adres raakt er nog meer bij betrokken?','');
+    if (!a || !a.trim()) return;
+    var b = window.prompt('Naam van de bewoner \u2014 leeg mag','');
+    var t = window.prompt('Telefoonnummer \u2014 leeg mag','');
+    api('/api/schades/'+encodeURIComponent(S.nr)+'/locaties',
+      {method:'POST', body:JSON.stringify({adres:a.trim(), bewoner:b||null, telefoon:t||null})})
+      .then(function(){ melden('Toegevoegd', a.trim()); return ververs(); })
+      .catch(function(e){melden('Niet gelukt',e.message,'err')});
+  };
+
+  function panLoc(){
+    var klaar = locaties.filter(function(l){return l.status==='opgeleverd'}).length;
+    var x = '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;'+
+      'margin-bottom:14px;flex-wrap:wrap"><div style="font-size:12.5px;color:var(--muted)">'+
+      '\u00c9\u00e9n claim, '+locaties.length+' adressen \u00b7 '+klaar+' opgeleverd</div>'+
+      '<button class="btn primary" onclick="fwkLocErbij()">'+svg(I.plus)+'Adres toevoegen</button></div>';
+
+    x += locaties.map(function(l){
+      var st = LSTAT[l.status]||LSTAT.open;
+      return '<div class="fwk-bon"><div class="fwk-bon-kop">'+
+        '<div><div style="font-size:14px;font-weight:600;color:var(--navy)">'+esc(l.adres)+
+          (l.hoofd?' <span class="fwk-pil grijs" style="font-size:10px">hoofdadres</span>':'')+'</div>'+
+          (l.aanduiding?'<div style="font-size:11.5px;color:var(--muted)">'+esc(l.aanduiding)+'</div>':'')+'</div>'+
+        '<span class="fwk-pil '+st[0]+'">'+st[1]+'</span></div>'+
+        (l.bewoner?'<div class="fwk-bon-r">'+svg(I.huis)+esc(l.bewoner)+
+          (l.bewonerSoort?' \u00b7 '+LSOORT[l.bewonerSoort]:'')+'</div>':'')+
+        (l.telefoon?'<div class="fwk-bon-r">'+svg(I.tel)+'<a href="tel:'+esc(l.telefoon)+
+          '" style="color:var(--teal-ink);text-decoration:none">'+esc(l.telefoon)+'</a></div>':'')+
+        (l.email?'<div class="fwk-bon-r">'+svg(I.mail)+esc(l.email)+'</div>':'')+
+        (l.ingepland?'<div class="fwk-bon-r">'+svg(I.kalender)+'Herstel op '+dag(l.ingepland)+
+          (l.tijdvak?' \u00b7 '+esc(l.tijdvak):'')+'</div>':'')+
+        (l.opgeleverdAt?'<div class="fwk-bon-r" style="color:var(--green)">'+svg(I.vink)+
+          'Opgeleverd op '+dag(l.opgeleverdAt)+'</div>':'')+
+        '<div class="fwk-bon-v">'+
+          (l.status==='open'?'<button class="jbtn" onclick="fwkLocPlan(\''+l.id+'\')">Herstel inplannen</button>':'')+
+          (l.status==='ingepland'?'<button class="jbtn" onclick="fwkLocStatus(\''+l.id+'\',\'uitvoering\')">Werk gestart</button>':'')+
+          (l.status==='uitvoering'?'<button class="jbtn" onclick="fwkLocStatus(\''+l.id+'\',\'opgeleverd\')">Opleveren</button>':'')+
+          (l.status!=='open'?'<button class="jbtn" onclick="fwkLocPlan(\''+l.id+'\')">Datum wijzigen</button>':'')+
+          (!l.hoofd?'<button class="jbtn" onclick="fwkLocHoofd(\''+l.id+'\')">Hoofdadres maken</button>'+
+            '<button class="jbtn" onclick="fwkLocWeg(\''+l.id+'\',\''+esc(l.adres).replace(/\x27/g,'')+'\')">Verwijderen</button>':'')+
+        '</div></div>';
+    }).join('');
+
+    var open = locaties.filter(function(l){return l.status!=='opgeleverd'}).length;
+    if (open) x += '<div style="font-size:12px;color:var(--muted);margin-top:10px">'+
+      'Het dossier gaat pas naar Opgeleverd als alle adressen klaar zijn. Nog '+open+' te gaan.</div>';
+    return x;
+  }
+
+  function panDoc(){
+    var eigen = docs.filter(function(d){ return d.soort!=='factuur_onder'; });
+    var gedeeld = eigen.filter(function(d){return d.gedeeld}).length;
+    var x = '<div class="fwk-zone" id="fwkZone"><div class="t">Sleep hier je rapporten, offertes en foto\u2019s</div>'+
+      '<div class="s">of klik om te kiezen \u00b7 pdf, jpg, png, docx tot 20 MB</div></div>'+
+      '<input type="file" id="fwkFile" multiple style="display:none">';
+
+    if (!eigen.length) return x + '<div class="fwk-leeg">Nog geen documenten bij dit dossier.</div>';
+
+    x += '<div class="fwk-kd">'+svg(I.oog)+'<span><b>'+gedeeld+' van de '+eigen.length+
+      ' stukken staan in het klantportaal.</b> Zet per document aan of de eigenaar en de beheerder het mogen zien.</span></div>';
+
+    DVOLG.forEach(function(k){
+      var groep = eigen.filter(function(d){return d.soort===k});
+      if (!groep.length) return;
+      x += '<div class="fwk-dg"><h5>'+(DSOORT[k]||k).toUpperCase()+'</h5>';
+      if (k==='factuur_bron') x += '<div class="uit">Ter info \u2014 telt niet mee in je marge.</div>';
+      groep.forEach(function(d){
+        var ext = (d.bestandsnaam||'').split('.').pop().toLowerCase();
+        var geld = (k==='offerte'||k==='factuur_expertise');
+        x += '<div class="fwk-dk"><div class="fwk-dico '+(/(jpg|jpeg|png|heic)/.test(ext)?'jpg':'pdf')+'">'+
+            esc(ext.slice(0,4).toUpperCase())+'</div>'+
+          '<div class="fwk-dt"><div class="fwk-dn">'+esc(d.bestandsnaam)+'</div>'+
+            '<div class="fwk-dm">'+Math.round((d.grootte||0)/1024)+' kB'+(d.doorNaam?' \u00b7 '+esc(d.doorNaam):'')+
+              (d.createdAt?' \u00b7 '+dag(d.createdAt):'')+'</div>'+
+            '<div class="fwk-dd"><button class="fwk-sw'+(d.gedeeld?' aan':'')+'" onclick="fwkDeel(\''+d.id+'\','+(!d.gedeeld)+')"></button>'+
+              '<span class="lb">'+(d.gedeeld?'<b>Zichtbaar voor de klant</b>':'Alleen voor ons')+'</span>'+
+              (d.gedeeld&&LETOP[k]?'<span style="font-size:11.5px;color:#8A5A0B;margin-left:auto">'+LETOP[k]+'</span>':'')+
+            '</div></div>'+
+          (geld?'<input class="fwk-bed'+(d.bedrag!=null&&!d.bedragBevestigd?' sug':'')+'" type="text" value="'+
+            (d.bedrag!=null?d.bedrag:'')+'" placeholder="bedrag" onchange="fwkDocBedrag(this,\''+d.id+'\')">':'')+
+          '<div class="fwk-da"><a href="/api/documenten/'+d.id+'/bestand" target="_blank" rel="noopener" title="Bekijken">'+svg(I.oog)+'</a>'+
+            '<a href="/api/documenten/'+d.id+'/bestand" download title="Downloaden">'+svg(I.pijl)+'</a>'+
+            '<button class="weg" title="Verwijderen" onclick="fwkDocWeg(\''+d.id+'\',\''+esc(d.bestandsnaam).replace(/'/g,'')+'\')">'+svg(I.kruis)+'</button></div>'+
+        '</div>';
+      });
+      x += '</div>';
+    });
+    return x;
+  }
+
+  function panOnder(){
+    var fac = docs.filter(function(d){ return d.soort==='factuur_onder'; });
+    var som = fac.filter(function(d){return d.bedrag}).reduce(function(a,d){return a+d.bedrag},0);
+    var x = '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap">'+
+      '<div style="font-size:12.5px;color:var(--muted)">Wat je uitbesteedt en wat dat kost.</div>'+
+      '<button class="btn primary" onclick="fwkBonNieuw()">'+svg(I.plus)+'Opdrachtbon maken</button></div>';
+
+    if (!bonnen.length && !fac.length) {
+      x += '<div class="fwk-leeg">Nog geen opdrachtbonnen of facturen.</div>';
+    }
+
+    bonnen.forEach(function(b){
+      var st = {concept:['grijs','Concept'],verstuurd:['teal','Verstuurd'],
+        afgemeld:['groen','Afgemeld'],gefactureerd:['groen','Gefactureerd']}[b.status]||['grijs',b.status];
+      x += '<div class="fwk-bon"><div class="fwk-bon-kop"><div class="fwk-bon-nr">'+esc(b.nummer)+'</div>'+
+        '<span class="fwk-pil '+st[0]+'">'+st[1]+'</span></div>'+
+        '<div class="fwk-bon-w">'+esc((b.werk||'').split('\n')[0])+'</div>'+
+        (b.leverancier?'<div class="fwk-bon-r">'+svg(I.hamer)+esc(b.leverancier.naam)+'</div>':'')+
+        (b.uitvoerenOp?'<div class="fwk-bon-r">'+svg(I.kalender)+'Uitvoeren op '+dag(b.uitvoerenOp)+
+          (b.tijdvak?' \u00b7 '+esc(b.tijdvak):'')+'</div>':'')+
+        '<div class="fwk-bon-r">'+svg(I.euro)+eur(b.bedrag/100)+' '+(b.btwVerlegd?'excl. btw \u00b7 verlegd':'excl. btw')+
+          ' \u00b7 '+({vast:'vaste prijs',mandaat:'mandaat',regie:'regie'}[b.prijsvorm]||'')+'</div>'+
+        '<div class="fwk-bon-r">'+svg(I.camera)+(b.afgemeldAt?'Afgemeld op '+dag(b.afgemeldAt):'Nog niet afgemeld')+'</div>'+
+        '<div class="fwk-bon-v">'+
+          '<button class="jbtn" onclick="window.open(\'/api/opdrachtbonnen/'+b.id+'/bon.html\',\'_blank\')">Bon bekijken</button>'+
+          (b.status==='concept'?'<button class="jbtn" onclick="fwkBonStatus(\''+b.id+'\',\'verstuurd\')">Markeer als verstuurd</button>':'')+
+          (b.status==='verstuurd'?'<button class="jbtn" onclick="fwkBonStatus(\''+b.id+'\',\'afgemeld\')">Markeer als afgemeld</button>':'')+
+        '</div></div>';
+    });
+
+    if (fac.length) {
+      x += '<h5 style="margin:16px 0 8px;font-size:10.5px;font-weight:700;color:var(--muted-2);letter-spacing:.05em">ONTVANGEN FACTUREN</h5>';
+      fac.forEach(function(d){
+        x += '<div class="fwk-dk"><div class="fwk-dico pdf">PDF</div>'+
+          '<div class="fwk-dt"><div class="fwk-dn">'+esc(d.bestandsnaam)+'</div>'+
+            '<div class="fwk-dm">'+Math.round((d.grootte||0)/1024)+' kB'+(d.verzamel?' \u00b7 verzamelfactuur':'')+'</div>'+
+            '<div class="fwk-dd"><select style="font-size:12px;padding:5px 8px;min-height:32px;max-width:200px;'+
+              'border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--text);font-family:inherit" '+
+              'onchange="fwkDocLev(this,\''+d.id+'\')"><option value="">Leverancier kiezen\u2026</option>'+
+              levs.map(function(l){return '<option value="'+l.id+'"'+(d.leverancierId===l.id?' selected':'')+'>'+
+                esc(l.naam)+(l.factuurwijze==='verzamel'?' \u00b7 verzamelt':'')+'</option>'}).join('')+
+            '</select></div></div>'+
+          '<input class="fwk-bed'+(d.bedrag!=null&&!d.bedragBevestigd&&!d.verzamel?' sug':'')+'" type="text" value="'+
+            (d.verzamel&&!d.bedragBevestigd?'':(d.bedrag!=null?d.bedrag:''))+'" placeholder="'+(d.verzamel?'aandeel':'bedrag')+
+            '" onchange="fwkDocBedrag(this,\''+d.id+'\')">'+
+          '<div class="fwk-da"><a href="/api/documenten/'+d.id+'/bestand" target="_blank" rel="noopener" title="Bekijken">'+svg(I.oog)+'</a>'+
+            '<button class="weg" onclick="fwkDocWeg(\''+d.id+'\',\''+esc(d.bestandsnaam).replace(/'/g,'')+'\')">'+svg(I.kruis)+'</button></div></div>';
+      });
+      x += '<div class="fwk-som"><span class="l">Onderaanneming totaal</span>'+
+        '<span style="display:flex;align-items:center;gap:14px"><span class="v">'+eur(som)+'</span>'+
+        '<button class="jbtn" style="background:rgba(255,255,255,.12);color:#fff;border-color:rgba(255,255,255,.22)" '+
+        'onclick="fwkNeemUitbesteed()">Overnemen in marge</button></span></div>';
+    }
+    return x;
+  }
+
+  function panOff(){
+    if (!offertes.length) return '<div class="fwk-leeg">Nog geen offerte verstuurd. '+
+      'Zodra je er een verstuurt, kan de klant hier online akkoord geven.</div>';
+    return offertes.map(function(o){
+      var st = {open:['amber','Wacht op antwoord'],akkoord:['groen','Akkoord'],
+        geweigerd:['rood','Niet akkoord'],vervallen:['grijs','Vervallen']}[o.status]||['grijs',o.status];
+      var x = '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap">'+
+        '<span class="fwk-pil '+st[0]+'">'+st[1]+'</span>'+
+        (o.bedrag?'<span style="font-family:Poppins,sans-serif;font-size:22px;font-weight:600;font-variant-numeric:tabular-nums">'+eur(o.bedrag)+'</span>':'')+
+        '</div>';
+      x += '<div class="fwk-bon-r">'+svg(I.klok)+'Verstuurd op '+dag(o.verstuurdAt)+
+        (o.geldigTot?' \u00b7 geldig tot '+dag(o.geldigTot):'')+'</div>';
+      if (o.geopendAt) x += '<div class="fwk-bon-r" style="color:var(--teal-ink)">'+svg(I.oog)+'Geopend op '+dag(o.geopendAt)+
+        (o.openCount>1?' \u00b7 '+o.openCount+' keer bekeken':'')+'</div>';
+      else if (o.status==='open') x += '<div class="fwk-bon-r" style="color:#8A5A0B">'+svg(I.oog)+'Nog niet geopend'+
+        (dagenGeleden(o.verstuurdAt)>=3?' \u2014 al '+dagenGeleden(o.verstuurdAt)+' dagen':'')+'</div>';
+      if (o.besluitAt) x += '<div class="fwk-bon-r" style="color:'+(o.status==='akkoord'?'var(--green)':'var(--red)')+'">'+
+        svg(I.vink)+(o.status==='akkoord'?'Akkoord':'Afgewezen')+' op '+dag(o.besluitAt)+(o.naam?' door '+esc(o.naam):'')+'</div>';
+      if (o.reden) x += '<div class="fwk-bon-r" style="padding-left:23px">'+esc(o.reden)+'</div>';
+      if (o.herinneringen) x += '<div class="fwk-bon-r">'+svg(I.klok)+o.herinneringen+' herinnering'+
+        (o.herinneringen>1?'en':'')+' gestuurd</div>';
+      if (o.status==='open') x += '<div style="font-family:JetBrains Mono,monospace;font-size:11px;color:var(--teal);'+
+        'word-break:break-all;margin-top:10px;padding-top:10px;border-top:1px solid var(--line)">'+esc(o.link)+'</div>'+
+        '<div style="display:flex;gap:7px;margin-top:9px;flex-wrap:wrap">'+
+        '<button class="jbtn" onclick="navigator.clipboard&&navigator.clipboard.writeText(\''+o.link+'\')">Link kopi\u00ebren</button>'+
+        '<button class="jbtn" onclick="fwvOpen(\''+S.nr+'\',\'offerte_rappel\')">Herinnering sturen</button></div>';
+      return x;
+    }).join('<hr style="border:none;border-top:1px solid var(--line);margin:16px 0">');
+  }
+
+  function panCorr(){
+    var K = {claim:['#378ADD','#E6F1FB','Claim ingediend bij verzekeraar'],
+      rapport:['#1D9E75','#E1F5EE','Schaderapport verstuurd'],
+      offerte:['#7F77DD','#EEEDFE','Offerte verstuurd'],
+      offerte_rappel:['#BA7517','#FAEEDA','Herinnering offerte'],
+      herinnering:['#BA7517','#FAEEDA','Herinnering gestuurd'],
+      melding_beheerder:['#00838F','#E0F4F6','Beheerder ge\u00efnformeerd'],
+      melding_eigenaar:['#00838F','#E0F4F6','Eigenaar ge\u00efnformeerd'],
+      update_beheerder:['#00838F','#E0F4F6','Update aan de beheerder'],
+      update_eigenaar:['#00838F','#E0F4F6','Update aan de eigenaar'],
+      afronding_eigenaar:['#1D9E75','#E1F5EE','Afronding aan de eigenaar'],
+      afronding_beheerder:['#1D9E75','#E1F5EE','Afronding aan de beheerder']};
+    var l = corr.filter(function(v){return v.status!=='concept'});
+    if (!l.length) return '<div class="fwk-leeg">Nog niets verstuurd vanuit dit dossier.</div>';
+    return l.map(function(v){
+      var k = K[v.soort]||['#8a94a6','#F1EFE8',v.soort];
+      var n = (v.documentIds||[]).length;
+      return '<div class="fwk-c"><div class="fwk-cico" style="background:'+k[1]+';color:'+k[0]+'">'+svg(I.mail)+'</div>'+
+        '<div style="flex:1;min-width:0"><div class="fwk-ct2">'+k[2]+'</div>'+
+        '<div class="fwk-cs">'+esc((v.naar||[]).join(', '))+'</div>'+
+        '<div class="fwk-cb">'+(n?n+' stuk'+(n>1?'ken':'')+' meegestuurd \u00b7 ':'')+'door '+esc(v.doorNaam||'')+'</div></div>'+
+        '<div class="fwk-cd">'+dag(v.createdAt)+'</div></div>';
+    }).join('');
+  }
+
+  function panLog(){
+    if (!logs.length) return '<div class="fwk-leeg">Nog geen gebeurtenissen vastgelegd.</div>';
+    var perDag = {};
+    logs.forEach(function(r){
+      var d = new Date(r.createdAt);
+      var sl = d.toLocaleDateString('nl-NL',{day:'numeric',month:'long'});
+      var vandaag = new Date(); vandaag.setHours(0,0,0,0);
+      var rd = new Date(d); rd.setHours(0,0,0,0);
+      var v = (rd.getTime()===vandaag.getTime()) ? 'Vandaag'
+            : (vandaag-rd===864e5) ? 'Gisteren' : sl;
+      (perDag[v] = perDag[v] || []).push(r);
+    });
+    return Object.keys(perDag).map(function(d){
+      return '<div class="fwk-ld">'+esc(d)+'</div><div class="fwk-log">'+perDag[d].map(function(r){
+        var kl = r.soort==='besluit'?'amber':/aangemaakt|ingediend|akkoord|hersteld/i.test(r.text)?'teal':'';
+        var tijd = new Date(r.createdAt).toLocaleTimeString('nl-NL',{hour:'2-digit',minute:'2-digit'});
+        return '<div class="fwk-lr '+kl+'"><div class="fwk-lt">'+esc(r.text)+'</div>'+
+          '<div class="fwk-lm">'+(r.detail?esc(r.detail)+' \u00b7 ':'')+esc(r.byName||'')+' \u00b7 '+tijd+'</div></div>';
+      }).join('')+'</div>';
+    }).join('');
+  }
+
+  function panFin(){
+    if (!S.magFin || !S.fin) return '<div class="fwk-leeg">Alleen directie ziet de financi\u00eble gegevens.</div>';
+    var om = S.fin.herstel.omzet||S.amount||0, ink = S.fin.herstel.inkoop||0, uit = S.fin.herstel.uitbesteed||0;
+    var marge = om-ink-uit, pct = om>0?Math.round(marge/om*100):0;
+    var tot = Math.max(om,1);
+    return '<div class="fwk-hero"><div class="v">'+eur(marge)+'</div>'+
+      '<div class="l">netto marge \u00b7 '+pct+'% van de omzet</div></div>'+
+      '<div class="fwk-staaf">'+
+        '<span style="width:'+Math.max(0,marge/tot*100)+'%;background:var(--teal)"></span>'+
+        '<span style="width:'+(ink/tot*100)+'%;background:#7F77DD"></span>'+
+        '<span style="width:'+(uit/tot*100)+'%;background:#E0A030"></span></div>'+
+      '<div class="fwk-leg"><span><i style="background:var(--teal)"></i>marge</span>'+
+        '<span><i style="background:#7F77DD"></i>inkoop</span>'+
+        '<span><i style="background:#E0A030"></i>onderaanneming</span></div>'+
+      '<div class="fwk-gr"><div class="fwk-gico" style="background:var(--green-soft);color:#12704A">'+svg(I.euro)+'</div>'+
+        '<div style="flex:1"><div class="fwk-gn">Omzet</div><div class="fwk-gm">Offertesom van dit dossier</div></div>'+
+        '<div class="fwk-gb">'+eur(om)+'</div></div>'+
+      '<div class="fwk-gr"><div class="fwk-gico" style="background:#EEEDFE;color:#5B52C4">'+svg(I.doos)+'</div>'+
+        '<div style="flex:1"><div class="fwk-gn">Inkoop materiaal</div><div class="fwk-gm">Handmatig ingevuld</div></div>'+
+        '<div class="fwk-gb min">\u2212'+eur(ink)+'</div></div>'+
+      '<div class="fwk-gr"><div class="fwk-gico" style="background:#FAF0DA;color:#8A5A0B">'+svg(I.hamer)+'</div>'+
+        '<div style="flex:1"><div class="fwk-gn">Onderaanneming</div><div class="fwk-gm">Uit de facturen van leveranciers</div></div>'+
+        '<div class="fwk-gb min">\u2212'+eur(uit)+'</div></div>'+
+      '<div class="fwk-gtot"><span class="l">Netto marge</span><span class="v">'+eur(marge)+'</span></div>'+
+      '<div class="fwk-bewerk"><div style="font-size:10.5px;font-weight:700;color:var(--muted-2);'+
+        'letter-spacing:.05em;text-transform:uppercase;margin-bottom:10px">Bedragen aanpassen</div>'+
+        '<div class="fwk-geld">'+
+          '<label>Offertesom<input type="text" id="fwkOmzet" value="'+om+'"></label>'+
+          '<label>Inkoop materiaal<input type="text" id="fwkInkoop" value="'+ink+'"></label>'+
+          '<label>Onderaanneming<input type="text" id="fwkUitb" value="'+uit+'"></label></div>'+
+        '<div class="fwk-gv"><span>Geen onderaanneming? Vul 0 in.</span>'+
+          '<button class="btn primary" onclick="fwkBewaarFin()">Opslaan</button></div></div>'+
+      '<div class="fwk-acties">'+
+        (S.inWacht?'<button class="btn" onclick="fwkUitWacht()">Weer oppakken</button>'
+                  :'<button class="btn" onclick="fwkWacht()">In de wacht zetten</button>')+
+        (S.archived?'<button class="btn" onclick="fwkUitArchief()">Uit archief halen</button>'
+                   :'<button class="btn" onclick="fwkAfronden()">Dossier afronden</button>')+
+      '</div>';
+  }
+
+  /* ── slepen ── */
+  function haakSleep(){
+    var z = document.getElementById('fwkZone'), f = document.getElementById('fwkFile');
+    if (!z || !f) return;
+    z.onclick = function(){ f.click(); };
+    f.onchange = function(){ if (f.files.length && window.fwSleep) { window.fwSleep(f.files); f.value=''; } };
+    ['dragenter','dragover'].forEach(function(e){ z.addEventListener(e,function(ev){ev.preventDefault();z.classList.add('over')}); });
+    ['dragleave','drop'].forEach(function(e){ z.addEventListener(e,function(ev){ev.preventDefault();z.classList.remove('over')}); });
+    z.addEventListener('drop', function(ev){
+      if (ev.dataTransfer && ev.dataTransfer.files.length && window.fwSleep) window.fwSleep(ev.dataTransfer.files);
+    });
+  }
+
+  /* het oude dossierscherm vervangen */
+  var t = setInterval(function(){
+    if (typeof window.openDetail !== 'function') return;
+    if (window.openDetail.__fwk) { clearInterval(t); return; }
+    window.openDetail = window.fwkOpen;
+    window.openDetail.__fwk = true;
+    clearInterval(t);
+  }, 200);
+  setTimeout(function(){ clearInterval(t); }, 30000);
 })();
 </script>
