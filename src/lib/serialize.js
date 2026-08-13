@@ -48,6 +48,13 @@ function schadeForUser(s, user) {
     postcode: s.postcode,
     bewonerSoort: s.bewonerSoort,
     contactpersoon: s.contactpersoon,
+    locaties: (s.locaties || []).map((l) => ({
+      id: l.id, adres: l.adres, postcode: l.postcode, plaats: l.plaats, aanduiding: l.aanduiding,
+      bewoner: l.bewoner, bewonerSoort: l.bewonerSoort, telefoon: l.telefoon, email: l.email,
+      status: l.status, ingepland: l.ingepland, tijdvak: l.tijdvak, opgeleverdAt: l.opgeleverdAt,
+      notitie: l.notitie, hoofd: l.hoofd,
+    })),
+    aantalLocaties: (s.locaties || []).length,
     afwijzingAt: s.afwijzingAt,
     naAfwijzing: s.naAfwijzing,
     betalerNaAfwijzing: s.betalerNaAfwijzing,
