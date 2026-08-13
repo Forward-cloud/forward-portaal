@@ -5201,8 +5201,21 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
   margin:11px auto 8px;position:relative;z-index:1;display:flex;align-items:center;justify-content:center;transition:.16s}
 .fwk-bol svg{width:13px;height:13px;color:#fff}
 .fwk-halte.af .fwk-bol{background:var(--teal);border-color:var(--teal)}
-.fwk-halte.nu .fwk-bol{border-color:var(--teal-2);border-width:3px;box-shadow:0 0 0 5px rgba(0,182,196,.16)}
-.fwk-halte.vraag .fwk-bol{border-color:#E0A030;border-width:3px;box-shadow:0 0 0 5px rgba(224,160,48,.18)}
+.fwk-halte.nu .fwk-bol{border-color:var(--teal-2);border-width:3px;position:relative}
+.fwk-halte.nu .fwk-bol::before{content:'';position:absolute;inset:-5px;border-radius:50%;
+  border:2px solid var(--teal-2);animation:fwkPuls 2s cubic-bezier(.4,0,.6,1) infinite}
+.fwk-halte.nu .fwk-bol::after{content:'';width:9px;height:9px;border-radius:50%;background:var(--teal-2)}
+@keyframes fwkPuls{
+  0%   {transform:scale(1);   opacity:.75}
+  70%  {transform:scale(1.55);opacity:0}
+  100% {transform:scale(1.55);opacity:0}
+}
+.fwk-halte.vraag .fwk-bol::before{border-color:#E0A030}
+.fwk-halte.vraag .fwk-bol::after{background:#E0A030}
+@media (prefers-reduced-motion:reduce){
+  .fwk-halte.nu .fwk-bol::before{animation:none;opacity:.4}
+}
+.fwk-halte.vraag .fwk-bol{border-color:#E0A030;border-width:3px}
 .fwk-halte.vraag .fwk-t{color:#8A5A0B}
 .fwk-halte.dood .fwk-bol{background:var(--red);border-color:var(--red)}
 .fwk-halte.dood .fwk-t{color:var(--red);font-weight:600}
