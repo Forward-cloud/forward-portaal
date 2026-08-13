@@ -14,6 +14,7 @@ async function log(user, text, opties) {
       text,
       detail: o.detail || null,
       soort: o.soort || 'actie',
+      intern: o.intern === undefined ? false : !!o.intern,
       schadeId: o.schadeId || null,
       byUserId: user.id,
       byName: user.naam,
@@ -84,7 +85,13 @@ router.get('/', async (req, res) => {
   const schades = await prisma.schade.findMany({
     where,
     orderBy: { createdAt: 'desc' },
-    include: { offertes: { orderBy: { verstuurdAt: 'desc' } } },
+    include: {
+      offertes: { orderBy: { verstuurdAt: 'desc' } },
+      locaties: { orderBy: [{ hoofd: 'desc' }, { volgorde: 'asc' }] },
+      opdrachtbonnen: { select: { soort: true, bedrag: true, status: true, reactieVoor: true } },
+      verzekeraar: true,
+      tussenpersoonRel: true,
+    },
   });
   res.json({ schades: schades.map((s) => schadeForUser(s, req.user)) });
 });
@@ -96,7 +103,14 @@ router.get('/presets', (req, res) => {
 });
 
 router.get('/:nummer', async (req, res) => {
-  const s = await prisma.schade.findUnique({ where: { nummer: req.params.nummer } });
+  const s = await prisma.schade.findUnique({
+    where: { nummer: req.params.nummer },
+    include: {
+      locaties: { orderBy: [{ hoofd: 'desc' }, { volgorde: 'asc' }] },
+      verzekeraar: true,
+      tussenpersoonRel: true,
+    },
+  });
   if (!s) return res.status(404).json({ error: 'Dossier niet gevonden' });
   res.json({ schade: schadeForUser(s, req.user) });
 });
@@ -108,7 +122,7 @@ router.get('/:nummer/logboek', async (req, res) => {
   const regels = await prisma.logEntry.findMany({
     where: { schadeId: s.id },
     orderBy: { createdAt: 'desc' },
-    take: 200,
+    take: 300,
   });
   res.json({ regels });
 });
@@ -169,9 +183,34 @@ router.post('/', async (req, res) => {
           opdrachtgever: b.opdrachtgever || null,
         },
       });
-      await log(req.user, `Dossier aangemaakt: ${s.nummer} — ${s.owner}`);
+      // Het opgegeven adres wordt meteen het hoofdadres; extra adressen kun je erbij zetten.
+      const extra = Array.isArray(b.locaties) ? b.locaties : [];
+      const alle = [{ adres: b.adres, postcode: b.postcode, plaats: b.plaats, bewoner: b.owner,
+                      telefoon: b.telefoon, email: b.email, bewonerSoort: b.bewonerSoort }].concat(extra);
+      let i = 0;
+      for (const l of alle) {
+        if (!l || !l.adres || !String(l.adres).trim()) continue;
+        await prisma.locatie.create({
+          data: {
+            schadeId: s.id,
+            adres: String(l.adres).trim(),
+            postcode: l.postcode || null,
+            plaats: l.plaats || null,
+            aanduiding: l.aanduiding || null,
+            bewoner: l.bewoner || null,
+            bewonerSoort: l.bewonerSoort || null,
+            telefoon: l.telefoon || null,
+            email: l.email || null,
+            hoofd: i === 0,
+            volgorde: i,
+          },
+        });
+        i++;
+      }
+
+      await log(req.user, `Melding ontvangen`, { schadeId: s.id, soort: 'start' });
       if (b.notitie && String(b.notitie).trim()) {
-        await log(req.user, `${s.nummer} · melding: ${String(b.notitie).trim()}`);
+        await log(req.user, 'Melding genoteerd', { schadeId: s.id, detail: String(b.notitie).trim() });
       }
       return res.status(201).json({ schade: schadeForUser(s, req.user) });
     } catch (e) {
@@ -191,7 +230,7 @@ router.patch('/:nummer', async (req, res) => {
    'opdrachtnummer', 'opdrachtgever', 'verzSchadenummer', 'verzEmail',
    'tussenpersoon', 'polisnummer', 'oorzaak', 'beheerderEmail', 'polisvorm',
    'telefoon', 'postcode', 'beheerderTel', 'bewonerSoort', 'contactpersoon',
-   'afwijzingReden', 'naAfwijzing', 'betalerNaAfwijzing'].forEach((k) => {
+   'afwijzingReden', 'naAfwijzing', 'betalerNaAfwijzing', 'weigerReden'].forEach((k) => {
     if (b[k] !== undefined) data[k] = b[k] || null;
   });
 
@@ -295,9 +334,7 @@ router.patch('/:nummer', async (req, res) => {
     const laatste = actief[actief.length - 1];
     if (Number(data.step) >= laatste && !nu.archived) {
       data.status = 'done';
-      data.gefactureerd = true;
-      data.archived = true;
-      data.archivedAt = new Date();
+      // Archiveren doe je bewust met de knop; zo blijft het dossier nog even in beeld.
     }
   }
 
@@ -325,6 +362,15 @@ router.post('/:nummer/bron', async (req, res) => {
 });
 
 /* ─────────── wachtstand ─────────── */
+router.post('/:nummer/bronopties', async (req, res) => {
+  const b = req.body || {};
+  const data = {};
+  if (b.bronFactuur !== undefined) data.bronFactuur = !!b.bronFactuur;
+  if (b.bronDoorOns !== undefined) data.bronDoorOns = !!b.bronDoorOns;
+  const s = await prisma.schade.update({ where: { nummer: req.params.nummer }, data });
+  res.json({ schade: schadeForUser(s, req.user) });
+});
+
 router.post('/:nummer/wacht', async (req, res) => {
   const { reden, tot } = req.body || {};
   if (!reden || !String(reden).trim()) {
