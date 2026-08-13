@@ -1,7 +1,7 @@
 // Haltes, presets en het afleiden van de voortgang uit de schadekaart.
 
 // Versiestempel — het portaal toont dit, zodat je ziet of frontend en server bij elkaar horen.
-const VERSIE = 'haltes-4-bron';
+const VERSIE = 'haltes-5-kaart';
 
 const HALTES = [
   'Schademelding ontvangen',           // 1
@@ -90,9 +90,11 @@ function bronBlokkeert(schade, doelStep) {
   const haltes = normaliseerHaltes(schade.haltes);
   if (!haltes.includes(BRON)) return null;
   if (Number(doelStep) <= BRON) return null;
-  if (schade.bronStatus !== 'onvoldoende') return null;
+  if (schade.bronStatus !== 'onvoldoende' && schade.bronStatus !== 'open') return null;
   if (schade.bronDoorReden && String(schade.bronDoorReden).trim()) return null;
-  return 'De bron is onvoldoende hersteld. Geef aan waarom je toch doorgaat.';
+  return schade.bronStatus === 'open'
+    ? 'De bron is nog niet hersteld. Geef aan waarom je toch doorgaat.'
+    : 'De bron is onvoldoende hersteld. Geef aan waarom je toch doorgaat.';
 }
 
 /**
@@ -152,8 +154,17 @@ function leidAfUitKaart(r) {
   return { preset, haltes, step, verzStatus, bronStatus };
 }
 
+const VERZ_STATUS = {
+  geen:         'Nog niet ingediend',
+  ingediend:    'Wacht op reactie',
+  informatie:   'Vraagt aanvullende informatie',
+  akkoord:      'Akkoord',
+  afgewezen:    'Afgewezen',
+  doorverwezen: 'Doorverwezen naar andere polis',
+};
+
 module.exports = {
-  VERSIE, HALTES, VAST, BRON, PRESETS, BRON_STATUS,
+  VERSIE, HALTES, VERZ_STATUS, VAST, BRON, PRESETS, BRON_STATUS,
   haltesVoorPreset, normaliseerHaltes, volgendeHalte, isAfgerond, positie,
   bronBlokkeert, leidAfUitKaart, jaTekst, heeftEchteWaarde,
 };
