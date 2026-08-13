@@ -40,6 +40,21 @@ async function koppelOfferte(s, soort) {
   s.offerteGeopendAt = o.geopendAt;
 }
 
+// Zoekt de openstaande afspraak zodat de brief ernaar kan verwijzen.
+async function koppelAfspraak(s, soort) {
+  if (soort !== 'afspraak_opname' && soort !== 'afspraak_herstel') return;
+  const { PORTAAL } = require('../lib/brieven');
+  const a = await prisma.afspraak.findFirst({
+    where: { schadeId: s.id, soort: soort === 'afspraak_opname' ? 'opname' : 'herstel', status: 'open' },
+    orderBy: { verstuurdAt: 'desc' },
+  });
+  if (!a) return;
+  s.afspraakLink = `${PORTAAL}/afspraak/${a.token}`;
+  s.afspraakTot = a.geldigTot;
+  s.afspraakWat = [a.omschrijving, a.vakman ? `Uitgevoerd door ${a.vakman}.` : null,
+    a.duur ? `Reken op ${a.duur}.` : null].filter(Boolean).join(' ');
+}
+
 async function dossier(nummer) {
   return prisma.schade.findUnique({
     where: { nummer },
@@ -93,6 +108,11 @@ router.get('/schades/:nummer/brief', async (req, res) => {
   const gekozen = req.query.docs ? String(req.query.docs).split(',').filter(Boolean) : null;
   if (req.query.aanleiding) s.aanleiding = String(req.query.aanleiding);
   await koppelOfferte(s, soort);
+  await koppelAfspraak(s, soort);
+  if (soort === 'vrij') {
+    s.vrijTekst = req.query.tekst || '';
+    s.vrijOnderwerp = req.query.onderwerp || '';
+  }
   const brief = stelOp(soort, s, s.documenten, gekozen);
   brief.contact = [req.user.naam, req.user.email].filter(Boolean).join(' \u00b7 ');
 
@@ -122,6 +142,9 @@ router.get('/schades/:nummer/brief', async (req, res) => {
       ? { id: concept.id, bewerkt: true, sinds: concept.createdAt, documentIds: concept.documentIds }
       : null,
     aiBeschikbaar: ai.beschikbaar(),
+    herinneringen: await prisma.verzending.count({
+      where: { schadeId: s.id, soort: 'herinnering', status: { not: 'concept' } },
+    }),
     aanleidingen: Object.entries(AANLEIDINGEN).map(([k, v]) => ({ key: k, label: v })),
     meesturen: soort === 'afronding_eigenaar' ? [
       {
@@ -199,6 +222,7 @@ router.get('/schades/:nummer/brief.html', async (req, res) => {
   const gekozen = req.query.docs ? String(req.query.docs).split(',').filter(Boolean) : null;
   if (req.query.aanleiding) s.aanleiding = String(req.query.aanleiding);
   await koppelOfferte(s, soort);
+  await koppelAfspraak(s, soort);
   const brief = stelOp(soort, s, s.documenten, gekozen);
   brief.contact = [req.query.namens || req.user.naam, req.user.email].filter(Boolean).join(' \u00b7 ');
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
@@ -244,6 +268,14 @@ router.delete('/schades/:nummer/brief/concept', async (req, res) => {
   const soort = SOORTEN[req.query.soort] ? req.query.soort : 'claim';
   const s = await prisma.schade.findUnique({ where: { nummer: req.params.nummer }, select: { id: true } });
   if (!s) return res.status(404).json({ error: 'Dossier niet gevonden' });
+  // Een weigering sluit het dossier meteen.
+  if (soort === 'weigering') {
+    await prisma.schade.update({
+      where: { id: s.id },
+      data: { status: 'geweigerd', archived: true, archivedAt: new Date(), weigerAt: new Date() },
+    });
+  }
+
   await prisma.verzending.deleteMany({ where: { schadeId: s.id, soort, status: 'concept' } });
   res.json({ ok: true });
 });
@@ -287,6 +319,62 @@ router.post('/schades/:nummer/brief/bijwerken', async (req, res) => {
   }
 });
 
+/* ─────────── vrij bericht laten opstellen ─────────── */
+router.post('/schades/:nummer/bericht', async (req, res) => {
+  const b = req.body || {};
+  const notitie = String(b.notitie || '').trim();
+  if (!notitie) return res.status(400).json({ error: 'Schrijf op wat je wilt zeggen' });
+
+  const s = await dossier(req.params.nummer);
+  if (!s) return res.status(404).json({ error: 'Dossier niet gevonden' });
+
+  const feiten = [
+    `Dossier: ${s.nummer}`,
+    s.adres ? `Adres: ${[s.adres, s.plaats].filter(Boolean).join(', ')}` : null,
+    s.owner ? `Klant of VvE: ${s.owner}` : null,
+    s.opdrachtgever ? `Opdrachtgever: ${s.opdrachtgever}` : null,
+    s.verzekeraar ? `Verzekeraar: ${s.verzekeraar.naam}` : null,
+    s.polisnummer ? `Polisnummer: ${s.polisnummer}` : null,
+    s.verzSchadenummer ? `Schadenummer verzekeraar: ${s.verzSchadenummer}` : null,
+  ].filter(Boolean).join('\n');
+
+  try {
+    const uit = await ai.opstellen({ notitie, ontvanger: b.ontvanger || 'de ontvanger', context: feiten });
+    res.json(uit);
+  } catch (e) {
+    if (e.code === 'GEEN_SLEUTEL') {
+      return res.status(503).json({
+        error: 'Er is nog geen AI-sleutel ingesteld. Zet ANTHROPIC_API_KEY in Coolify en deploy opnieuw.',
+      });
+    }
+    res.status(502).json({ error: e.message });
+  }
+});
+
+/* ─────────── een verstuurd bericht teruglezen ─────────── */
+router.get('/verzendingen/:id/brief.html', async (req, res) => {
+  const v = await prisma.verzending.findUnique({
+    where: { id: req.params.id },
+    include: { schade: { include: { verzekeraar: true, tussenpersoonRel: true, documenten: true } } },
+  });
+  if (!v) return res.status(404).send('Bericht niet gevonden');
+
+  const s = v.schade;
+  s.vrijTekst = v.tekst;
+  s.vrijOnderwerp = v.onderwerp;
+  const brief = stelOp(v.soort, s, s.documenten, v.documentIds);
+  brief.onderwerp = v.onderwerp || brief.onderwerp;
+  brief.titel = v.onderwerp || brief.titel;
+  brief.contact = v.doorNaam || '';
+
+  const ik = await prisma.user.findUnique({
+    where: { id: req.user.id },
+    select: { handtekening: true, functie: true },
+  });
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(briefHtml(brief, v.doorNaam || req.user.naam, (ik && ik.functie) || '', ik && ik.handtekening));
+});
+
 /* ─────────── verzenden ─────────── */
 router.post('/schades/:nummer/verzenden', async (req, res) => {
   const b = req.body || {};
@@ -299,7 +387,7 @@ router.post('/schades/:nummer/verzenden', async (req, res) => {
 
   // Past deze brief wel bij de route van dit dossier?
   const passend = soortenVoor(s.haltes).map((x) => x.key);
-  if (!passend.includes(soort)) {
+  if (soort !== 'vrij' && !passend.includes(soort)) {
     return res.status(400).json({
       error: `Deze brief hoort niet bij de route van dit dossier. Pas de route aan of kies een andere brief.`,
     });

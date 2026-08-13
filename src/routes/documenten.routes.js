@@ -15,6 +15,7 @@ const SOORTEN = {
   schaderapport: 'Schaderapport',
   offerte: 'Offerte herstel',
   factuur_onder: 'Onderaannemersfactuur',
+  offerte_lev: 'Offerte van leverancier',
   factuur_bron: 'Bronherstel · ter info',
   factuur_expertise: 'Factuur schade-expertise',
   machtiging: 'Getekende machtiging',
@@ -111,6 +112,7 @@ router.post('/schades/:nummer/documenten', async (req, res) => {
       leverancierId: b.leverancierId || null,
       bedragBevestigd: false,
       gedeeld: soort === 'foto' || (soort === 'machtiging' && !schade.opdrachtgever),
+      bonId: b.bonId || null,
       doorNaam: req.user.naam,
     },
   });
@@ -146,6 +148,7 @@ router.patch('/documenten/:id', async (req, res) => {
   }
   if (b.bedragBevestigd !== undefined) data.bedragBevestigd = !!b.bedragBevestigd;
   if (b.gedeeld !== undefined) data.gedeeld = !!b.gedeeld;
+  if (b.bonId !== undefined) data.bonId = b.bonId || null;
   if (b.verzamel !== undefined) data.verzamel = !!b.verzamel;
   if (b.leverancierId !== undefined) data.leverancierId = b.leverancierId || null;
   if (b.bedragTotaal !== undefined) {

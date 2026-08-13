@@ -14,14 +14,15 @@ const PRIJSVORMEN = {
 
 async function log(user, text, schadeId, soort) {
   await prisma.logEntry.create({
-    data: { text, schadeId: schadeId || null, soort: soort || 'actie', byUserId: user.id, byName: user.naam },
+    data: { text, schadeId: schadeId || null, soort: soort || 'actie', intern: true,
+            byUserId: user.id, byName: user.naam },
   });
 }
 
-// Volgend bonnummer binnen het jaar: 2026-0044
-async function volgendNummer() {
+// Volgend nummer binnen het jaar. Aanvragen krijgen een A ervoor: A2026-0012.
+async function volgendNummer(soort) {
   const jaar = new Date().getFullYear();
-  const start = `${jaar}-`;
+  const start = (soort === 'aanvraag' ? 'A' : '') + `${jaar}-`;
   const laatste = await prisma.opdrachtbon.findFirst({
     where: { nummer: { startsWith: start } },
     orderBy: { nummer: 'desc' },
@@ -45,9 +46,16 @@ router.get('/schades/:nummer/opdrachtbonnen', async (req, res) => {
   const bonnen = await prisma.opdrachtbon.findMany({
     where: { schadeId: s.id },
     orderBy: { createdAt: 'desc' },
-    include: { leverancier: { select: { id: true, naam: true, btwVerlegd: true, factuurwijze: true } } },
+    include: {
+      leverancier: { select: { id: true, naam: true, btwVerlegd: true, factuurwijze: true } },
+      documenten: { select: { id: true, bestandsnaam: true, soort: true, bedrag: true } },
+    },
   });
-  res.json({ bonnen, prijsvormen: Object.entries(PRIJSVORMEN).map(([k, v]) => ({ key: k, label: v })) });
+  res.json({
+    bonnen: bonnen.filter((b) => b.soort !== 'aanvraag'),
+    aanvragen: bonnen.filter((b) => b.soort === 'aanvraag' && b.status !== 'vervallen'),
+    prijsvormen: Object.entries(PRIJSVORMEN).map(([k, v]) => ({ key: k, label: v })),
+  });
 });
 
 /* ─────────── aanmaken ─────────── */
@@ -67,7 +75,7 @@ router.post('/schades/:nummer/opdrachtbonnen', async (req, res) => {
   }
   if (b.btwVerlegd !== undefined) verlegd = !!b.btwVerlegd;
 
-  const nummer = await volgendNummer();
+  const nummer = await volgendNummer('opdracht');
   const bon = await prisma.opdrachtbon.create({
     data: {
       schadeId: s.id,
@@ -90,6 +98,118 @@ router.post('/schades/:nummer/opdrachtbonnen', async (req, res) => {
   res.status(201).json({ bon });
 });
 
+/* ─────────── prijzen opvragen bij meerdere leveranciers ─────────── */
+router.post('/schades/:nummer/prijsaanvragen', async (req, res) => {
+  const b = req.body || {};
+  const s = await prisma.schade.findUnique({ where: { nummer: req.params.nummer } });
+  if (!s) return res.status(404).json({ error: 'Dossier niet gevonden' });
+  if (!b.werk || !String(b.werk).trim()) return res.status(400).json({ error: 'Omschrijf waarvoor je een prijs vraagt' });
+
+  const ids = Array.isArray(b.leverancierIds) ? b.leverancierIds.filter(Boolean) : [];
+
+  // Namen die nog niet in de lijst staan, maken wij meteen aan.
+  const nieuwe = Array.isArray(b.nieuweNamen) ? b.nieuweNamen : [];
+  for (const naam of nieuwe) {
+    const n = String(naam || '').trim();
+    if (!n) continue;
+    let rel = await prisma.relatie.findFirst({
+      where: { naam: { equals: n, mode: 'insensitive' }, soort: { in: ['ONDERAANNEMER', 'LEVERANCIER'] } },
+    });
+    if (!rel) {
+      rel = await prisma.relatie.create({
+        data: { naam: n, soort: b.soortNieuw === 'LEVERANCIER' ? 'LEVERANCIER' : 'ONDERAANNEMER' },
+      });
+      await log(req.user, `Nieuwe leverancier aangemaakt: ${n}`, s.id, 'relatie');
+    }
+    ids.push(rel.id);
+  }
+
+  if (!ids.length) return res.status(400).json({ error: 'Kies of typ minstens één leverancier' });
+
+  const aangemaakt = [];
+  for (const id of ids) {
+    const lev = await prisma.relatie.findUnique({ where: { id } });
+    const nummer = await volgendNummer('aanvraag');
+    const bon = await prisma.opdrachtbon.create({
+      data: {
+        schadeId: s.id,
+        nummer,
+        soort: 'aanvraag',
+        leverancierId: id,
+        werk: String(b.werk).trim(),
+        uitvoerenOp: datum(b.uitvoerenOp),
+        reactieVoor: datum(b.reactieVoor),
+        btwVerlegd: lev ? lev.btwVerlegd : true,
+        bewonerMee: b.bewonerMee !== false,
+        documentIds: Array.isArray(b.documentIds) ? b.documentIds : [],
+        status: 'concept',
+        doorNaam: req.user.naam,
+      },
+    });
+    aangemaakt.push(bon);
+  }
+
+  await log(req.user, `Prijs opgevraagd bij ${aangemaakt.length} leverancier(s)`, s.id, 'aanvraag');
+  res.status(201).json({ aanvragen: aangemaakt });
+});
+
+/* ─────────── ontvangen prijs vastleggen ─────────── */
+router.post('/opdrachtbonnen/:id/prijs', async (req, res) => {
+  const b = req.body || {};
+  const bon = await prisma.opdrachtbon.update({
+    where: { id: req.params.id },
+    data: {
+      bedrag: cent(b.bedrag),
+      reactieAt: new Date(),
+      reactieNotitie: b.notitie ? String(b.notitie).trim() : null,
+      status: 'ontvangen',
+    },
+    include: { leverancier: true },
+  });
+  await log(req.user, `Prijs ontvangen van ${bon.leverancier ? bon.leverancier.naam : 'leverancier'}: ` +
+    eur(bon.bedrag / 100), bon.schadeId, 'aanvraag');
+  res.json({ bon });
+});
+
+/* ─────────── herinneren aan een openstaande uitvraag ─────────── */
+router.post('/opdrachtbonnen/:id/herinneren', async (req, res) => {
+  const bon = await prisma.opdrachtbon.update({
+    where: { id: req.params.id },
+    data: { herinnerdAt: new Date(), herinneringen: { increment: 1 } },
+    include: { leverancier: true },
+  });
+  await log(req.user, `Herinnerd aan uitvraag ${bon.nummer}` +
+    (bon.leverancier ? ` bij ${bon.leverancier.naam}` : ''), bon.schadeId, 'aanvraag');
+  res.json({ bon });
+});
+
+/* ─────────── aanvraag gunnen: wordt een opdrachtbon ─────────── */
+router.post('/opdrachtbonnen/:id/gunnen', async (req, res) => {
+  const a = await prisma.opdrachtbon.findUnique({
+    where: { id: req.params.id },
+    include: { leverancier: true },
+  });
+  if (!a) return res.status(404).json({ error: 'Niet gevonden' });
+  if (a.soort !== 'aanvraag') return res.status(400).json({ error: 'Dit is al een opdrachtbon' });
+
+  // De andere aanvragen voor dezelfde klus vervallen.
+  await prisma.opdrachtbon.updateMany({
+    where: { schadeId: a.schadeId, soort: 'aanvraag', werk: a.werk, id: { not: a.id },
+             status: { in: ['concept', 'verstuurd', 'ontvangen'] } },
+    data: { status: 'vervallen' },
+  });
+
+  const nummer = await volgendNummer('opdracht');
+  const bon = await prisma.opdrachtbon.update({
+    where: { id: a.id },
+    data: { soort: 'opdracht', nummer, status: 'concept' },
+  });
+
+  await log(req.user, `Opdracht gegund aan ${a.leverancier ? a.leverancier.naam : 'leverancier'} ` +
+    `voor ${eur(a.bedrag / 100)} — bon ${nummer}`, a.schadeId, 'aanvraag');
+  res.json({ bon });
+});
+
 /* ─────────── bijwerken ─────────── */
 router.patch('/opdrachtbonnen/:id', async (req, res) => {
   const b = req.body || {};
@@ -106,7 +226,7 @@ router.patch('/opdrachtbonnen/:id', async (req, res) => {
   if (b.documentIds !== undefined) data.documentIds = Array.isArray(b.documentIds) ? b.documentIds : [];
 
   if (b.status !== undefined) {
-    const geldig = ['concept', 'verstuurd', 'afgemeld', 'gefactureerd'];
+    const geldig = ['concept', 'verstuurd', 'ontvangen', 'gekozen', 'afgemeld', 'gefactureerd', 'vervallen'];
     if (!geldig.includes(b.status)) return res.status(400).json({ error: 'Onbekende status' });
     data.status = b.status;
     if (b.status === 'verstuurd') data.verstuurdAt = new Date();
@@ -125,6 +245,17 @@ router.delete('/opdrachtbonnen/:id', async (req, res) => {
   }
   await prisma.opdrachtbon.delete({ where: { id: bon.id } });
   res.json({ verwijderd: true });
+});
+
+/* ─────────── de prijsaanvraag als afdrukbare A4 ─────────── */
+router.get('/opdrachtbonnen/:id/aanvraag.html', async (req, res) => {
+  const a = await prisma.opdrachtbon.findUnique({
+    where: { id: req.params.id },
+    include: { leverancier: true, schade: { include: { documenten: true } } },
+  });
+  if (!a) return res.status(404).send('Aanvraag niet gevonden');
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(aanvraagHtml(a, req.user));
 });
 
 /* ─────────── de bon als afdrukbare A4 ─────────── */
@@ -320,6 +451,147 @@ function bonHtml(bon, ik) {
   <div class="slot">${bon.prijsvorm === 'mandaat'
     ? 'Wijkt het werk af van deze bon of dreigt het mandaat te worden overschreden, bel ons dan eerst. '
     : 'Wijkt het werk af van deze bon, neem dan eerst contact met ons op. '}Meerwerk zonder schriftelijke opdracht kunnen wij niet vergoeden. Op deze opdracht zijn onze algemene voorwaarden van toepassing.</div>
+
+  <div class="contactrij"><span>Vragen over dit werk? <b>${escH(contact)}</b></span>
+    ${tel ? `<span><b>${escH(tel)}</b></span>` : ''}<span><b>${escH(ik.email)}</b></span></div>
+
+  <div class="ondertekenaar"><div class="naam">${escH(contact)}</div>
+    <div class="functie">${escH(BEDRIJF.handelsnaam)}</div></div>
+
+  <div class="voet"><span>${escH(BEDRIJF.naam)} &middot; ${escH(BEDRIJF.adres)} &middot; ${escH(BEDRIJF.postcode)} ${escH(BEDRIJF.plaats)}</span>
+    <span>KvK ${escH(BEDRIJF.kvk)} &middot; Btw ${escH(BEDRIJF.btw)}</span></div>
+</div></body></html>`;
+}
+
+function aanvraagHtml(a, ik) {
+  const s = a.schade;
+  const lev = a.leverancier;
+  const contact = s.contactpersoon || ik.naam;
+  const tel = ik.telefoon || '';
+
+  const werkregels = String(a.werk).split('\n').map((r) => r.trim()).filter(Boolean)
+    .map((r) => `<li>${escH(r.replace(/^[-•]\s*/, ''))}</li>`).join('');
+
+  const bijlagen = (a.documentIds || [])
+    .map((id) => s.documenten.find((d) => d.id === id)).filter(Boolean);
+
+  return `<!doctype html><html lang="nl"><head><meta charset="utf-8">
+<title>Prijsaanvraag ${escH(a.nummer)}</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600&family=Inter:wght@400;450;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{--navy:#151F35;--teal:#009BA8;--teal-soft:#E0F4F6;--teal-ink:#006670;--text:#16202F;
+    --muted:#677589;--muted-2:#97A2B2;--line:#E4E9EF;--canvas:#F7F9FA;--amber-soft:#FAF0DA;--amber-ink:#8A5A0B}
+  *{box-sizing:border-box}html,body{margin:0;padding:0}
+  body{background:#EDF1F4;font-family:'Inter',sans-serif;color:var(--text);line-height:1.55;font-size:9.5pt}
+  .vel{width:210mm;min-height:297mm;margin:18px auto;background:#fff;padding:16mm 18mm 24mm;
+    position:relative;box-shadow:0 10px 34px rgba(21,31,53,.11)}
+  .hoofd{display:flex;justify-content:space-between;gap:18mm;margin-bottom:10mm}
+  .merk{font-family:'Poppins',sans-serif;font-weight:600;font-size:15pt;color:var(--navy);letter-spacing:.02em}
+  .merk span{display:block;font-size:7pt;font-weight:500;color:var(--teal);letter-spacing:.32em;margin-top:1px}
+  .afz{font-size:7.5pt;color:var(--muted-2);line-height:1.7;text-align:right}
+  .afz .naam{color:var(--navy);font-weight:600;font-size:8pt}
+  .titelrij{display:flex;justify-content:space-between;align-items:flex-end;gap:14mm;
+    padding-bottom:4mm;margin-bottom:7mm;border-bottom:2px solid var(--navy)}
+  .eyebrow{font-size:7.5pt;font-weight:600;color:var(--teal);letter-spacing:.09em;text-transform:uppercase;margin-bottom:2mm}
+  h1{font-family:'Poppins',sans-serif;font-weight:600;font-size:16pt;color:var(--navy);margin:0}
+  .aanadres{font-size:9pt;color:var(--muted);margin-top:1.5mm;line-height:1.5}
+  .nr{text-align:right}
+  .nr .l{font-size:7pt;color:var(--muted-2);letter-spacing:.06em;text-transform:uppercase}
+  .nr .v{font-family:'JetBrains Mono',monospace;font-size:15pt;color:var(--navy);letter-spacing:-.03em}
+  .nr .d{font-size:8pt;color:var(--muted);margin-top:1mm}
+  .kenm{display:flex;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:4mm;margin-bottom:6mm}
+  .k{flex:1 1 40mm;min-width:36mm;padding-right:5mm}
+  .k .lab{font-size:7pt;color:var(--muted-2);letter-spacing:.06em;text-transform:uppercase}
+  .k .val{font-size:9pt;color:var(--navy);font-weight:500}
+  .k .val small{display:block;font-weight:400;color:var(--muted);font-size:8pt}
+  .k .val.mono{font-family:'JetBrains Mono',monospace;font-size:8.5pt}
+  p{margin:0 0 4mm}
+  h2{font-family:'Poppins',sans-serif;font-size:10.5pt;color:var(--navy);margin:0 0 3mm}
+  .werk{background:var(--canvas);border-radius:3mm;padding:4.5mm 5.5mm;margin-bottom:6mm;font-size:9pt}
+  .werk ul{margin:0;padding-left:5mm}.werk li{padding:.7mm 0}
+  .vraag{border:1px solid var(--line);border-radius:3.5mm;overflow:hidden;margin-bottom:6mm}
+  .vraag-kop{background:var(--navy);color:#fff;padding:3mm 5.5mm;font-family:'Poppins',sans-serif;font-size:9.5pt;font-weight:600}
+  .eis{display:flex;gap:3.5mm;padding:3.2mm 5.5mm;border-bottom:1px solid var(--line)}
+  .eis:last-child{border-bottom:none}
+  .eis-ic{width:8mm;height:8mm;border-radius:2.2mm;flex:none;display:flex;align-items:center;justify-content:center;
+    background:var(--teal-soft);color:var(--teal-ink)}
+  .eis-ic.amber{background:var(--amber-soft);color:var(--amber-ink)}
+  .eis-ic svg{width:4.4mm;height:4.4mm}
+  .eis .t{font-size:9pt;font-weight:600;color:var(--navy)}
+  .eis .s{font-size:8.5pt;color:var(--muted);line-height:1.45}
+  .eis .s b{color:var(--navy);font-family:'JetBrains Mono',monospace;font-size:8pt}
+  .bijlagen{border-left:2.5pt solid var(--teal);padding:.5mm 0 .5mm 4.5mm;margin-bottom:6mm}
+  .bijlagen .kop{font-size:7pt;font-weight:600;color:var(--muted-2);letter-spacing:.06em;text-transform:uppercase;margin-bottom:1.5mm}
+  .bijlagen ul{margin:0;padding:0;list-style:none;font-size:8.5pt}
+  .bijlagen li{padding:1mm 0 1mm 6mm;position:relative}
+  .bijlagen .vk{position:absolute;left:0;top:1.6mm;width:4mm;height:4mm;border-radius:50%;background:var(--teal);
+    color:#fff;display:flex;align-items:center;justify-content:center}
+  .bijlagen .vk svg{width:2.5mm;height:2.5mm}
+  .contactrij{display:flex;gap:5mm;flex-wrap:wrap;font-size:8.5pt;color:var(--muted);
+    background:var(--canvas);border-radius:3mm;padding:3.5mm 5mm;margin-bottom:6mm}
+  .contactrij b{color:var(--navy)}
+  .ondertekenaar{padding-top:2mm;border-top:1px solid var(--line);display:inline-block;min-width:55mm;margin-top:4mm}
+  .ondertekenaar .naam{font-weight:600;color:var(--navy);font-size:9.5pt}
+  .ondertekenaar .functie{color:var(--muted);font-size:8.5pt}
+  .voet{position:absolute;left:18mm;right:18mm;bottom:11mm;padding-top:3mm;border-top:1px solid var(--line);
+    font-size:7pt;color:var(--muted-2);display:flex;justify-content:space-between}
+  .knoppen{width:210mm;margin:0 auto 14px;display:flex;gap:8px;justify-content:flex-end}
+  .knoppen button{font-family:'Inter',sans-serif;font-size:13px;padding:10px 18px;border-radius:10px;
+    border:none;cursor:pointer;background:var(--teal);color:#fff;font-weight:500}
+  @media print{body{background:#fff}.vel{margin:0;box-shadow:none;width:auto;min-height:auto}.knoppen{display:none}
+    @page{size:A4;margin:0}}
+</style></head><body>
+<div class="knoppen"><button onclick="window.print()">Opslaan als pdf</button></div>
+<div class="vel">
+  <div class="hoofd">
+    <div class="merk">FORWARD<span>SCHADEHERSTEL</span></div>
+    <div class="afz"><div class="naam">${escH(BEDRIJF.naam)}</div>${escH(BEDRIJF.adres)}<br>
+      ${escH(BEDRIJF.postcode)} ${escH(BEDRIJF.plaats)}<br><br>${escH(BEDRIJF.email)}<br>
+      ${escH(BEDRIJF.web)}<br><br>KvK ${escH(BEDRIJF.kvk)}<br>Btw ${escH(BEDRIJF.btw)}</div>
+  </div>
+
+  <div class="titelrij">
+    <div><div class="eyebrow">Prijsaanvraag</div><h1>${escH(lev ? lev.naam : 'Onderaannemer')}</h1>
+      ${lev && lev.adres ? `<div class="aanadres">${escH(lev.adres)}<br>${escH([lev.postcode, lev.plaats].filter(Boolean).join(' '))}</div>` : ''}</div>
+    <div class="nr"><div class="l">Aanvraagnummer</div><div class="v">${escH(a.nummer)}</div>
+      <div class="d">${escH(BEDRIJF.plaats)}, ${escH(datumNL(a.createdAt))}</div></div>
+  </div>
+
+  <div class="kenm">
+    <div class="k"><div class="lab">Werkadres</div><div class="val">${escH(s.adres || '')}<small>${escH([s.postcode, s.plaats].filter(Boolean).join(' '))}</small></div></div>
+    <div class="k"><div class="lab">Gewenste uitvoering</div><div class="val">${a.uitvoerenOp ? escH(datumNL(a.uitvoerenOp)) : 'in overleg'}</div></div>
+    <div class="k"><div class="lab">Ons dossier</div><div class="val mono">${escH(s.nummer)}</div></div>
+    <div class="k"><div class="lab">Uw contactpersoon</div><div class="val">${escH(contact)}${tel ? `<small>${escH(tel)}</small>` : ''}</div></div>
+  </div>
+
+  <p>Wij vragen u een prijs op te geven voor het onderstaande werk. Dit is nog geen opdracht;
+    op basis van de opgaven bepalen wij aan wie wij het werk gunnen.</p>
+
+  <h2>Waarvoor wij een prijs vragen</h2>
+  <div class="werk"><ul>${werkregels}</ul></div>
+
+  <div class="vraag">
+    <div class="vraag-kop">Wat wij graag van u ontvangen</div>
+    <div class="eis"><div class="eis-ic"><svg viewBox="0 0 24 24" fill="none"><path d="M16.5 8.5A5.2 5.2 0 108 15M4.5 11h7M4.5 14h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></div>
+      <div><div class="t">Een prijs exclusief btw</div><div class="s">${a.btwVerlegd
+        ? `Op dit werk is de verleggingsregeling van toepassing; reken dus zonder btw en houd ons btw-nummer <b>${escH(BEDRIJF.btw)}</b> aan.`
+        : 'Geef het bedrag exclusief btw op, met het tarief er los bij.'}</div></div></div>
+    <div class="eis"><div class="eis-ic"><svg viewBox="0 0 24 24" fill="none"><path d="M8 6h11M8 12h11M8 18h11M4 6h.01M4 12h.01M4 18h.01" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg></div>
+      <div><div class="t">Een korte specificatie</div><div class="s">Wat u doet, welk materiaal u rekent en hoeveel dagen u nodig heeft.</div></div></div>
+    <div class="eis"><div class="eis-ic"><svg viewBox="0 0 24 24" fill="none"><rect x="3.5" y="5.5" width="17" height="15" rx="2.4" stroke="currentColor" stroke-width="1.8"/><path d="M3.5 10h17M8.5 3.5v4M15.5 3.5v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></div>
+      <div><div class="t">Wanneer u kunt</div><div class="s">Geef aan welke week u beschikbaar bent, zodat wij het met de bewoner kunnen afstemmen.</div></div></div>
+    ${a.reactieVoor ? `<div class="eis"><div class="eis-ic amber"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.8"/><path d="M12 7.5V12l3 2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></div>
+      <div><div class="t">Graag vóór ${escH(datumNL(a.reactieVoor))}</div><div class="s">Zo kunnen wij de bewoner op tijd een datum geven.</div></div></div>` : ''}
+    <div class="eis"><div class="eis-ic"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M4 7l8 6 8-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></div>
+      <div><div class="t">Stuur uw opgave digitaal</div><div class="s">Naar <b>${escH(BEDRIJF.email)}</b> met vermelding van aanvraagnummer <b>${escH(a.nummer)}</b>.</div></div></div>
+  </div>
+
+  ${bijlagen.length ? `<div class="bijlagen"><div class="kop">Meegestuurd &mdash; ${bijlagen.length} stuk${bijlagen.length > 1 ? 's' : ''}</div><ul>${
+    bijlagen.map((d) => `<li><span class="vk"><svg viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4.5 4.5L19 7" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span style="font-weight:500;color:var(--navy)">${escH(d.bestandsnaam)}</span></li>`).join('')
+  }</ul></div>` : ''}
+
+  <p>Gunnen wij u het werk, dan ontvangt u van ons een opdrachtbon met een bonnummer.
+    Facturen zonder bonnummer kunnen wij niet verwerken.</p>
 
   <div class="contactrij"><span>Vragen over dit werk? <b>${escH(contact)}</b></span>
     ${tel ? `<span><b>${escH(tel)}</b></span>` : ''}<span><b>${escH(ik.email)}</b></span></div>

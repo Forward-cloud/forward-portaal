@@ -5,7 +5,7 @@ const { requireAuth, requireDirectie } = require('../auth/middleware');
 const router = express.Router();
 router.use(requireAuth);
 
-const SOORTEN = ['VERZEKERAAR', 'TUSSENPERSOON', 'ONDERAANNEMER'];
+const SOORTEN = ['VERZEKERAAR', 'TUSSENPERSOON', 'ONDERAANNEMER', 'LEVERANCIER'];
 
 function schoon(b) {
   const d = {};
@@ -45,8 +45,10 @@ function schoon(b) {
 // ?soort=VERZEKERAAR|TUSSENPERSOON   ?q=zoekterm   ?alle=1 (ook inactieve)
 router.get('/', async (req, res) => {
   const where = {};
-  const soort = String(req.query.soort || '').toUpperCase();
-  if (SOORTEN.includes(soort)) where.soort = soort;
+  const gevraagd = String(req.query.soort || '').toUpperCase().split(',').map((x) => x.trim()).filter(Boolean);
+  const geldig = gevraagd.filter((x) => SOORTEN.includes(x));
+  if (geldig.length === 1) where.soort = geldig[0];
+  else if (geldig.length > 1) where.soort = { in: geldig };
   if (!req.query.alle) where.actief = true;
   const q = String(req.query.q || '').trim();
   if (q) {
