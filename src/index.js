@@ -24,10 +24,13 @@ app.use('/api/relaties', require('./routes/relaties.routes'));
 app.use('/api', require('./routes/documenten.routes').router);
 app.use('/api', require('./routes/verzenden.routes'));
 app.use('/api', require('./routes/locaties.routes'));
+app.use('/api', require('./routes/afspraken.routes'));
 app.use('/api', require('./routes/opdrachtbonnen.routes'));
 app.use('/api', require('./routes/offerte.routes'));
 // De klant opent de offerte zonder in te loggen.
 app.use('/', require('./routes/offerte.routes'));
+// De klant kiest een afspraakmoment zonder in te loggen.
+app.use('/', require('./routes/afspraken.routes'));
 app.use('/api', require('./routes/offerte.routes'));
 // De klant opent de offerte zonder in te loggen.
 app.use('/', require('./routes/offerte.routes'));
