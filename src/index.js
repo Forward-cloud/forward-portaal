@@ -23,6 +23,7 @@ app.use('/api/schades', require('./routes/schades.routes'));
 app.use('/api/relaties', require('./routes/relaties.routes'));
 app.use('/api', require('./routes/documenten.routes').router);
 app.use('/api', require('./routes/verzenden.routes'));
+app.use('/api', require('./routes/locaties.routes'));
 app.use('/api', require('./routes/opdrachtbonnen.routes'));
 app.use('/api', require('./routes/offerte.routes'));
 // De klant opent de offerte zonder in te loggen.
