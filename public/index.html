@@ -526,6 +526,17 @@
     </div>
   </div>
 </div>
+
+<div class="fwq-wrap" id="fwqWrap">
+  <div class="fwq">
+    <div class="fwq-kop"><h3 id="fwqTitel"></h3><p id="fwqSub"></p></div>
+    <div class="fwq-body" id="fwqBody"></div>
+    <div class="fwq-foot">
+      <button class="btn" onclick="fwqSluit()" id="fwqNee">Annuleren</button>
+      <button class="btn primary" onclick="fwqOk()" id="fwqJa">Opslaan</button>
+    </div>
+  </div>
+</div>
 <div class="app" id="internApp" style="display:none">
   <aside class="sidebar">
     <div class="side-logo" id="logoSidebar"></div>
@@ -3003,321 +3014,7 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
 .fwp-halte.vast{opacity:.5}
 </style>
 
-<script>
-/* ══ Bediening op het dossier ══ */
-(function(){
-  var PRESETS = [
-    ['volledig','Volledig'],
-    ['expertise','Alleen expertise'],
-    ['er_rapport','Eigen risico \u00b7 met rapport'],
-    ['er_offerte','Eigen risico \u00b7 offerte'],
-    ['er_mandaat','Eigen risico \u00b7 mandaat']
-  ];
-  var HALTES = ['Schademelding ontvangen','Schade-opname ingepland','Bron hersteld',
-    'Schaderapport opgesteld','Dossier ingediend bij verzekeraar','Akkoord verzekeraar',
-    'Herstel ingepland','Herstel in uitvoering','Opgeleverd','Uitgefactureerd'];
-  var VAST = [1,2,10];
-  var BRON = { nvt:'Niet van toepassing', open:'Nog niet hersteld', hersteld:'Hersteld', onvoldoende:'Onvoldoende hersteld' };
-
-  function esc(v){ return String(v==null?'':v).replace(/[&<>"]/g,function(c){
-    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
-  function dag(d){ return d ? new Date(d).toISOString().slice(0,10) : ''; }
-
-  function huidig(){
-    var nr = window.__fwDossier;
-    return SCHADES.find(function(x){ return x.nr === nr; });
-  }
-
-  function melden(t, m, k){ if (typeof toast === 'function') toast(t, m, k || 'ok'); }
-
-  function na(res){
-    return window.fwLaadDossiers().then(function(){
-      var s = huidig();
-      if (s) teken(s);
-    });
-  }
-  function mis(e){ melden('Niet gelukt', e.message, 'err'); }
-
-  window.fwZetPreset = function(sel){
-    var s = huidig(); if (!s) return;
-    window.fwApi('/api/schades/' + encodeURIComponent(s.nr), {
-      method:'PATCH', body: JSON.stringify({ preset: sel.value })
-    }).then(function(){ melden('Route gewijzigd', 'De haltes zijn bijgewerkt.'); return na(); }).catch(mis);
-  };
-
-  window.fwZetHalte = function(box, nr){
-    var s = huidig(); if (!s) return;
-    var lijst = (s.haltes || []).slice();
-    if (box.checked) { if (lijst.indexOf(nr) === -1) lijst.push(nr); }
-    else lijst = lijst.filter(function(h){ return h !== nr; });
-    window.fwApi('/api/schades/' + encodeURIComponent(s.nr), {
-      method:'PATCH', body: JSON.stringify({ haltes: lijst })
-    }).then(na).catch(mis);
-  };
-
-  window.fwZetHalteNaar = function(nr){
-    var s = huidig(); if (!s) return;
-    window.fwApi('/api/schades/' + encodeURIComponent(s.nr), {
-      method:'PATCH', body: JSON.stringify({ step: Number(nr) })
-    }).then(function(){
-      melden('Voortgang bijgewerkt', HALTES[Number(nr) - 1]);
-      return na();
-    }).catch(function(e){
-      // De server blokkeert doorgaan bij een onvoldoende herstelde bron.
-      if (/bron/i.test(e.message)) {
-        var reden = window.prompt(e.message + '\n\nWaarom ga je toch door?', '');
-        if (!reden || !reden.trim()) return;
-        return window.fwApi('/api/schades/' + encodeURIComponent(s.nr), {
-          method:'PATCH', body: JSON.stringify({ step: Number(nr), bronDoorReden: reden.trim() })
-        }).then(function(){ melden('Voortgang bijgewerkt', 'Reden vastgelegd bij het dossier.'); return na(); })
-          .catch(mis);
-      }
-      mis(e);
-    });
-  };
-
-  window.fwVolgendeHalte = function(){
-    var s = huidig(); if (!s) return;
-    var actief = (s.haltes || []).filter(function(h){ return h > (s.step || 1); });
-    if (!actief.length) { melden('Klaar', 'Dit dossier staat al op de laatste halte.', 'info'); return; }
-    window.fwZetHalteNaar(actief[0]);
-  };
-
-  window.fwZetBron = function(sel){
-    var s = huidig(); if (!s) return;
-    var status = sel.value, opm = null;
-    if (status === 'onvoldoende') {
-      opm = window.prompt('Wat is er niet goed aan het bronherstel?', s.bronOpmerking || '');
-      if (!opm || !opm.trim()) { sel.value = s.bronStatus || 'nvt'; return; }
-    }
-    window.fwApi('/api/schades/' + encodeURIComponent(s.nr) + '/bron', {
-      method:'POST', body: JSON.stringify({ status: status, opmerking: opm })
-    }).then(function(){ melden('Bronstatus bijgewerkt', BRON[status]); return na(); }).catch(mis);
-  };
-
-  function getal(id){
-    var el = document.getElementById(id);
-    if (!el) return 0;
-    var t = String(el.value).replace(/[^0-9,.-]/g, '').replace(/\./g, '').replace(',', '.');
-    return Math.round(Number(t) || 0);
-  }
-
-  window.fwRekenMarge = function(){
-    var o = getal('fwOmzet'), i = getal('fwInkoop'), u = getal('fwUitb');
-    var m = o - i - u;
-    var el = document.getElementById('fwMarge'), p = document.getElementById('fwPct');
-    if (el) {
-      el.textContent = (m < 0 ? '-' : '') + '\u20ac' + Math.abs(m).toLocaleString('nl-NL');
-      el.style.color = m < 0 ? 'var(--red)' : '';
-    }
-    if (p) p.textContent = (o > 0 ? Math.round((m / o) * 100) : 0) + '%';
-  };
-
-  window.fwBewaarFin = function(){
-    var s = huidig(); if (!s) return;
-    var o = getal('fwOmzet');
-    window.fwApi('/api/schades/' + encodeURIComponent(s.nr), {
-      method:'PATCH',
-      body: JSON.stringify({
-        amount: o,
-        fin: { herstelOmzet: o, herstelInkoop: getal('fwInkoop'), herstelUitbesteed: getal('fwUitb') }
-      })
-    }).then(function(){ melden('Opgeslagen', 'De marge is bijgewerkt.'); return na(); }).catch(mis);
-  };
-
-  document.addEventListener('input', function(e){
-    if (e.target && ['fwOmzet','fwInkoop','fwUitb'].indexOf(e.target.id) > -1) window.fwRekenMarge();
-  });
-
-  window.fwZetWacht = function(){
-    var s = huidig(); if (!s) return;
-    var reden = window.prompt('Waarom ligt dit dossier stil? Je collega leest dit.', s.wachtReden || '');
-    if (!reden || !reden.trim()) return;
-    var tot = window.prompt('Opnieuw bekijken op (jjjj-mm-dd) \u2014 leeg laten mag', dag(s.wachtTot));
-    window.fwApi('/api/schades/' + encodeURIComponent(s.nr) + '/wacht', {
-      method:'POST', body: JSON.stringify({ reden: reden, tot: tot || null })
-    }).then(function(){ melden('In de wacht', 'Het dossier staat stil met reden.'); return na(); }).catch(mis);
-  };
-
-  window.fwUitWacht = function(){
-    var s = huidig(); if (!s) return;
-    window.fwApi('/api/schades/' + encodeURIComponent(s.nr) + '/wacht', { method:'DELETE' })
-      .then(function(){ melden('Weer opgepakt', 'Het dossier staat terug in de werkvoorraad.'); return na(); }).catch(mis);
-  };
-
-  window.fwAfgehandeld = function(){
-    var s = huidig(); if (!s) return;
-    if (!window.confirm('Dossier afronden?\n\n' +
-        'De laatste halte wordt afgevinkt en het dossier gaat naar het archief. ' +
-        'Je kunt het daar altijd weer uithalen.')) return;
-    var laatste = (s.haltes && s.haltes.length) ? s.haltes[s.haltes.length - 1] : 10;
-    window.fwApi('/api/schades/' + encodeURIComponent(s.nr), {
-      method:'PATCH', body: JSON.stringify({ step: laatste, gefactureerd: true, status: 'done' })
-    }).then(function(){
-      melden('Afgerond', s.nr + ' is afgehandeld en gearchiveerd.');
-      return na();
-    }).catch(mis);
-  };
-
-  window.fwArchiveer = function(aan){
-    var s = huidig(); if (!s) return;
-    window.fwApi('/api/schades/' + encodeURIComponent(s.nr) + '/archief', { method: aan ? 'POST' : 'DELETE' })
-      .then(function(){ melden(aan ? 'Gearchiveerd' : 'Uit archief', s.nr); return na(); }).catch(mis);
-  };
-
-  function teken(s){
-    var doel = document.getElementById('fwPaneel');
-    if (!doel) return;
-    var h = '';
-    var actief = s.haltes || [];
-    var pos = s.positie || 1, tot = s.totaal || actief.length || 10;
-    var volgende = actief.filter(function(x){ return x > (s.step || 1); })[0];
-    var bronOk = s.bronStatus === 'hersteld' || s.bronStatus === 'nvt';
-
-    /* ── meldingen bovenaan ── */
-    if (s.archived) {
-      h += '<div class="fwp-vlag amber"><b>Gearchiveerd.</b> Haal het dossier terug om te bewerken.</div>';
-    }
-    if (s.inWacht) {
-      h += '<div class="fwp-vlag amber"><b>In de wacht.</b> ' + esc(s.wachtReden) +
-           (s.wachtTot ? ' \u00b7 opnieuw bekijken op ' + dag(s.wachtTot) : '') + '</div>';
-    }
-    if (!bronOk && (s.step || 1) > 3) {
-      h += '<div class="fwp-vlag rood"><b>Let op \u2014 de bron is ' +
-        (s.bronStatus === 'open' ? 'nog niet hersteld' : 'onvoldoende hersteld') + '.</b> ' +
-        esc(s.bronOpmerking || 'Het dossier staat verder dan halte 3 terwijl de oorzaak nog niet rond is.') +
-        (s.bronDoorReden ? '<br><span style="opacity:.85">Doorgegaan omdat: ' + esc(s.bronDoorReden) + '</span>' : '') +
-        '</div>';
-    }
-
-    /* ── voortgang ── */
-    h += '<div class="fwp-vak">' +
-      '<div class="fwp-vak-kop"><span>Voortgang</span><span class="fwp-tel">' + pos + ' van ' + tot + '</span></div>' +
-      '<div class="fwp-balk">' +
-        actief.map(function(n){
-          var af = n < (s.step || 1), nu = n === (s.step || 1);
-          return '<span class="fwp-stip' + (af ? ' af' : nu ? ' nu' : '') + '" title="' + esc(HALTES[n-1]) + '"></span>';
-        }).join('') +
-      '</div>' +
-      '<div class="fwp-nu">' + esc(HALTES[(s.step || 1) - 1]) + '</div>' +
-      (volgende
-        ? '<button class="btn primary fwp-door" onclick="fwVolgendeHalte()">' +
-            esc(HALTES[volgende - 1]) + ' afvinken' +
-            '<svg viewBox="0 0 24 24" fill="none"><path d="M5 12h13M13 6l6 6-6 6" stroke="currentColor" ' +
-            'stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>'
-        : '<div class="fwp-klaar">Laatste halte bereikt</div>') +
-      '<button class="fwp-meer" onclick="fwpKlap(\'fwpHalte\')">Halte handmatig aanpassen</button>' +
-      '<div class="fwp-klap" id="fwpHalte"><select onchange="fwZetHalteNaar(this.value)">' +
-        actief.map(function(n){
-          return '<option value="' + n + '"' + (n === s.step ? ' selected' : '') + '>' + n + '. ' + esc(HALTES[n-1]) + '</option>';
-        }).join('') + '</select></div>' +
-    '</div>';
-
-    /* ── bronherstel ── */
-    h += '<div class="fwp-vak">' +
-      '<div class="fwp-vak-kop"><span>Bronherstel</span>' +
-        '<span class="fwp-pil ' + (bronOk ? 'ok' : 'let') + '">' + esc(BRON[s.bronStatus] || 'Onbekend') + '</span></div>' +
-      '<select onchange="fwZetBron(this)">' +
-        Object.keys(BRON).map(function(k){
-          return '<option value="' + k + '"' + (k === s.bronStatus ? ' selected' : '') + '>' + BRON[k] + '</option>';
-        }).join('') + '</select>' +
-      (s.bronOpmerking ? '<div class="fwp-notitie">' + esc(s.bronOpmerking) + '</div>' : '') +
-    '</div>';
-
-    /* ── route ── */
-    h += '<div class="fwp-vak">' +
-      '<div class="fwp-vak-kop"><span>Route</span><span class="fwp-tel">' + actief.length + ' haltes</span></div>' +
-      '<select onchange="fwZetPreset(this)">' +
-        PRESETS.map(function(p){
-          return '<option value="' + p[0] + '"' + (p[0] === s.preset ? ' selected' : '') + '>' + p[1] + '</option>';
-        }).join('') + '</select>' +
-      '<button class="fwp-meer" onclick="fwpKlap(\'fwpHaltes\')">Welke haltes gelden</button>' +
-      '<div class="fwp-klap" id="fwpHaltes">' +
-        HALTES.map(function(naam, i){
-          var n = i + 1, vast = VAST.indexOf(n) > -1, aan = actief.indexOf(n) > -1;
-          return '<label class="fwp-halte' + (vast ? ' vast' : '') + '">' +
-            '<input type="checkbox"' + (aan ? ' checked' : '') + (vast ? ' disabled' : '') +
-            ' onchange="fwZetHalte(this,' + n + ')"><span>' + n + '. ' + esc(naam) + '</span></label>';
-        }).join('') +
-        '<div class="fwp-hint">Halte 1, 2 en 10 gelden altijd.</div>' +
-      '</div>' +
-    '</div>';
-
-    /* ── financieel ── */
-    if (s.magFin && s.fin) {
-      var omzet = s.fin.herstel.omzet || s.amount || 0;
-      var ink = s.fin.herstel.inkoop || 0, uit = s.fin.herstel.uitbesteed || 0;
-      var marge = omzet - ink - uit;
-      var pct = omzet > 0 ? Math.round((marge / omzet) * 100) : 0;
-      h += '<div class="fwp-vak">' +
-        '<div class="fwp-vak-kop"><span>Financieel</span>' +
-          '<span class="fwp-marge" id="fwMarge">' + (marge < 0 ? '-' : '') + '\u20ac' +
-          Math.abs(marge).toLocaleString('nl-NL') + '</span></div>' +
-        '<div class="fwp-geld">' +
-          '<label>Offertesom<input type="text" id="fwOmzet" value="' + omzet + '"></label>' +
-          '<label>Inkoop materiaal<input type="text" id="fwInkoop" value="' + ink + '"></label>' +
-          '<label>Onderaanneming<input type="text" id="fwUitb" value="' + uit + '"></label>' +
-        '</div>' +
-        '<div class="fwp-geld-voet"><span id="fwPct">' + pct + '% marge \u00b7 geen onderaanneming? vul 0 in</span>' +
-          '<button class="btn primary" onclick="fwBewaarFin()">Opslaan</button></div>' +
-      '</div>';
-    }
-
-    /* ── acties ── */
-    h += '<div class="fwp-acties">' +
-      (s.inWacht
-        ? '<button class="btn" onclick="fwUitWacht()">Weer oppakken</button>'
-        : '<button class="btn" onclick="fwZetWacht()">In de wacht zetten</button>') +
-      (s.archived
-        ? '<button class="btn" onclick="fwArchiveer(false)">Uit archief halen</button>'
-        : '<button class="btn" onclick="fwAfgehandeld()">Dossier afronden</button>') +
-    '</div>';
-
-    doel.innerHTML = h;
-  }
-
-  window.fwpKlap = function(id){
-    var el = document.getElementById(id);
-    if (!el) return;
-    el.classList.toggle('open');
-    var knop = el.previousElementSibling;
-    if (knop) knop.classList.toggle('op');
-  };
-
-  window.fwTekenPaneel = teken;
-
-  // Haak in op het openen van een dossier
-  var origineel = window.openDetail;
-  function haak(){
-    if (typeof window.openDetail !== 'function' || window.openDetail.__fw) return;
-    var vorig = window.openDetail;
-    window.openDetail = function(nr){
-      window.__fwDossier = nr;
-      var uit = vorig.apply(this, arguments);
-      setTimeout(function(){
-        var view = document.getElementById('view-detail');
-        if (!view) return;
-        var paneel = document.getElementById('fwPaneel');
-        if (!paneel) {
-          var kaart = document.createElement('div');
-          kaart.className = 'fwp';
-          kaart.innerHTML = '<div class="fwp-head"><h4>Dossierbeheer</h4>' +
-            '<span style="font-size:11.5px;color:var(--muted)">alleen intern zichtbaar</span></div>' +
-            '<div class="fwp-body" id="fwPaneel"></div>';
-          var terug = view.querySelector('.back-btn');
-          if (terug && terug.nextSibling) view.insertBefore(kaart, terug.nextSibling);
-          else view.insertBefore(kaart, view.firstChild);
-        }
-        var s = SCHADES.find(function(x){ return x.nr === nr; });
-        if (s) teken(s);
-      }, 30);
-      return uit;
-    };
-    window.openDetail.__fw = true;
-  }
-  /* de schadekaart neemt openDetail over */
-})();
-</script>
+<!-- oud dossierpaneel verwijderd; vervangen door de schadekaart -->
 
 <style>
 /* ── Documenten op het dossier ── */
@@ -3956,6 +3653,12 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
         return;
       }
 
+      if (s.uitvraagTeLaat) {
+        urgent.push({ s: s, kleur:'herinnering', titel:'Offerte niet binnen',
+          tekst: s.uitvraagTeLaat + ' leverancier(s) over de termijn \u00b7 herinner ze' });
+        return;
+      }
+
       if (s.offerteOpen) {
         var dg = s.offerteVerstuurdAt
           ? Math.floor((Date.now() - new Date(s.offerteVerstuurdAt).getTime()) / 864e5) : 0;
@@ -4578,6 +4281,10 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
   function laad(docs){
     var q = '/api/schades/' + encodeURIComponent(nr) + '/brief?soort=' + soort;
     if (docs) q += '&docs=' + docs.join(',');
+    if (soort === 'vrij' && window.__fwVrij) {
+      q += '&tekst=' + encodeURIComponent(window.__fwVrij.tekst || '') +
+           '&onderwerp=' + encodeURIComponent(window.__fwVrij.onderwerp || '');
+    }
     return window.fwApi(q).then(function(res){ data = res; teken(); return res; })
       .catch(function(e){
         $$('fwvBody').innerHTML = '<div class="fwm-err">' + esc(e.message) + '</div>';
@@ -5514,6 +5221,8 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
 .fwk-verz select{width:auto;min-width:200px;flex:1;max-width:300px}
 .fwk-verz .ext{font-size:12px;color:var(--muted);flex:1 1 100%;display:flex;gap:7px;align-items:flex-start;line-height:1.45}
 .fwk-verz .ext svg{width:14px;height:14px;flex:none;margin-top:2px;color:var(--teal)}
+.fwk-verz.oud{background:var(--canvas);opacity:.8}
+.fwk-verz.oud .ext svg{color:var(--muted-2)}
 
 .fwk-nu{padding:14px 18px 16px;border-top:1px solid var(--line-2);display:flex;
   justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap}
@@ -5556,6 +5265,14 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
 .fwk-ct a{color:var(--teal-ink);text-decoration:none}
 .fwk-ct a:hover{text-decoration:underline}
 .fwk-ct .rol{font-size:11px;color:var(--muted-2);margin-left:auto}
+.fwk-mini{margin-left:auto;width:26px;height:26px;border-radius:7px;border:1px solid var(--line);
+  background:var(--surface);color:var(--muted-2);display:flex;align-items:center;justify-content:center;
+  cursor:pointer;flex:none;transition:.14s}
+.fwk-mini:hover{border-color:var(--teal);color:var(--teal-ink)}
+.fwk-mini svg{width:13px;height:13px}
+.fwk-link{background:none;border:none;padding:0;font:inherit;color:var(--teal-ink);cursor:pointer;
+  text-decoration:underline;text-underline-offset:2px;text-decoration-color:rgba(0,155,168,.35)}
+.fwk-link:hover{text-decoration-color:var(--teal)}
 .fwk-fg{font-family:'Poppins',sans-serif;font-size:26px;font-weight:600;color:var(--navy);
   font-variant-numeric:tabular-nums;line-height:1.15}
 .fwk-fl{font-size:11.5px;color:var(--muted);margin-top:2px}
@@ -5629,6 +5346,28 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
   background:var(--navy);color:#fff;border-radius:12px;gap:12px;flex-wrap:wrap;margin-top:4px}
 .fwk-som .l{font-size:13px;color:#9FB0C7}
 .fwk-som .v{font-family:'Poppins',sans-serif;font-size:20px;font-weight:600;font-variant-numeric:tabular-nums}
+.fwk-aanvr{border:1px solid var(--line);border-radius:12px;margin-bottom:12px;overflow:hidden}
+.fwk-aanvr-kop{padding:11px 13px;background:var(--canvas);display:flex;justify-content:space-between;
+  align-items:center;gap:10px;flex-wrap:wrap}
+.fwk-aanvr-t{font-size:10.5px;font-weight:700;color:var(--muted-2);letter-spacing:.05em;text-transform:uppercase}
+.fwk-aanvr-w{font-size:13.5px;font-weight:600;color:var(--navy);margin-top:2px}
+.fwk-aanvr-r{display:flex;align-items:center;gap:11px;padding:10px 13px;border-top:1px solid var(--line-2);flex-wrap:wrap}
+.fwk-aanvr-r.beste{background:rgba(30,158,99,.05)}
+.fwk-aanvr-n{font-size:13.5px;font-weight:500}
+.fwk-aanvr-m{font-size:11.5px;color:var(--muted);margin-top:1px}
+.fwk-aanvr-b{font-size:15px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--navy);white-space:nowrap}
+.fwk-aanvr-v{display:flex;gap:6px;flex-wrap:wrap}
+.jbtn-ja{background:var(--teal);color:#fff;border-color:var(--teal)}
+.jbtn-ja:hover{background:var(--teal-deep);color:#fff}
+.fwk-aanvr-doc{flex:1 1 100%;display:flex;gap:10px;flex-wrap:wrap;padding-top:8px;
+  border-top:1px solid var(--line-2);margin-top:4px}
+.fwk-aanvr-doc a{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--teal-ink);
+  text-decoration:none}
+.fwk-aanvr-doc a:hover{text-decoration:underline}
+.fwk-aanvr-doc svg{width:13px;height:13px}
+.fwk-aanvr-let{display:flex;gap:9px;align-items:center;padding:9px 13px;background:#FDF3E0;
+  color:#8A5A0B;font-size:12.5px;border-top:1px solid var(--line-2)}
+.fwk-aanvr-let svg{width:15px;height:15px;flex:none}
 
 /* logboek */
 .fwk-log{position:relative;padding-left:26px}
@@ -5639,7 +5378,11 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
 .fwk-lr.teal::before{border-color:var(--teal);background:var(--teal)}
 .fwk-lr.amber::before{border-color:#E0A030;background:#E0A030}
 .fwk-lt{font-size:13.5px}
-.fwk-lm{font-size:11.5px;color:var(--muted-2);margin-top:1px}
+.fwk-lm{font-size:11.5px;color:var(--muted-2);margin-top:2px}
+.fwk-ldet{font-size:12.5px;color:var(--muted);margin-top:3px;padding:7px 10px;
+  background:var(--canvas);border-radius:8px;line-height:1.45}
+.fwk-slotje{display:inline-flex;vertical-align:middle;margin-left:5px;color:var(--muted-2)}
+.fwk-slotje svg{width:11px;height:11px}
 .fwk-ld{font-size:10.5px;font-weight:700;color:var(--muted-2);letter-spacing:.05em;padding:14px 0 2px;text-transform:uppercase}
 
 /* correspondentie */
@@ -5651,6 +5394,18 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
 .fwk-cs{font-size:11.5px;color:var(--muted);margin-top:1px}
 .fwk-cb{font-size:11px;color:var(--muted-2);margin-top:2px}
 .fwk-cd{font-size:11.5px;color:var(--muted-2);white-space:nowrap;flex:none}
+.fwk-klik{width:100%;background:none;border:none;border-bottom:1px solid var(--line);cursor:pointer;
+  font-family:inherit;border-radius:9px;transition:.14s;padding:11px 8px}
+.fwk-klik:hover{background:var(--canvas)}
+.fwk-klik:last-child{border-bottom:none}
+.fwk-cpijl{color:var(--muted-2);flex:none;display:flex;align-items:center}
+.fwk-cpijl svg{width:15px;height:15px}
+.fwk-klik:hover .fwk-cpijl{color:var(--teal)}
+.fwk-voor{border:1px solid var(--line);border-radius:12px;margin-top:12px;overflow:hidden;background:var(--canvas)}
+.fwk-voor-kop{padding:11px 14px;background:var(--surface);border-bottom:1px solid var(--line);
+  display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;font-size:13.5px}
+.fwk-voor-tekst{padding:14px 16px;font-size:13px;line-height:1.6;color:var(--text);
+  max-height:340px;overflow-y:auto;white-space:normal}
 
 /* financieel */
 .fwk-hero{text-align:center;padding:8px 0 18px}
@@ -5741,6 +5496,8 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
     kalender:'<rect x="3.5" y="5.5" width="17" height="15" rx="2.4" stroke="currentColor" stroke-width="1.8"/><path d="M3.5 10h17M8.5 3.5v4M15.5 3.5v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
     camera:'<rect x="3" y="4.5" width="18" height="15" rx="2.4" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="3.4" stroke="currentColor" stroke-width="1.8"/>',
     plus:'<path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+    schild:'<path d="M12 3l7.5 3v6c0 4.4-3 8.3-7.5 9.5C7.5 20.3 4.5 16.4 4.5 12V6L12 3z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>',
+    pen:'<path d="M4 20h4l10-10a2.8 2.8 0 10-4-4L4 16v4z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>',
     stuur:'<path d="M4 4l16 8-16 8 3-8-3-8z" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/>'
   };
   function svg(p){ return '<svg viewBox="0 0 24 24" fill="none">'+p+'</svg>'; }
@@ -5752,7 +5509,7 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
   function melden(t,m,k){ if(typeof toast==='function') toast(t,m,k||'ok'); }
 
   var S = null, tab = 'doc', klant = false, routeOpen = false;
-  var docs = [], bonnen = [], corr = [], logs = [], offertes = [], levs = [], locaties = [];
+  var docs = [], bonnen = [], corr = [], logs = [], offertes = [], levs = [], locaties = [], afspraken = [];
 
   function api(pad, opts){ return window.fwApi(pad, opts); }
 
@@ -5764,12 +5521,14 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
       api('/api/schades/'+encodeURIComponent(nr)+'/verzendingen').catch(function(){return{verzendingen:[]}}),
       api('/api/schades/'+encodeURIComponent(nr)+'/logboek').catch(function(){return{regels:[]}}),
       api('/api/schades/'+encodeURIComponent(nr)+'/offertes').catch(function(){return{offertes:[]}}),
-      api('/api/relaties?soort=ONDERAANNEMER').catch(function(){return{relaties:[]}}),
-      api('/api/schades/'+encodeURIComponent(nr)+'/locaties').catch(function(){return{locaties:[]}})
+      api('/api/relaties?soort=ONDERAANNEMER,LEVERANCIER').catch(function(){return{relaties:[]}}),
+      api('/api/schades/'+encodeURIComponent(nr)+'/locaties').catch(function(){return{locaties:[]}}),
+      api('/api/schades/'+encodeURIComponent(nr)+'/afspraken').catch(function(){return{afspraken:[]}}),
+      api('/api/relaties?soort=VERZEKERAAR,TUSSENPERSOON').catch(function(){return{relaties:[]}})
     ]).then(function(r){
-      docs = r[0].documenten || []; bonnen = r[1].bonnen || []; corr = r[2].verzendingen || [];
+      docs = r[0].documenten || []; bonnen = r[1].bonnen || []; aanvragen = r[1].aanvragen || []; corr = r[2].verzendingen || [];
       logs = r[3].regels || []; offertes = r[4].offertes || []; levs = r[5].relaties || [];
-      locaties = r[6].locaties || [];
+      locaties = r[6].locaties || []; afspraken = r[7].afspraken || []; verzs = r[8].relaties || [];
       teken();
     });
   }
@@ -5807,9 +5566,17 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
     patch({step:Number(n)}).then(function(){ melden('Bijgewerkt', HALTES[n-1]); return ververs(); })
       .catch(function(e){
         if (/bron/i.test(e.message)) {
-          var r = window.prompt(e.message+'\n\nWaarom ga je toch door?','');
-          if (!r || !r.trim()) return;
-          return patch({step:Number(n), bronDoorReden:r.trim()}).then(ververs);
+          return window.fwVraag({
+            titel:'De bron is nog niet in orde',
+            uitleg:e.message.replace(/ Geef aan.*$/,'') + ' Ga je toch door, leg dan vast waarom.',
+            velden:[{naam:'reden',label:'Waarom ga je toch door?',type:'tekst',
+              plaats:'bijvoorbeeld: loodgieter komt volgende week, herstel kan alvast starten',
+              verplicht:'Leg vast waarom je doorgaat \u2014 dit blijft bij het dossier staan.'}],
+            ok:'Toch doorgaan', gevaar:true
+          }).then(function(r){
+            if (!r) return;
+            return patch({step:Number(n), bronDoorReden:r.reden}).then(ververs);
+          });
         }
         melden('Niet gelukt', e.message, 'err');
       });
@@ -5817,9 +5584,19 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
   window.fwkVerz = function(v){
     var body = {verzStatus:v};
     if (v === 'afgewezen') {
-      var r = window.prompt('Wat is de reden van afwijzing? Deze komt in de brief aan de klant.','');
-      if (!r || !r.trim()) return;
-      body.afwijzingReden = r.trim();
+      window.fwVraag({
+        titel:'Claim afgewezen',
+        uitleg:'Wat schrijft de verzekeraar? Deze tekst komt in het dossier en in het bericht aan de klant.',
+        velden:[{naam:'reden',label:'Reden van afwijzing',type:'tekst',
+          plaats:'Neem de motivering van de verzekeraar over',
+          verplicht:'Vul de reden in \u2014 de klant heeft er recht op te weten waarom.'}],
+        ok:'Afwijzing vastleggen', gevaar:true
+      }).then(function(r){
+        if (!r) return;
+        body.afwijzingReden = r.reden;
+        patch(body).then(function(){ return ververs(); }).catch(function(e){ melden('Niet gelukt', e.message,'err'); });
+      });
+      return;
     }
     patch(body).then(function(){ return ververs(); }).catch(function(e){ melden('Niet gelukt', e.message,'err'); });
   };
@@ -5835,34 +5612,69 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
     if (box.checked) { if (l.indexOf(n)===-1) l.push(n); } else l = l.filter(function(h){return h!==n});
     patch({haltes:l}).then(ververs).catch(function(e){melden('Niet gelukt',e.message,'err')});
   };
+  window.fwkBronOptie = function(veld, aan){
+    var b = {}; b[veld] = aan;
+    api('/api/schades/'+encodeURIComponent(S.nr)+'/bronopties',{method:'POST',body:JSON.stringify(b)})
+      .then(function(){ return ververs(); }).catch(function(e){melden('Niet gelukt',e.message,'err')});
+  };
+
   window.fwkBron = function(sel){
-    var st = sel.value, opm = null;
-    if (st === 'onvoldoende') {
-      opm = window.prompt('Wat is er niet goed aan het bronherstel?','');
-      if (!opm || !opm.trim()) { sel.value = S.bronStatus||'nvt'; return; }
+    var st = sel.value;
+    function bewaar(opm){
+      api('/api/schades/'+encodeURIComponent(S.nr)+'/bron',
+        {method:'POST', body:JSON.stringify({status:st, opmerking:opm||null})})
+        .then(ververs).catch(function(e){melden('Niet gelukt',e.message,'err')});
     }
-    api('/api/schades/'+encodeURIComponent(S.nr)+'/bron',
-      {method:'POST', body:JSON.stringify({status:st, opmerking:opm})})
-      .then(ververs).catch(function(e){melden('Niet gelukt',e.message,'err')});
+    if (st === 'onvoldoende') {
+      window.fwVraag({
+        titel:'Bron onvoldoende hersteld',
+        uitleg:'Beschrijf wat er niet goed is. Dit verschijnt als waarschuwing op het dossier.',
+        velden:[{naam:'opm',label:'Wat is er mis?',type:'tekst',waarde:S.bronOpmerking||'',
+          plaats:'bijvoorbeeld: lek is gedicht maar de leiding is niet vervangen',
+          verplicht:'Beschrijf wat er niet goed is aan het bronherstel.'}],
+        ok:'Vastleggen', gevaar:true
+      }).then(function(r){
+        if (!r) { sel.value = S.bronStatus||'nvt'; return; }
+        bewaar(r.opm);
+      });
+      return;
+    }
+    bewaar(null);
   };
   window.fwkWacht = function(){
-    var r = window.prompt('Waarom ligt dit dossier stil? Je collega leest dit.', S.wachtReden||'');
-    if (!r || !r.trim()) return;
-    var t = window.prompt('Opnieuw bekijken op (jjjj-mm-dd) \u2014 leeg mag', '');
-    api('/api/schades/'+encodeURIComponent(S.nr)+'/wacht',
-      {method:'POST', body:JSON.stringify({reden:r.trim(), tot:t||null})}).then(ververs)
-      .catch(function(e){melden('Niet gelukt',e.message,'err')});
+    window.fwVraag({
+      titel:'Dossier in de wacht zetten',
+      uitleg:'Het dossier verdwijnt uit je urgente acties, maar blijft zichtbaar met de reden erbij.',
+      velden:[
+        {naam:'reden',label:'Waarom ligt dit stil?',type:'tekst',waarde:S.wachtReden||'',
+         plaats:'Je collega leest dit',
+         verplicht:'Vul een reden in \u2014 anders weet niemand waarom dit stilligt.',
+         snel:['VvE doet eerst planmatig onderhoud','Bewoner is op vakantie',
+               'Wacht op akkoord van de VvE','Wacht op materiaal']},
+        {naam:'tot',label:'Opnieuw bekijken op',type:'datum',waarde:''}
+      ],
+      ok:'In de wacht zetten'
+    }).then(function(r){
+      if (!r) return;
+      api('/api/schades/'+encodeURIComponent(S.nr)+'/wacht',
+        {method:'POST', body:JSON.stringify({reden:r.reden, tot:r.tot||null})}).then(ververs)
+        .catch(function(e){melden('Niet gelukt',e.message,'err')});
+    });
   };
   window.fwkUitWacht = function(){
     api('/api/schades/'+encodeURIComponent(S.nr)+'/wacht',{method:'DELETE'}).then(ververs)
       .catch(function(e){melden('Niet gelukt',e.message,'err')});
   };
   window.fwkAfronden = function(){
-    if (!window.confirm('Dossier afronden?\n\nDe laatste halte wordt afgevinkt en het dossier gaat naar het archief.')) return;
-    var l = S.haltes||[], laatste = l.length ? l[l.length-1] : 10;
-    patch({step:laatste, gefactureerd:true, status:'done'})
-      .then(function(){ melden('Afgerond', S.nr+' is gearchiveerd.'); return ververs(); })
-      .catch(function(e){melden('Niet gelukt',e.message,'err')});
+    window.fwBevestig('Dossier afronden?',
+      'De laatste halte wordt afgevinkt en het dossier gaat naar het archief. Je kunt het daar altijd weer uithalen.',
+      'Ja, afronden').then(function(ja){
+      if (!ja) return;
+      var l = S.haltes||[], laatste = l.length ? l[l.length-1] : 10;
+      patch({step:laatste, gefactureerd:true, status:'done'})
+        .then(function(){ melden('Afgerond', S.nr+' is gearchiveerd.'); return ververs(); })
+        .catch(function(e){melden('Niet gelukt',e.message,'err')});
+    });
   };
   window.fwkUitArchief = function(){
     api('/api/schades/'+encodeURIComponent(S.nr)+'/archief',{method:'DELETE'}).then(ververs)
@@ -5893,9 +5705,12 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
       .then(function(){ return laadAlles(S.nr); }).catch(function(e){melden('Niet gelukt',e.message,'err')});
   };
   window.fwkDocWeg = function(id,naam){
-    if (!window.confirm('"'+naam+'" verwijderen?')) return;
-    api('/api/documenten/'+id,{method:'DELETE'}).then(function(){ return laadAlles(S.nr); })
-      .catch(function(e){melden('Niet gelukt',e.message,'err')});
+    window.fwBevestig('Document verwijderen?', naam + ' wordt definitief verwijderd.',
+      'Ja, verwijderen', true).then(function(ja){
+      if (!ja) return;
+      api('/api/documenten/'+id,{method:'DELETE'}).then(function(){ return laadAlles(S.nr); })
+        .catch(function(e){melden('Niet gelukt',e.message,'err')});
+    });
   };
   window.fwkNeemUitbesteed = function(){
     var som = docs.filter(function(d){return d.soort==='factuur_onder'&&d.bedrag})
@@ -5913,12 +5728,202 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
       .then(function(){ melden('Opgeslagen','De marge is bijgewerkt.'); return ververs(); })
       .catch(function(e){melden('Niet gelukt',e.message,'err')});
   };
-  window.fwkContact = function(){
-    var v = window.prompt('Wie staat er als contactpersoon op brieven en opdrachtbonnen?',
-      S.contactpersoon || (window.__fwIk ? window.__fwIk.naam : ''));
-    if (v === null) return;
-    patch({contactpersoon:v.trim()||null}).then(ververs).catch(function(e){melden('Niet gelukt',e.message,'err')});
+  function verzekeraarBlok(){
+    var v = S.verzekeraar, t = S.tussenpersoonRel;
+    var x = '<div class="fwk-ct" style="border-top:1px solid var(--line-2);margin-top:6px;padding-top:11px">'+
+      svg(I.schild)+'<span>'+esc(v ? v.naam : (S.ins || 'Geen verzekeraar gekoppeld'))+'</span>'+
+      '<button class="fwk-mini" onclick="fwkVerzekeraar()" title="Verzekeraar wijzigen">'+svg(I.pen)+'</button></div>';
+
+    if (v) {
+      if (v.email) x += '<div class="fwk-ct">'+svg(I.mail)+'<a href="mailto:'+esc(v.email)+'">'+esc(v.email)+'</a></div>';
+      if (v.telefoon) x += '<div class="fwk-ct">'+svg(I.tel)+'<a href="tel:'+esc(v.telefoon)+'">'+esc(v.telefoon)+'</a></div>';
+      if (v.contactpersoon) x += '<div class="fwk-ct" style="color:var(--muted);font-size:12.5px">'+
+        '<span style="width:15px"></span>'+esc(v.contactpersoon)+'</div>';
+      if (S.polisnummer) x += '<div class="fwk-ct" style="font-size:12.5px;color:var(--muted)">'+
+        '<span style="width:15px"></span>polis <span class="mono">'+esc(S.polisnummer)+'</span></div>';
+      if (S.verzSchadenummer) x += '<div class="fwk-ct" style="font-size:12.5px;color:var(--muted)">'+
+        '<span style="width:15px"></span>hun nummer <span class="mono">'+esc(S.verzSchadenummer)+'</span></div>';
+      if (!v.email && !v.telefoon) x += '<div class="fwk-ct" style="font-size:12px;color:#8A5A0B">'+
+        '<span style="width:15px"></span>Nog geen contactgegevens \u2014 vul ze aan</div>';
+    }
+
+    if (t) {
+      x += '<div class="fwk-ct" style="margin-top:6px"><span style="width:15px"></span>'+
+        '<span style="font-size:12.5px;color:var(--muted)">via '+esc(t.naam)+'</span></div>';
+      if (t.email) x += '<div class="fwk-ct">'+svg(I.mail)+'<a href="mailto:'+esc(t.email)+'">'+esc(t.email)+'</a></div>';
+    }
+    return x;
+  }
+
+  window.fwkVerzekeraar = function(){
+    var alleVerz = verzs.filter(function(r){ return r.soort==='VERZEKERAAR'; });
+    var alleTus  = verzs.filter(function(r){ return r.soort==='TUSSENPERSOON'; });
+    window.fwVraag({
+      titel:'Verzekeraar van dit dossier',
+      uitleg:'Kies wie de schade behandelt. Staat de partij er nog niet bij, typ dan de naam \u2014 '+
+             'die maken wij meteen aan.',
+      velden:[
+        {naam:'verz',label:'Verzekeraar',type:'keuze',waarde:S.verzekeraarId||'',
+         opties:[['','Geen']].concat(alleVerz.map(function(r){ return [r.id, r.naam]; }))},
+        {naam:'nieuwV',label:'Of typ een nieuwe verzekeraar',plaats:'Leeg laten als je hierboven koos'},
+        {naam:'tus',label:'Tussenpersoon',type:'keuze',waarde:S.tussenpersoonId||'',
+         opties:[['','Geen']].concat(alleTus.map(function(r){ return [r.id, r.naam]; }))},
+        {naam:'polis',label:'Polisnummer',waarde:S.polisnummer||''},
+        {naam:'schadenr',label:'Hun schadenummer',waarde:S.verzSchadenummer||'',
+         plaats:'Krijg je pas na de melding'}
+      ],
+      ok:'Opslaan'
+    }).then(function(r){
+      if (!r) return;
+      var klaar = Promise.resolve(r.verz);
+      if (r.nieuwV && r.nieuwV.trim()) {
+        klaar = api('/api/relaties',{method:'POST',
+          body:JSON.stringify({naam:r.nieuwV.trim(), soort:'VERZEKERAAR'})})
+          .then(function(res){ return res.relatie.id; })
+          .catch(function(){ return r.verz; });
+      }
+      klaar.then(function(id){
+        return patch({ verzekeraarId:id||null, tussenpersoonId:r.tus||null,
+          polisnummer:r.polis||null, verzSchadenummer:r.schadenr||null,
+          ins: (alleVerz.find(function(x){return x.id===id})||{}).naam || (r.nieuwV||'').trim() || null });
+      }).then(function(){ verzs=[]; return ververs(); })
+        .then(function(){ melden('Bijgewerkt','De verzekeraar is opgeslagen.'); })
+        .catch(function(e){melden('Niet gelukt',e.message,'err')});
+    });
   };
+
+  window.fwkVerzGegevens = function(){
+    var v = S.verzekeraar;
+    if (!v) { return window.fwkVerzekeraar(); }
+    window.fwVraag({
+      titel:v.naam,
+      uitleg:'Deze gegevens gelden voor alle dossiers bij deze verzekeraar.',
+      velden:[
+        {naam:'email',label:'E-mail schademeldingen',waarde:v.email||''},
+        {naam:'telefoon',label:'Telefoonnummer',waarde:v.telefoon||''},
+        {naam:'contactpersoon',label:'Vaste contactpersoon',waarde:v.contactpersoon||''},
+        {naam:'termijn',label:'Reactietermijn in werkdagen',waarde:String(v.reactietermijn||7)}
+      ],
+      ok:'Opslaan'
+    }).then(function(r){
+      if (!r) return;
+      api('/api/relaties/'+v.id,{method:'PATCH',body:JSON.stringify({
+        email:r.email, telefoon:r.telefoon, contactpersoon:r.contactpersoon,
+        reactietermijn:Number(String(r.termijn).replace(/[^0-9]/g,''))||7
+      })}).then(function(){ verzs=[]; return ververs(); })
+        .then(function(){ melden('Opgeslagen','De gegevens zijn bijgewerkt.'); })
+        .catch(function(e){melden('Niet gelukt',e.message,'err')});
+    });
+  };
+
+  window.fwkContact = function(){
+    window.fwVraag({
+      titel:'Contactpersoon van dit dossier',
+      uitleg:'Deze naam komt op de brieven en opdrachtbonnen te staan. Leeg laten betekent: wie de brief verstuurt.',
+      velden:[{naam:'naam',label:'Naam',plaats:'bijvoorbeeld Tarish Navaratnam',
+        waarde:S.contactpersoon || (window.__fwIk?window.__fwIk.naam:'')}]
+    }).then(function(r){
+      if (!r) return;
+      patch({contactpersoon:r.naam||null}).then(ververs).catch(function(e){melden('Niet gelukt',e.message,'err')});
+    });
+  };
+  window.fwkPrijsAanvraag = function(){
+    var vandaag = new Date();
+    function over(d){ var x=new Date(vandaag); x.setDate(x.getDate()+d); return x.toISOString().slice(0,10); }
+    window.fwVraag({
+      titel:'Offerte aanvragen',
+      uitleg:'Voor werk of voor materiaal. Dezelfde omschrijving gaat naar iedereen die je aanvinkt; '+
+             'zodra de prijzen binnen zijn zie je ze naast elkaar.',
+      velden:[
+        {naam:'werk',label:'Waarvoor vraag je een prijs?',type:'tekst',
+         plaats:'Zet elke regel apart, bijvoorbeeld:\nVervangen keukenkastje 60 cm, wit\nInclusief demontage en afvoer',
+         verplicht:'Omschrijf waarvoor je een prijs vraagt.'},
+        {naam:'levs',label:'Bij wie vraag je op?',type:'meer',
+         opties: levs.map(function(l){ return [l.id, l.naam + (l.soort==='LEVERANCIER'?' \u00b7 materiaal':'')]; })},
+        {naam:'nieuw',label:'Nog niet in de lijst?',
+         plaats:'Typ een naam, of meerdere gescheiden door een komma'},
+        {naam:'voor',label:'Antwoord graag v\u00f3\u00f3r',type:'datum',waarde:over(7)},
+        {naam:'uitvoer',label:'Gewenste levering of uitvoering',type:'datum',waarde:over(21)}
+      ],
+      ok:'Uitvraag klaarzetten'
+    }).then(function(r){
+      if (!r) return;
+      var nieuweNamen = String(r.nieuw||'').split(',').map(function(x){ return x.trim(); }).filter(Boolean);
+      if (!(r.levs||[]).length && !nieuweNamen.length) {
+        melden('Geen leverancier','Vink iemand aan of typ een nieuwe naam.','err');
+        return;
+      }
+      api('/api/schades/'+encodeURIComponent(S.nr)+'/prijsaanvragen',{method:'POST',
+        body:JSON.stringify({werk:r.werk, leverancierIds:r.levs||[], nieuweNamen:nieuweNamen,
+          reactieVoor:r.voor||null, uitvoerenOp:r.uitvoer||null})})
+        .then(function(res){
+          var n = (res.aanvragen||[]).length;
+          melden('Klaargezet', n+' uitvra'+(n===1?'ag':'gen')+' \u00b7 bekijk en stuur ze door.');
+          levs = [];
+          return laadAlles(S.nr);
+        }).catch(function(e){melden('Niet gelukt',e.message,'err')});
+    });
+  };
+
+  window.fwkOfferteUpload = function(bonId){
+    var inp = document.createElement('input');
+    inp.type = 'file'; inp.accept = '.pdf,.jpg,.png,.xlsx,.docx';
+    inp.onchange = function(){
+      var f = inp.files[0];
+      if (!f) return;
+      var fr = new FileReader();
+      fr.onload = function(){
+        api('/api/schades/'+encodeURIComponent(S.nr)+'/documenten',{method:'POST',
+          body:JSON.stringify({ bestandsnaam:f.name, mime:f.type||'application/pdf',
+            data:String(fr.result).split(',').pop(), soort:'offerte_lev', bonId:bonId })})
+          .then(function(){ melden('Toegevoegd', f.name); return laadAlles(S.nr); })
+          .catch(function(e){melden('Niet gelukt',e.message,'err')});
+      };
+      fr.readAsDataURL(f);
+    };
+    inp.click();
+  };
+
+  window.fwkAanvraagHerinneren = function(id, naam){
+    api('/api/opdrachtbonnen/'+id+'/herinneren',{method:'POST'})
+      .then(function(){ melden('Genoteerd','Herinnering vastgelegd bij '+naam+'.'); return laadAlles(S.nr); })
+      .catch(function(e){melden('Niet gelukt',e.message,'err')});
+  };
+
+  window.fwkPrijsInvullen = function(id){
+    var a = aanvragen.find(function(x){ return x.id===id; }) || {};
+    window.fwVraag({
+      titel:'Prijs vastleggen',
+      uitleg: a.leverancier ? 'Wat heeft '+a.leverancier.naam+' opgegeven?' : '',
+      velden:[
+        {naam:'bedrag',label:'Bedrag exclusief btw',plaats:'bijvoorbeeld 2049,59',
+         verplicht:'Vul het bedrag in.'},
+        {naam:'notitie',label:'Opmerking',plaats:'bijvoorbeeld: kan pas vanaf week 38'}
+      ],
+      ok:'Vastleggen'
+    }).then(function(r){
+      if (!r) return;
+      var b = String(r.bedrag).replace(/[^0-9,.-]/g,'').replace(/\./g,'').replace(',','.');
+      api('/api/opdrachtbonnen/'+id+'/prijs',{method:'POST',
+        body:JSON.stringify({bedrag:Number(b)||0, notitie:r.notitie||null})})
+        .then(function(){ return laadAlles(S.nr); })
+        .catch(function(e){melden('Niet gelukt',e.message,'err')});
+    });
+  };
+
+  window.fwkGunnen = function(id, naam){
+    window.fwBevestig('Opdracht gunnen aan '+naam+'?',
+      'Van deze aanvraag wordt een opdrachtbon gemaakt. De andere aanvragen voor dezelfde klus vervallen.',
+      'Ja, gunnen').then(function(ja){
+      if (!ja) return;
+      api('/api/opdrachtbonnen/'+id+'/gunnen',{method:'POST'})
+        .then(function(res){
+          melden('Gegund', 'Opdrachtbon '+res.bon.nummer+' staat klaar.');
+          return laadAlles(S.nr);
+        }).catch(function(e){melden('Niet gelukt',e.message,'err')});
+    });
+  };
+
   window.fwkBonNieuw = function(){
     if (typeof window.fwkBonForm === 'function') return window.fwkBonForm();
     melden('Nog niet beschikbaar','Het formulier voor opdrachtbonnen volgt.','info');
@@ -5939,6 +5944,93 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
     var pos = h.indexOf(stap)+1;
     var toon = klant ? h.filter(function(n){return INTERN.indexOf(n)===-1}) : h;
 
+    /* ── Welke actie hoort bij deze halte? ──
+       Eén hoofdknop met wat je nú moet doen, en soms een tweede voor het alternatief.
+       Staat er niets te doen, dan blijft het bij 'Bericht sturen'. */
+    var nHerin = corr.filter(function(v){ return v.soort==='herinnering' && v.status!=='concept'; }).length;
+    var bronOk = S.bronStatus==='hersteld' || S.bronStatus==='nvt';
+    var heeftMachtiging = docs.some(function(d){ return d.soort==='machtiging'; });
+    var viaVerzekeraar = h.indexOf(5) > -1;
+    var alleenExpertise = S.preset === 'expertise';
+    var openAfspraak = afspraken.some(function(a){ return a.status==='open'; });
+    var hoofd = { soort:null, actie:null, label:'', ico:null, tweede:null };
+
+    if (afgewezen) {
+      // Route loopt dood: de klant moet weten waar hij aan toe is.
+      hoofd = { soort:'update_eigenaar', label:'Klant informeren', ico:I.mail };
+
+    } else if (stap === 1) {
+      // Melding binnen. Zonder machtiging mogen wij niet namens de klant handelen.
+      hoofd = (viaVerzekeraar && !heeftMachtiging)
+        ? { soort:'machtiging', label:'Machtiging aanvragen', ico:I.stuur,
+            tweede:{ actie:'weigeren', label:'Melding niet aannemen' } }
+        : { actie:'opname', label:'Opname inplannen', ico:I.kalender,
+            tweede:{ actie:'weigeren', label:'Melding niet aannemen' } };
+
+    } else if (stap === 2) {
+      // Opname staat gepland; het wachten is op de afspraak zelf.
+      hoofd = openAfspraak
+        ? { soort:null, actie:null, label:'' }
+        : { actie:'opname', label:'Opname inplannen', ico:I.kalender };
+
+    } else if (stap === 3 && !bronOk) {
+      // De oorzaak moet eerst weg voordat herstel zin heeft.
+      hoofd = { soort:'bron_verzoek', label:'Bronherstel aanvragen', ico:I.mail,
+                tweede:{ actie:'bronzelf', label:'Wij herstellen de bron' } };
+
+    } else if (stap === 3) {
+      // Bron in orde; het rapport volgt uit ons eigen werk.
+      hoofd = { soort:null, actie:null, label:'' };
+
+    } else if (stap === 4) {
+      // Rapport ligt er. Wat er daarna gebeurt, hangt van de route af.
+      hoofd = viaVerzekeraar
+        ? { soort:'claim', label:'Claim indienen', ico:I.stuur }
+        : alleenExpertise
+          ? { soort:'rapport', label:'Rapport versturen', ico:I.stuur }
+          : { soort:'offerte', label:'Offerte versturen', ico:I.stuur,
+              tweede:{ soort:'rapport', label:'Rapport versturen' } };
+
+    } else if (stap === 5) {
+      if (S.verzStatus === 'informatie') {
+        hoofd = { soort:'vrij', actie:'infoAanleveren', label:'Informatie aanleveren', ico:I.stuur,
+                  tweede:{ soort:'update_eigenaar', label:'Klant bijpraten' } };
+      } else {
+        hoofd = { soort:'herinnering', ico:I.klok,
+          label: nHerin===0 ? 'Verzekeraar herinneren'
+               : nHerin===1 ? 'Tweede herinnering'
+               : nHerin===2 ? 'Derde herinnering' : (nHerin+1)+'e herinnering',
+          tweede: nHerin>0 ? { soort:'update_eigenaar', label:'Klant bijpraten' } : null };
+      }
+
+    } else if (stap === 6) {
+      // Akkoord binnen: nu kan het herstel de agenda in.
+      hoofd = { actie:'herstel', label:'Herstel inplannen', ico:I.kalender,
+                tweede:{ soort:'update_eigenaar', label:'Klant informeren' } };
+
+    } else if (stap === 7) {
+      // Datum staat; de vakman heeft een opdracht nodig.
+      hoofd = { actie:'bon', label:'Opdrachtbon maken', ico:I.hamer,
+                tweede:{ actie:'herstel', label:'Nog een werkgang inplannen' } };
+
+    } else if (stap === 8) {
+      // Werk loopt. Deelfacturen kunnen alvast.
+      hoofd = { actie:'factureren', label:'Deelfactuur opstellen', ico:I.euro,
+                tweede:{ actie:'herstel', label:'Nog een werkgang inplannen' } };
+
+    } else if (stap === 9) {
+      // Opgeleverd: eerst geld, dan afscheid.
+      hoofd = S.gefactureerd
+        ? { soort:'afronding_eigenaar', label:'Afronding versturen', ico:I.stuur }
+        : { actie:'factureren', label:'Laatste factuur opstellen', ico:I.euro,
+            tweede:{ soort:'afronding_eigenaar', label:'Afronding versturen' } };
+
+    } else if (stap === 10) {
+      hoofd = S.archived
+        ? { soort:null, actie:null, label:'' }
+        : { actie:'archiveren', label:'Dossier archiveren', ico:I.vink };
+    }
+
     var x = '<div class="fwk-wrap">';
 
     /* kop */
@@ -5958,8 +6050,13 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
                  (S.polisnummer ? ' \u00b7 polis <span class="mono">'+esc(S.polisnummer)+'</span>' : ''))+
       '</div></div>'+
       '<div style="display:flex;gap:8px;flex-wrap:wrap">'+
-        '<button class="btn" onclick="window.open(\'/api/schades/'+encodeURIComponent(S.nr)+'/brief.html?soort=claim\',\'_blank\')">Brief bekijken</button>'+
-        '<button class="btn primary" onclick="fwvOpen(\''+S.nr+'\')">'+svg(I.stuur)+'Versturen</button>'+
+        (hoofd.tweede
+          ? '<button class="btn" onclick="'+knopActie(hoofd.tweede)+'">'+esc(hoofd.tweede.label)+'</button>'
+          : '')+
+        (hoofd.soort || hoofd.actie
+          ? '<button class="btn primary" onclick="'+knopActie(hoofd)+'">'+
+            svg(hoofd.ico||I.stuur)+esc(hoofd.label)+'</button>'
+          : '<button class="btn" onclick="fwkBericht()">'+svg(I.mail)+'Bericht sturen</button>')+
       '</div></div>';
 
     /* routepaneel */
@@ -5970,7 +6067,12 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
         '</select></div>'+
         '<div><label>Bronherstel</label><select onchange="fwkBron(this)">'+
           Object.keys(BRON).map(function(k){return '<option value="'+k+'"'+(k===S.bronStatus?' selected':'')+'>'+BRON[k]+'</option>'}).join('')+
-        '</select></div>'+
+        '</select>'+
+        (S.bronStatus==='hersteld'
+          ? '<label class="fwk-hr" style="margin-top:8px"><input type="checkbox"'+(S.bronFactuur?' checked':'')+
+            ' onchange="fwkBronOptie(\'bronFactuur\',this.checked)"><span>Factuur of bewijsstuk aanwezig</span></label>'
+          : '')+
+        '</div>'+
       '</div>'+
       '<div style="margin-top:14px"><label style="font-size:11.5px;color:var(--muted);display:block;margin-bottom:6px">Welke haltes gelden</label>'+
         HALTES.map(function(naam,i){
@@ -5989,6 +6091,21 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
     if (S.inWacht) x += '<div class="fwk-blok amber">'+svg(I.pauze)+
       '<span><b>In de wacht.</b> '+esc(S.wachtReden)+(S.wachtTot?' \u00b7 opnieuw bekijken op '+dag(S.wachtTot):'')+'</span>'+
       '<button class="jbtn" onclick="fwkUitWacht()">Weer oppakken</button></div>';
+    var openAfs = afspraken.filter(function(a){ return a.status==='open'; })[0];
+    var gekozenAfs = afspraken.filter(function(a){ return a.status==='gekozen'; })[0];
+    if (openAfs) {
+      x += '<div class="fwk-blok amber">'+svg(I.kalender)+
+        '<span><b>Wacht op de klant.</b> '+(openAfs.opties||[]).length+' momenten voorgesteld voor '+
+        (openAfs.soort==='opname'?'de opname':'het herstel')+' \u00b7 '+
+        (openAfs.geopendAt?'geopend op '+dag(openAfs.geopendAt):'nog niet geopend')+'</span>'+
+        '<button class="jbtn" onclick="navigator.clipboard&&navigator.clipboard.writeText(\''+openAfs.link+'\')">Link kopi\u00ebren</button></div>';
+    } else if (gekozenAfs && stap<8) {
+      x += '<div class="fwk-blok" style="background:var(--green-soft);color:#12704A">'+svg(I.vink)+
+        '<span><b>Afspraak staat.</b> '+dag(gekozenAfs.gekozenDatum)+
+        (gekozenAfs.gekozenTijd?' \u00b7 '+esc(gekozenAfs.gekozenTijd):'')+
+        (gekozenAfs.naam?' \u00b7 gekozen door '+esc(gekozenAfs.naam):'')+'</span></div>';
+    }
+
     if (S.bronStatus!=='hersteld' && S.bronStatus!=='nvt' && stap>3)
       x += '<div class="fwk-blok rood">'+svg(I.stop)+'<span><b>Let op \u2014 de bron is '+
         (S.bronStatus==='open'?'nog niet hersteld':'onvoldoende hersteld')+'.</b> '+
@@ -6027,15 +6144,24 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
           '<span class="fwk-t">'+esc(HALTES[n-1])+'</span></button>';
       }).join('')+'</div></div>';
 
-    /* verzekeraarstand */
-    if (!eigen && stap>=5 && !afgewezen) {
+    /* Stand bij de verzekeraar — alleen zolang het dossier daar ook echt ligt.
+       Voorbij halte 6 is die fase voorbij; de haltelijn vertelt de rest. */
+    var bijVerz = !eigen && stap >= 5 && !afgewezen;
+    var nogActueel = stap <= 6;
+    if (bijVerz && (nogActueel || !klant)) {
       var vz = VERZ[S.verzStatus] || VERZ.geen;
-      x += '<div class="fwk-verz"><span class="l">Bij de verzekeraar</span>'+
+      x += '<div class="fwk-verz'+(nogActueel?'':' oud')+'">'+
+        '<span class="l">Bij de verzekeraar'+(nogActueel?'':' \u00b7 afgerond')+'</span>'+
         (klant ? '<span class="fwk-pil '+vz.k+'">'+vz.l+'</span>'
                : '<select onchange="fwkVerz(this.value)">'+
                  Object.keys(VERZ).map(function(k){return '<option value="'+k+'"'+(k===S.verzStatus?' selected':'')+'>'+VERZ[k].l+'</option>'}).join('')+
                  '</select><span class="fwk-pil '+vz.k+'">'+vz.l+'</span>')+
-        (vz.ext?'<span class="ext">'+svg(I.oog)+'<span><b>Wat de klant leest:</b> '+vz.ext+'</span></span>':'')+
+        (vz.ext && nogActueel
+          ? '<span class="ext">'+svg(I.oog)+'<span><b>Wat de klant leest:</b> '+vz.ext+'</span></span>'
+          : (!klant && !nogActueel
+              ? '<span class="ext" style="color:var(--muted-2)">'+svg(I.info)+
+                '<span>Deze fase is voorbij. De klant ziet dit niet meer \u2014 alleen het vinkje op de haltelijn.</span></span>'
+              : ''))+
         '</div>';
     }
 
@@ -6071,6 +6197,9 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
         (S.opdrachtgever?'<div class="fwk-ct" style="border-top:1px solid var(--line-2);margin-top:6px;padding-top:11px">'+
           svg(I.huis)+'<span>'+esc(S.opdrachtgever)+'</span><span class="rol">beheerder</span></div>':'')+
         (S.beheerderEmail?'<div class="fwk-ct">'+svg(I.mail)+'<a href="mailto:'+esc(S.beheerderEmail)+'">'+esc(S.beheerderEmail)+'</a></div>':'')+
+
+        /* verzekeraar */
+        (eigen ? '' : verzekeraarBlok())+
         '<div class="fwk-ct" style="border-top:1px solid var(--line-2);margin-top:6px;padding-top:11px;color:var(--muted);font-size:12.5px">'+
           'Op brieven en bonnen: <b style="color:var(--text);margin-left:4px">'+
           esc(S.contactpersoon || (window.__fwIk?window.__fwIk.naam:'\u2014'))+'</b></div>'+
@@ -6093,7 +6222,7 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
     if (locaties.length > 1) tabs.push(['loc','Adressen',locaties.length]);
     tabs.push(['doc','Documenten',docs.length],['onder','Onderaanneming',bonnen.length]);
     if (eigen) tabs.push(['off','Offerte klant','']);
-    tabs.push(['corr','Verstuurd',corr.length],['log','Logboek',logs.length],['fin','Financieel','']);
+    tabs.push(['corr','Correspondentie',corr.length],['log','Logboek',logs.length],['fin','Financieel','']);
 
     x += '<div class="fwk-kaart"><div class="fwk-tabs">'+
       tabs.map(function(t){
@@ -6127,31 +6256,57 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
       .then(function(){ return ververs(); }).catch(function(e){melden('Niet gelukt',e.message,'err')});
   };
   window.fwkLocPlan = function(id){
-    var d = window.prompt('Wanneer wordt hier hersteld? (jjjj-mm-dd)','');
-    if (!d) return;
-    var t = window.prompt('Tijdvak, bijvoorbeeld 08.00 \u2013 12.00 uur \u2014 leeg mag','');
-    api('/api/locaties/'+id,{method:'PATCH',
-      body:JSON.stringify({ingepland:d, tijdvak:t||null, status:'ingepland'})})
-      .then(function(){ return ververs(); }).catch(function(e){melden('Niet gelukt',e.message,'err')});
+    var l = locaties.find(function(x){return x.id===id}) || {};
+    window.fwVraag({
+      titel:'Herstel inplannen',
+      uitleg: l.adres ? 'Voor ' + l.adres : '',
+      velden:[
+        {naam:'datum',label:'Datum',type:'datum',waarde:l.ingepland?String(l.ingepland).slice(0,10):'',
+         verplicht:'Kies een datum.'},
+        {naam:'tijdvak',label:'Tijdvak',waarde:l.tijdvak||'',plaats:'bijvoorbeeld 08.00 \u2013 12.00 uur',
+         snel:['08.00 \u2013 12.00 uur','13.00 \u2013 17.00 uur','Hele dag']}
+      ],
+      ok:'Inplannen'
+    }).then(function(r){
+      if (!r) return;
+      api('/api/locaties/'+id,{method:'PATCH',
+        body:JSON.stringify({ingepland:r.datum, tijdvak:r.tijdvak||null, status:'ingepland'})})
+        .then(function(){ return ververs(); }).catch(function(e){melden('Niet gelukt',e.message,'err')});
+    });
   };
   window.fwkLocHoofd = function(id){
     api('/api/locaties/'+id+'/hoofd',{method:'POST'}).then(function(){ return ververs(); })
       .catch(function(e){melden('Niet gelukt',e.message,'err')});
   };
   window.fwkLocWeg = function(id, adres){
-    if (!window.confirm('"'+adres+'" uit dit dossier halen?')) return;
-    api('/api/locaties/'+id,{method:'DELETE'}).then(function(){ return ververs(); })
-      .catch(function(e){melden('Niet gelukt',e.message,'err')});
+    window.fwBevestig('Adres verwijderen?', adres + ' wordt uit dit dossier gehaald.',
+      'Ja, verwijderen', true).then(function(ja){
+      if (!ja) return;
+      api('/api/locaties/'+id,{method:'DELETE'}).then(function(){ return ververs(); })
+        .catch(function(e){melden('Niet gelukt',e.message,'err')});
+    });
   };
   window.fwkLocErbij = function(){
-    var a = window.prompt('Welk adres raakt er nog meer bij betrokken?','');
-    if (!a || !a.trim()) return;
-    var b = window.prompt('Naam van de bewoner \u2014 leeg mag','');
-    var t = window.prompt('Telefoonnummer \u2014 leeg mag','');
-    api('/api/schades/'+encodeURIComponent(S.nr)+'/locaties',
-      {method:'POST', body:JSON.stringify({adres:a.trim(), bewoner:b||null, telefoon:t||null})})
-      .then(function(){ melden('Toegevoegd', a.trim()); return ververs(); })
-      .catch(function(e){melden('Niet gelukt',e.message,'err')});
+    window.fwVraag({
+      titel:'Adres toevoegen',
+      uitleg:'Dit adres hoort bij dezelfde schade en dezelfde claim, maar krijgt een eigen planning.',
+      velden:[
+        {naam:'adres',label:'Adres',plaats:'Straatnaam en huisnummer',verplicht:'Vul een adres in.'},
+        {naam:'bewoner',label:'Naam bewoner',plaats:'Leeg laten mag'},
+        {naam:'telefoon',label:'Telefoonnummer',plaats:'Leeg laten mag'},
+        {naam:'soort',label:'Wie woont er?',type:'keuze',waarde:'eigenaar',
+         opties:[['eigenaar','Eigenaar'],['huurder','Huurder'],['leeg','Staat leeg'],
+                 ['gemeenschappelijk','Gemeenschappelijke ruimte']]}
+      ],
+      ok:'Adres toevoegen'
+    }).then(function(r){
+      if (!r) return;
+      api('/api/schades/'+encodeURIComponent(S.nr)+'/locaties',
+        {method:'POST', body:JSON.stringify({adres:r.adres, bewoner:r.bewoner||null,
+          telefoon:r.telefoon||null, bewonerSoort:r.soort})})
+        .then(function(){ melden('Toegevoegd', r.adres); return ververs(); })
+        .catch(function(e){melden('Niet gelukt',e.message,'err')});
+    });
   };
 
   function panLoc(){
@@ -6238,8 +6393,68 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
     var fac = docs.filter(function(d){ return d.soort==='factuur_onder'; });
     var som = fac.filter(function(d){return d.bedrag}).reduce(function(a,d){return a+d.bedrag},0);
     var x = '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap">'+
-      '<div style="font-size:12.5px;color:var(--muted)">Wat je uitbesteedt en wat dat kost.</div>'+
-      '<button class="btn primary" onclick="fwkBonNieuw()">'+svg(I.plus)+'Opdrachtbon maken</button></div>';
+      '<div style="font-size:12.5px;color:var(--muted)">Eerst prijzen opvragen, dan de opdracht gunnen.</div>'+
+      '<div style="display:flex;gap:8px;flex-wrap:wrap">'+
+        '<button class="btn" onclick="fwkPrijsAanvraag()">'+svg(I.euro)+'Offerte aanvragen</button>'+
+        '<button class="btn primary" onclick="fwkBonNieuw()">'+svg(I.plus)+'Opdrachtbon maken</button></div></div>';
+
+    /* ── openstaande prijsaanvragen ── */
+    if (aanvragen.length) {
+      var perKlus = {};
+      aanvragen.forEach(function(a){ (perKlus[a.werk] = perKlus[a.werk] || []).push(a); });
+      Object.keys(perKlus).forEach(function(werk){
+        var groep = perKlus[werk];
+        var metPrijs = groep.filter(function(a){ return a.bedrag > 0; });
+        var laagste = metPrijs.length ? Math.min.apply(null, metPrijs.map(function(a){ return a.bedrag; })) : null;
+
+        x += '<div class="fwk-aanvr"><div class="fwk-aanvr-kop">'+
+          '<div><div class="fwk-aanvr-t">Prijsaanvraag</div>'+
+          '<div class="fwk-aanvr-w">'+esc(werk.split('\n')[0])+'</div></div>'+
+          '<span class="fwk-pil '+(metPrijs.length===groep.length?'groen':'amber')+'">'+
+            metPrijs.length+' van '+groep.length+' beantwoord</span></div>';
+
+        var telaat = groep.filter(function(a){
+          return !a.bedrag && a.reactieVoor && new Date(a.reactieVoor) < new Date();
+        });
+        if (telaat.length) {
+          x += '<div class="fwk-aanvr-let">'+svg(I.klok)+
+            '<span>'+telaat.length+' leverancier'+(telaat.length>1?'s hebben':' heeft')+
+            ' de termijn laten verlopen. Herinner ze, of ga verder met wat er ligt.</span></div>';
+        }
+
+        groep.forEach(function(a){
+          var beste = laagste !== null && a.bedrag === laagste && a.bedrag > 0;
+          x += '<div class="fwk-aanvr-r'+(beste?' beste':'')+'">'+
+            '<div style="flex:1;min-width:0"><div class="fwk-aanvr-n">'+
+              esc(a.leverancier ? a.leverancier.naam : 'Leverancier')+
+              (beste?' <span class="fwk-pil groen" style="font-size:9.5px">laagste</span>':'')+'</div>'+
+              '<div class="fwk-aanvr-m">'+esc(a.nummer)+
+                (a.reactieAt?' \u00b7 antwoord '+dag(a.reactieAt):
+                 a.reactieVoor?' \u00b7 antwoord gevraagd v\u00f3\u00f3r '+dag(a.reactieVoor):'')+
+                (a.reactieNotitie?' \u00b7 '+esc(a.reactieNotitie):'')+'</div></div>'+
+            (a.bedrag>0
+              ? '<div class="fwk-aanvr-b">'+eur(a.bedrag/100)+'</div>'
+              : '<button class="jbtn" onclick="fwkPrijsInvullen(\''+a.id+'\')">Prijs invullen</button>')+
+            '<div class="fwk-aanvr-v">'+
+              '<button class="jbtn" onclick="window.open(\'/api/opdrachtbonnen/'+a.id+'/aanvraag.html\',\'_blank\')">Uitvraag</button>'+
+              '<button class="jbtn" onclick="fwkOfferteUpload(\''+a.id+'\')">Offerte erbij</button>'+
+              (a.bedrag>0
+                ? '<button class="jbtn jbtn-ja" onclick="fwkGunnen(\''+a.id+'\',\''+
+                  esc(a.leverancier?a.leverancier.naam:'').replace(/\x27/g,'')+'\')">Gunnen</button>'
+                : '<button class="jbtn" onclick="fwkAanvraagHerinneren(\''+a.id+'\',\''+
+                  esc(a.leverancier?a.leverancier.naam:'').replace(/\x27/g,'')+'\')">Herinneren</button>')+
+            '</div>'+
+            ((a.documenten||[]).length
+              ? '<div class="fwk-aanvr-doc">'+a.documenten.map(function(d){
+                  return '<a href="/api/documenten/'+d.id+'/bestand" target="_blank" rel="noopener">'+
+                    svg(I.oog)+esc(d.bestandsnaam)+'</a>';
+                }).join('')+'</div>'
+              : '')+
+            '</div>';
+        });
+        x += '</div>';
+      });
+    }
 
     if (!bonnen.length && !fac.length) {
       x += '<div class="fwk-leeg">Nog geen opdrachtbonnen of facturen.</div>';
@@ -6320,6 +6535,208 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
     }).join('<hr style="border:none;border-top:1px solid var(--line);margin:16px 0">');
   }
 
+  function knopActie(k){
+    if (k.soort) return 'fwvOpen(\''+S.nr+'\',\''+k.soort+'\')';
+    return 'fwkActie(\''+k.actie+'\')';
+  }
+
+  window.fwkActie = function(a){
+    if (a === 'weigeren')   return weigeren();
+    if (a === 'opname')     return afspraakVoorstel('opname');
+    if (a === 'herstel')    return afspraakVoorstel('herstel');
+    if (a === 'bronzelf')   return bronZelf();
+    if (a === 'bon')            return window.fwkBonNieuw();
+    if (a === 'infoAanleveren') return infoAanleveren();
+    if (a === 'factureren')     return factureren();
+    if (a === 'archiveren') {
+      return window.fwBevestig('Dossier archiveren?',
+        'Het dossier verdwijnt uit je werkvoorraad maar blijft doorzoekbaar. Je kunt het altijd terughalen.',
+        'Ja, archiveren').then(function(ja){
+        if (!ja) return;
+        api('/api/schades/'+encodeURIComponent(S.nr)+'/archief',{method:'POST'})
+          .then(function(){ melden('Gearchiveerd', S.nr); return ververs(); })
+          .catch(function(e){melden('Niet gelukt',e.message,'err')});
+      });
+    }
+  };
+
+  function weigeren(){
+    window.fwVraag({
+      titel:'Melding niet aannemen',
+      uitleg:'De klant krijgt een bericht met deze reden, en het dossier gaat naar het archief.',
+      velden:[{naam:'reden',label:'Waarom kunnen wij hier niets in betekenen?',type:'tekst',
+        plaats:'bijvoorbeeld: dit valt onder tuinonderhoud, daar zijn wij niet voor toegerust',
+        verplicht:'Vul een reden in \u2014 de klant leest die terug.',
+        snel:['Valt buiten ons werkgebied','Geen waterschade','Te kleine klus voor ons',
+              'Wij zijn niet toegerust voor dit type werk']}],
+      ok:'Bericht opstellen', gevaar:true
+    }).then(function(r){
+      if (!r) return;
+      patch({weigerReden:r.reden}).then(function(){
+        return ververs();
+      }).then(function(){ window.fwvOpen(S.nr, 'weigering'); })
+        .catch(function(e){melden('Niet gelukt',e.message,'err')});
+    });
+  }
+
+  function bronZelf(){
+    window.fwVraag({
+      titel:'Wij herstellen de bron',
+      uitleg:'Wij bieden aan het verhelpen van de oorzaak zelf te doen. Het dossier gaat in de wacht '+
+             'tot de opdrachtgever akkoord is.',
+      velden:[{naam:'hoe',label:'Hoe bied je het aan?',type:'keuze',waarde:'offerte',
+        opties:[['offerte','Met een prijsopgave vooraf'],['mandaat','Met een mandaat tot een maximumbedrag']]},
+        {naam:'bedrag',label:'Richtbedrag of maximum',plaats:'bijvoorbeeld 850'}],
+      ok:'Aanbieden en in de wacht zetten'
+    }).then(function(r){
+      if (!r) return;
+      api('/api/schades/'+encodeURIComponent(S.nr)+'/bronopties',
+        {method:'POST', body:JSON.stringify({bronDoorOns:true})})
+      .then(function(){
+        return api('/api/schades/'+encodeURIComponent(S.nr)+'/wacht',{method:'POST',
+          body:JSON.stringify({reden:'Aanbod bronherstel door ons \u2014 '+
+            (r.hoe==='mandaat'?'mandaat tot ':'prijsopgave ')+(r.bedrag?'\u20ac'+r.bedrag:'')+
+            ' \u00b7 wacht op akkoord opdrachtgever'})});
+      }).then(function(){ return ververs(); })
+        .then(function(){ window.fwvOpen(S.nr, 'bron_verzoek'); })
+        .catch(function(e){melden('Niet gelukt',e.message,'err')});
+    });
+  }
+
+  function afspraakVoorstel(soort){
+    var opname = soort==='opname';
+    var vandaag = new Date();
+    function over(d){ var x=new Date(vandaag); x.setDate(x.getDate()+d); return x.toISOString().slice(0,10); }
+    window.fwVraag({
+      titel: opname ? 'Schade-opname inplannen' : 'Herstel inplannen',
+      uitleg: opname
+        ? 'Stel drie momenten voor. De klant kiest er \u00e9\u00e9n via een link \u2014 geen heen-en-weer gebel.'
+        : 'Stel momenten voor deze werkgang voor. Meerdere vakmensen? Maak per vakman een eigen voorstel.',
+      velden:[].concat(
+        opname ? [] : [
+          {naam:'wat',label:'Welke werkzaamheden?',plaats:'bijvoorbeeld Stucwerk trapwand en plafond',
+           verplicht:'Omschrijf wat er gebeurt.'},
+          {naam:'vakman',label:'Door wie?',plaats:'bijvoorbeeld Van Dijk Stucwerk'},
+          {naam:'duur',label:'Hoe lang duurt het?',plaats:'bijvoorbeeld drie dagen',
+           snel:['\u00e9\u00e9n dag','twee dagen','drie dagen','een week']}
+        ],
+        [
+          {naam:'d1',label:'Eerste moment',type:'datum',waarde:over(7),verplicht:'Kies minstens \u00e9\u00e9n datum.'},
+          {naam:'t1',label:'Tijdvak',waarde:'08.00 \u2013 12.00 uur',
+           snel:['08.00 \u2013 12.00 uur','13.00 \u2013 17.00 uur','Hele dag']},
+          {naam:'d2',label:'Tweede moment',type:'datum',waarde:over(9)},
+          {naam:'t2',label:'Tijdvak',waarde:'13.00 \u2013 17.00 uur'},
+          {naam:'d3',label:'Derde moment',type:'datum',waarde:over(14)},
+          {naam:'t3',label:'Tijdvak',waarde:'08.00 \u2013 12.00 uur'}
+        ]),
+      ok:'Voorstel klaarzetten'
+    }).then(function(r){
+      if (!r) return;
+      var opties = [];
+      [['d1','t1'],['d2','t2'],['d3','t3']].forEach(function(k){
+        if (r[k[0]]) opties.push({ datum:r[k[0]], tijdvak:r[k[1]]||'' });
+      });
+      api('/api/schades/'+encodeURIComponent(S.nr)+'/afspraken',{method:'POST',
+        body:JSON.stringify({soort:soort, omschrijving:r.wat||null, vakman:r.vakman||null,
+          duur:r.duur||null, opties:opties})})
+        .then(function(){ return ververs(); })
+        .then(function(){ window.fwvOpen(S.nr, opname?'afspraak_opname':'afspraak_herstel'); })
+        .catch(function(e){melden('Niet gelukt',e.message,'err')});
+    });
+  }
+
+  function infoAanleveren(){
+    window.fwVraag({
+      titel:'Informatie aanleveren',
+      uitleg:'De verzekeraar vroeg om aanvullende informatie. Schrijf op wat je meestuurt; '+
+             'wij maken er een net bericht van.',
+      velden:[{naam:'notitie',label:'Wat lever je aan?',type:'tekst',
+        plaats:'bijvoorbeeld: extra foto\u2019s van de meterkast en de nota van de loodgieter',
+        verplicht:'Schrijf op wat je aanlevert.'}],
+      ok:'Laten opstellen'
+    }).then(function(r){
+      if (!r) return;
+      api('/api/schades/'+encodeURIComponent(S.nr)+'/bericht',
+        {method:'POST', body:JSON.stringify({notitie:r.notitie, ontvanger:'de verzekeraar'})})
+        .then(function(res){
+          window.__fwVrij = { onderwerp:res.onderwerp, tekst:res.tekst, aan:'verzekeraar' };
+          window.fwvOpen(S.nr, 'vrij');
+        }).catch(function(e){ melden('Niet gelukt', e.message, 'err'); });
+    });
+  }
+
+  function factureren(){
+    melden('Nog niet beschikbaar',
+      'De koppeling met Jortt is nog niet gebouwd. Maak de factuur voorlopig in Jortt zelf.','info');
+  }
+
+  var BIB = [
+    ['vrij',              'Eigen bericht \u2014 ik schrijf het zelf'],
+    ['machtiging',        'Machtiging aanvragen'],
+    ['rapport',           'Schaderapport versturen'],
+    ['offerte',           'Offerte versturen'],
+    ['claim',             'Schadeclaim indienen'],
+    ['herinnering',       'Herinnering aan de verzekeraar'],
+    ['bron_verzoek',      'Bronherstel aanvragen'],
+    ['afspraak_opname',   'Uitnodiging schade-opname'],
+    ['afspraak_herstel',  'Uitnodiging herstel'],
+    ['update_eigenaar',   'Tussentijdse update'],
+    ['afronding_eigenaar','Werk afgerond'],
+    ['weigering',         'Melding niet aannemen']
+  ];
+
+  window.fwkBericht = function(){
+    var passend = BIB.filter(function(b){
+      if (b[0]==='vrij') return true;
+      return true;   // de server bewaakt wat bij de route past
+    });
+    window.fwVraag({
+      titel:'Nieuwe correspondentie',
+      uitleg:'Kies een standaardbrief of schrijf zelf iets. Bij een eigen bericht maken wij er huisstijl van.',
+      velden:[
+        {naam:'soort',label:'Welke brief?',type:'keuze',waarde:'vrij',
+         opties:passend},
+        {naam:'aan',label:'Naar wie?',type:'keuze',
+         waarde: S.opdrachtgever ? 'beide' : 'eigenaar',
+         opties: (S.opdrachtgever
+           ? [['eigenaar','De eigenaar of bewoner'],['beheerder','De VvE-beheerder'],
+              ['beide','Beiden'],['verzekeraar','De verzekeraar']]
+           : [['eigenaar','De eigenaar of bewoner'],['verzekeraar','De verzekeraar']])},
+        {naam:'notitie',label:'Wat wil je zeggen?',type:'tekst',
+         plaats:'Alleen invullen bij een eigen bericht \u2014 in je eigen woorden'}
+      ],
+      ok:'Volgende'
+    }).then(function(r){
+      if (!r) return;
+      if (r.soort !== 'vrij') { window.fwvOpen(S.nr, r.soort); return; }
+      if (!r.notitie.trim()) { melden('Nog leeg','Schrijf op wat je wilt zeggen.','err'); return; }
+      var wie = { eigenaar:'de eigenaar of bewoner', beheerder:'de VvE-beheerder',
+                  beide:'de eigenaar en de beheerder', verzekeraar:'de verzekeraar' }[r.aan];
+      melden('Bezig','Het bericht wordt opgesteld\u2026','info');
+      api('/api/schades/'+encodeURIComponent(S.nr)+'/bericht',
+        {method:'POST', body:JSON.stringify({notitie:r.notitie, ontvanger:wie})})
+        .then(function(res){
+          window.__fwVrij = { onderwerp:res.onderwerp, tekst:res.tekst, aan:r.aan };
+          window.fwvOpen(S.nr, 'vrij');
+        }).catch(function(e){ melden('Niet gelukt', e.message, 'err'); });
+    });
+  };
+
+  window.fwkVoorvertoning = function(id){
+    var v = corr.find(function(x){ return x.id===id; });
+    if (!v) return;
+    var doel = document.getElementById('fwkVoor');
+    if (!doel) return;
+    if (doel.dataset.id === id) { doel.innerHTML=''; doel.dataset.id=''; return; }
+    doel.dataset.id = id;
+    doel.innerHTML = '<div class="fwk-voor">'+
+      '<div class="fwk-voor-kop"><b>'+esc(v.onderwerp||'')+'</b>'+
+        '<button class="jbtn" onclick="window.open(\'/api/verzendingen/'+id+'/brief.html\',\'_blank\')">'+
+        'Openen als brief</button></div>'+
+      '<div class="fwk-voor-tekst">'+esc(v.tekst||'').replace(/\n/g,'<br>')+'</div></div>';
+    doel.scrollIntoView({behavior:'smooth', block:'nearest'});
+  };
+
   function panCorr(){
     var K = {claim:['#378ADD','#E6F1FB','Claim ingediend bij verzekeraar'],
       rapport:['#1D9E75','#E1F5EE','Schaderapport verstuurd'],
@@ -6333,36 +6750,63 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
       afronding_eigenaar:['#1D9E75','#E1F5EE','Afronding aan de eigenaar'],
       afronding_beheerder:['#1D9E75','#E1F5EE','Afronding aan de beheerder']};
     var l = corr.filter(function(v){return v.status!=='concept'});
-    if (!l.length) return '<div class="fwk-leeg">Nog niets verstuurd vanuit dit dossier.</div>';
-    return l.map(function(v){
+    var kop = '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;'+
+      'margin-bottom:14px;flex-wrap:wrap"><div style="font-size:12.5px;color:var(--muted)">'+
+      'Alles wat vanuit dit dossier is verstuurd. Klik om te lezen.</div>'+
+      '<button class="btn primary" onclick="fwkBericht()">'+svg(I.mail)+'Nieuwe correspondentie</button></div>';
+
+    if (!l.length) return kop + '<div class="fwk-leeg">Nog niets verstuurd vanuit dit dossier.</div>';
+    return kop + l.map(function(v){
       var k = K[v.soort]||['#8a94a6','#F1EFE8',v.soort];
       var n = (v.documentIds||[]).length;
-      return '<div class="fwk-c"><div class="fwk-cico" style="background:'+k[1]+';color:'+k[0]+'">'+svg(I.mail)+'</div>'+
-        '<div style="flex:1;min-width:0"><div class="fwk-ct2">'+k[2]+'</div>'+
+      return '<button class="fwk-c fwk-klik" onclick="fwkVoorvertoning(\''+v.id+'\')">'+
+        '<div class="fwk-cico" style="background:'+k[1]+';color:'+k[0]+'">'+svg(I.mail)+'</div>'+
+        '<div style="flex:1;min-width:0;text-align:left"><div class="fwk-ct2">'+
+          esc(v.onderwerp && v.soort==='vrij' ? v.onderwerp : k[2])+'</div>'+
         '<div class="fwk-cs">'+esc((v.naar||[]).join(', '))+'</div>'+
         '<div class="fwk-cb">'+(n?n+' stuk'+(n>1?'ken':'')+' meegestuurd \u00b7 ':'')+'door '+esc(v.doorNaam||'')+'</div></div>'+
-        '<div class="fwk-cd">'+dag(v.createdAt)+'</div></div>';
-    }).join('');
+        '<div class="fwk-cd">'+dag(v.createdAt)+'</div>'+
+        '<span class="fwk-cpijl">'+svg(I.oog)+'</span></button>';
+    }).join('') + '<div id="fwkVoor"></div>';
   }
 
   function panLog(){
-    if (!logs.length) return '<div class="fwk-leeg">Nog geen gebeurtenissen vastgelegd.</div>';
+    var lijst = klant ? logs.filter(function(r){ return !r.intern; }) : logs;
+    if (!lijst.length) return '<div class="fwk-leeg">' +
+      (klant ? 'Nog niets om te tonen.' : 'Nog geen gebeurtenissen vastgelegd.') + '</div>';
+
+    var kop = klant
+      ? '<div class="fwk-kd">'+svg(I.oog)+'<span>Dit ziet de klant: alleen wat over zijn dossier gaat. '+
+        'Onze facturen, opdrachtbonnen en marges blijven verborgen.</span></div>'
+      : '<div style="font-size:12.5px;color:var(--muted);margin-bottom:14px">'+
+        'Alles wat er met dit dossier is gebeurd, nieuwste bovenaan. '+
+        'Regels met een slotje ziet de klant niet.</div>';
+
     var perDag = {};
-    logs.forEach(function(r){
+    lijst.forEach(function(r){
       var d = new Date(r.createdAt);
-      var sl = d.toLocaleDateString('nl-NL',{day:'numeric',month:'long'});
       var vandaag = new Date(); vandaag.setHours(0,0,0,0);
       var rd = new Date(d); rd.setHours(0,0,0,0);
-      var v = (rd.getTime()===vandaag.getTime()) ? 'Vandaag'
-            : (vandaag-rd===864e5) ? 'Gisteren' : sl;
-      (perDag[v] = perDag[v] || []).push(r);
+      var label = (rd.getTime()===vandaag.getTime()) ? 'Vandaag'
+        : (vandaag-rd===864e5) ? 'Gisteren'
+        : d.toLocaleDateString('nl-NL',{day:'numeric',month:'long',
+            year: d.getFullYear()===vandaag.getFullYear() ? undefined : 'numeric'});
+      (perDag[label] = perDag[label] || []).push(r);
     });
-    return Object.keys(perDag).map(function(d){
+
+    var MIJL = /melding ontvangen|opname|bron hersteld|rapport|ingediend|akkoord|herstel|opgeleverd|gefactureerd|afgerond/i;
+
+    return kop + Object.keys(perDag).map(function(d){
       return '<div class="fwk-ld">'+esc(d)+'</div><div class="fwk-log">'+perDag[d].map(function(r){
-        var kl = r.soort==='besluit'?'amber':/aangemaakt|ingediend|akkoord|hersteld/i.test(r.text)?'teal':'';
+        var kl = r.soort==='besluit' || r.soort==='afspraak' ? 'amber'
+               : MIJL.test(r.text) ? 'teal' : '';
         var tijd = new Date(r.createdAt).toLocaleTimeString('nl-NL',{hour:'2-digit',minute:'2-digit'});
-        return '<div class="fwk-lr '+kl+'"><div class="fwk-lt">'+esc(r.text)+'</div>'+
-          '<div class="fwk-lm">'+(r.detail?esc(r.detail)+' \u00b7 ':'')+esc(r.byName||'')+' \u00b7 '+tijd+'</div></div>';
+        return '<div class="fwk-lr '+kl+'">'+
+          '<div class="fwk-lt">'+esc(r.text)+
+            (!klant && r.intern ? ' <span class="fwk-slotje" title="Niet zichtbaar voor de klant">'+svg(I.slot)+'</span>' : '')+
+          '</div>'+
+          (r.detail ? '<div class="fwk-ldet">'+esc(r.detail)+'</div>' : '')+
+          '<div class="fwk-lm">'+esc(r.byName||'')+' \u00b7 '+tijd+'</div></div>';
       }).join('')+'</div>';
     }).join('');
   }
@@ -6429,5 +6873,189 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
     clearInterval(t);
   }, 200);
   setTimeout(function(){ clearInterval(t); }, 30000);
+})();
+</script>
+
+<style>
+/* ── Vraagvenster in huisstijl ── */
+.fwq-wrap{position:fixed;inset:0;z-index:520;background:rgba(13,20,38,.5);
+  -webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);display:none;
+  align-items:center;justify-content:center;
+  /* Iets boven het midden: daar rust het oog van nature. */
+  padding:24px 24px calc(24px + 7vh);
+  overflow-y:auto}
+.fwq-wrap.on{display:flex}
+.fwq{background:var(--surface);border-radius:16px;width:100%;max-width:440px;
+  max-height:calc(100dvh - 48px);display:flex;flex-direction:column;
+  box-shadow:0 1px 3px rgba(21,31,53,.10),0 24px 64px rgba(9,14,26,.30);
+  animation:fwqIn .2s cubic-bezier(.2,.8,.3,1)}
+@keyframes fwqIn{from{opacity:0;transform:translateY(10px) scale(.98)}to{opacity:1;transform:none}}
+.fwq-body{overflow-y:auto;flex:1}
+body.fwq-open{overflow:hidden}
+.fwq-kop{padding:18px 20px 0}
+.fwq-kop h3{margin:0;font-size:16.5px;font-weight:600}
+.fwq-kop p{margin:5px 0 0;font-size:12.5px;color:var(--muted);line-height:1.45}
+.fwq-body{padding:16px 20px}
+.fwq-body label{display:block;font-size:12px;color:var(--muted);margin:0 0 5px}
+.fwq-body label+label{margin-top:14px}
+.fwq-body input[type=text],.fwq-body input[type=date],.fwq-body textarea,.fwq-body select{
+  width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:11px;
+  font-family:inherit;font-size:14.5px;background:var(--surface);color:var(--text);min-height:46px}
+.fwq-body textarea{min-height:96px;resize:vertical;line-height:1.5}
+.fwq-body input:focus,.fwq-body textarea:focus,.fwq-body select:focus{
+  outline:none;border-color:var(--teal);box-shadow:0 0 0 3px rgba(0,155,168,.12)}
+.fwq-fout{background:var(--red-soft);color:var(--red);font-size:12.5px;padding:10px 12px;
+  border-radius:10px;margin-bottom:12px}
+.fwq-foot{padding:14px 20px;border-top:1px solid var(--line);display:flex;gap:8px;justify-content:flex-end}
+.fwq-foot .btn{min-width:110px;justify-content:center}
+.fwq-foot .btn.primary.gevaar{background:var(--red);border-color:var(--red)}
+.fwq-foot .btn.primary.gevaar:hover{background:#B93F3F;border-color:#B93F3F}
+.fwq-snel{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}
+.fwq-snel button{font-size:11.5px;padding:5px 10px;border-radius:20px;border:1px solid var(--line);
+  background:var(--surface);color:var(--muted);cursor:pointer;font-family:inherit}
+.fwq-snel button:hover{border-color:var(--teal);color:var(--teal-ink);background:rgba(0,155,168,.05)}
+.fwq-meer{border:1px solid var(--line);border-radius:11px;padding:6px;max-height:190px;overflow-y:auto}
+.fwq-vink{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;cursor:pointer;
+  font-size:14px;color:var(--text);margin:0}
+.fwq-vink:hover{background:var(--canvas)}
+.fwq-vink input{width:17px;height:17px;accent-color:var(--teal);min-height:0;padding:0;flex:none}
+.fwq-leeg{padding:12px;font-size:12.5px;color:var(--muted);text-align:center}
+@media (max-width:600px){
+  .fwq-wrap{padding:0;align-items:flex-end}
+  .fwq{max-width:none;border-radius:18px 18px 0 0;max-height:88dvh;
+    padding-bottom:env(safe-area-inset-bottom)}
+  @keyframes fwqIn{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:none}}
+  .fwq-foot{position:sticky;bottom:0;background:var(--surface)}
+  .fwq-foot .btn{flex:1}
+}
+</style>
+
+<script>
+/* ══ Vraagvenster: vervangt prompt() en confirm() ══ */
+(function(){
+  var klaar = null;
+
+  function $$(id){ return document.getElementById(id); }
+  function esc(v){ return String(v==null?'':v).replace(/[&<>"]/g,function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+
+  window.fwqSluit = function(){
+    $$('fwqWrap').classList.remove('on');
+    document.body.classList.remove('fwq-open');
+    if (klaar) { var f = klaar; klaar = null; f(null); }
+  };
+
+  window.fwqOk = function(){
+    var velden = $$('fwqBody').querySelectorAll('[data-veld]');
+    var uit = {}, leeg = null;
+    Array.prototype.forEach.call(velden, function(v){
+      if (v.classList && v.classList.contains('fwq-meer')) {
+        var aan = Array.prototype.slice.call(v.querySelectorAll('input:checked')).map(function(c){ return c.value; });
+        uit[v.dataset.veld] = aan;
+        if (v.dataset.verplicht && !aan.length && !leeg) leeg = v;
+        return;
+      }
+      var w = v.value.trim();
+      uit[v.dataset.veld] = w;
+      if (v.dataset.verplicht && !w && !leeg) leeg = v;
+    });
+    if (leeg) {
+      var f = $$('fwqFout');
+      if (!f) {
+        f = document.createElement('div');
+        f.id = 'fwqFout'; f.className = 'fwq-fout';
+        $$('fwqBody').insertBefore(f, $$('fwqBody').firstChild);
+      }
+      f.textContent = leeg.dataset.verplicht;
+      leeg.focus();
+      return;
+    }
+    $$('fwqWrap').classList.remove('on');
+    document.body.classList.remove('fwq-open');
+    if (klaar) { var g = klaar; klaar = null; g(uit); }
+  };
+
+  /**
+   * Vraag iets in huisstijl.
+   * opties: { titel, uitleg, velden:[{naam,label,type,waarde,plaats,verplicht,opties,snel}],
+   *           ok, annuleer, gevaar }
+   * Geeft een belofte die het antwoord teruggeeft, of null bij annuleren.
+   */
+  window.fwVraag = function(opties){
+    var o = opties || {};
+    return new Promise(function(res){
+      klaar = res;
+      $$('fwqTitel').textContent = o.titel || '';
+      $$('fwqSub').textContent = o.uitleg || '';
+      $$('fwqSub').style.display = o.uitleg ? '' : 'none';
+
+      var h = '';
+      (o.velden || []).forEach(function(v){
+        h += '<label for="fwq_' + v.naam + '">' + esc(v.label) + '</label>';
+        var attr = 'id="fwq_' + v.naam + '" data-veld="' + v.naam + '"' +
+          (v.verplicht ? ' data-verplicht="' + esc(v.verplicht) + '"' : '');
+        if (v.type === 'tekst') {
+          h += '<textarea ' + attr + ' placeholder="' + esc(v.plaats || '') + '">' + esc(v.waarde || '') + '</textarea>';
+        } else if (v.type === 'keuze') {
+          h += '<select ' + attr + '>' + (v.opties || []).map(function(k){
+            return '<option value="' + esc(k[0]) + '"' + (k[0] === v.waarde ? ' selected' : '') + '>' + esc(k[1]) + '</option>';
+          }).join('') + '</select>';
+        } else if (v.type === 'meer') {
+          h += '<div class="fwq-meer" data-veld="' + v.naam + '"' +
+            (v.verplicht ? ' data-verplicht="' + esc(v.verplicht) + '"' : '') + '>' +
+            (v.opties || []).map(function(k){
+              return '<label class="fwq-vink"><input type="checkbox" value="' + esc(k[0]) + '">' +
+                '<span>' + esc(k[1]) + '</span></label>';
+            }).join('') +
+            ((v.opties || []).length ? '' : '<div class="fwq-leeg">Nog geen leveranciers in de lijst.</div>') +
+            '</div>';
+        } else {
+          h += '<input type="' + (v.type === 'datum' ? 'date' : 'text') + '" ' + attr +
+            ' value="' + esc(v.waarde || '') + '" placeholder="' + esc(v.plaats || '') + '">';
+        }
+        if (v.snel && v.snel.length) {
+          h += '<div class="fwq-snel">' + v.snel.map(function(t){
+            return '<button type="button" onclick="fwqSnel(\'' + v.naam + '\',\'' + esc(t).replace(/'/g,'') + '\')">' + esc(t) + '</button>';
+          }).join('') + '</div>';
+        }
+      });
+      $$('fwqBody').innerHTML = h;
+
+      $$('fwqJa').textContent = o.ok || 'Opslaan';
+      $$('fwqNee').textContent = o.annuleer || 'Annuleren';
+      $$('fwqJa').classList.toggle('gevaar', !!o.gevaar);
+      $$('fwqWrap').classList.add('on');
+      document.body.classList.add('fwq-open');
+
+      setTimeout(function(){
+        var e = $$('fwqBody').querySelector('[data-veld]');
+        if (e) { e.focus(); if (e.select) e.select(); }
+      }, 60);
+    });
+  };
+
+  window.fwqSnel = function(naam, tekst){
+    var v = $$('fwq_' + naam);
+    if (!v) return;
+    v.value = v.value.trim() ? v.value.trim() + ' ' + tekst : tekst;
+    v.focus();
+  };
+
+  /* Ja/nee-vraag in dezelfde stijl. */
+  window.fwBevestig = function(titel, uitleg, okTekst, gevaar){
+    return window.fwVraag({ titel: titel, uitleg: uitleg, velden: [],
+      ok: okTekst || 'Ja, doorgaan', gevaar: gevaar }).then(function(r){ return r !== null; });
+  };
+
+  document.addEventListener('click', function(e){
+    var w = $$('fwqWrap');
+    if (w && w.classList.contains('on') && e.target === w) window.fwqSluit();
+  });
+
+  document.addEventListener('keydown', function(e){
+    if (!$$('fwqWrap') || !$$('fwqWrap').classList.contains('on')) return;
+    if (e.key === 'Escape') window.fwqSluit();
+    if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') { e.preventDefault(); window.fwqOk(); }
+  });
 })();
 </script>
