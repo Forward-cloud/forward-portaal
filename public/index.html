@@ -5782,7 +5782,12 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
     var v = document.getElementById('view-detail');
     v.classList.add('fwk');
     v.innerHTML = '<div class="fwk-wrap"><div class="fwk-leeg">Dossier laden\u2026</div></div>';
-    if (typeof show === 'function') show('detail');
+    // Het portaal wisselt van scherm met setView().
+    if (typeof setView === 'function') setView('detail');
+    else {
+      document.querySelectorAll('.view').forEach(function(x){ x.classList.remove('active'); });
+      v.classList.add('active');
+    }
     laadAlles(nr);
   };
 
@@ -5866,6 +5871,10 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
   window.fwkKlant = function(){ klant = !klant; teken(); };
   window.fwkRoute = function(){ routeOpen = !routeOpen; teken(); };
   window.fwkTab = function(t){ tab = t; teken(); };
+  window.fwkTerug = function(){
+    var btn = document.querySelector('.nav-item[data-view=schades]');
+    if (typeof setView === 'function') setView('schades', btn);
+  };
 
   window.fwkDeel = function(id, aan){
     api('/api/documenten/'+id,{method:'PATCH',body:JSON.stringify({gedeeld:aan})})
@@ -5933,7 +5942,7 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
     var x = '<div class="fwk-wrap">';
 
     /* kop */
-    x += '<button class="fwk-terug" onclick="show(\'schades\')">'+
+    x += '<button class="fwk-terug" onclick="fwkTerug()">'+
       '<svg viewBox="0 0 24 24" fill="none"><path d="M15 6l-6 6 6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Alle schades</button>';
 
     x += '<div class="fwk-kop"><div>'+
