@@ -35,7 +35,7 @@ const LIJST = {
   'FS-2026-0002': ['', ''],               // Kaapstraat 67A
   'FS-2026-0003': ['', ''],               // Goudenregenplein 60
   'FS-2026-0004': ['', ''],               // Schepenstraat 112A
-  'FS-2026-0005': ['', ''],               // Jasmijnstraat 14
+  'FS-2026-0005': ['2563 RW', 'Den Haag'],// Jasmijnstraat 14
   'FS-2026-0006': ['2524 CK', 'Den Haag'],// Guido Gezellestraat 1
   'FS-2026-0007': ['', ''],               // Rhenenstraat 75
   'FS-2026-0008': ['', ''],               // Valkenboskade 358
