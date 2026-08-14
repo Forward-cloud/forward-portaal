@@ -1,5 +1,9 @@
 const { isDirectie } = require('../auth/roles');
-const { normaliseerHaltes, volgendeHalte, isAfgerond, positie } = require('./haltes');
+const {
+  normaliseerHaltes, volgendeHalte, isAfgerond, positie,
+  halteNaam, halteNamen, isEigenRisico, standen,
+  tellerVanaf, tellerLoopt, dagenOpen, termijnOver, bronBlokkeert,
+} = require('./haltes');
 
 // Standaard documentenlijst van een dossier (later uit de DB / opslag)
 const DOCS = [
@@ -47,6 +51,8 @@ function schadeForUser(s, user) {
     totaal: positie(s.step, haltes).totaal,
 
     bronStatus: s.bronStatus,
+    bronBeoordeeld: s.bronBeoordeeld,
+    bronAanbod: s.bronAanbod,
     bronFactuur: s.bronFactuur,
     bronDoorOns: s.bronDoorOns,
     weigerReden: s.weigerReden,
@@ -69,6 +75,27 @@ function schadeForUser(s, user) {
       notitie: l.notitie, hoofd: l.hoofd,
     })),
     aantalLocaties: (s.locaties || []).length,
+
+    // Werkgangen per adres
+    uitvoeringen: (s.uitvoeringen || []).map((u) => ({
+      id: u.id, locatieId: u.locatieId, datum: u.datum, starttijd: u.starttijd,
+      uren: u.uren, omschrijving: u.omschrijving, afgerond: u.afgerond,
+      afgerondAt: u.afgerondAt, doorNaam: u.doorNaam,
+    })),
+
+    // Wat er openstaat. Blijft staan als de halte verspringt.
+    actiepunten: (s.actiepunten || []).map((a) => ({
+      id: a.id, soort: a.soort, tekst: a.tekst, open: a.open,
+      klant: a.klant, afgerondAt: a.afgerondAt, doorNaam: a.doorNaam,
+    })),
+    openActiepunten: (s.actiepunten || []).filter((a) => a.open).length,
+
+    // De behandelaar staat onder de brieven en op de bonnen.
+    behandelaarId: s.behandelaarId,
+    behandelaar: s.behandelaar
+      ? { id: s.behandelaar.id, naam: s.behandelaar.naam, role: s.behandelaar.role }
+      : null,
+
     afwijzingAt: s.afwijzingAt,
     naAfwijzing: s.naAfwijzing,
     betalerNaAfwijzing: s.betalerNaAfwijzing,
@@ -92,11 +119,28 @@ function schadeForUser(s, user) {
     tussenpersoonRel: s.tussenpersoonRel || null,
 
     verzStatus: s.verzStatus,
+    verzStatusLabel: (standen(s.preset) || {})[s.verzStatus] || null,
     verzSchadenummer: s.verzSchadenummer,
     verzEmail: s.verzEmail,
     tussenpersoon: s.tussenpersoon,
     verzIngediendAt: s.verzIngediendAt,
     afwijzingReden: s.afwijzingReden,
+
+    // Termijnbewaking. De teller staat stil zolang de bal bij ons ligt.
+    herinnerDagen: s.herinnerDagen,
+    herinnerAantal: s.herinnerAantal,
+    herinnerLaatstAt: s.herinnerLaatstAt,
+    infoVerstuurdAt: s.infoVerstuurdAt,
+    tellerVanaf: tellerVanaf(s),
+    tellerLoopt: tellerLoopt(s),
+    dagenOpen: dagenOpen(s),
+    termijnOver: termijnOver(s),
+
+    // Bij eigen risico heten halte 5 en 6 anders, en betaalt de klant zelf.
+    eigenRisico: isEigenRisico(s.preset),
+    halteNamen: halteNamen(s.preset),
+    halteNaam: halteNaam(s.step, s.preset),
+    bronBlokkade: bronBlokkeert(s, s.step + 1),
 
     wachtReden: s.wachtReden,
     wachtTot: s.wachtTot,
@@ -114,13 +158,30 @@ function schadeForUser(s, user) {
     updatedAt: s.updatedAt,
   };
   if (isDirectie(user)) {
+    const omzet = s.finHerstelOmzet || 0;
+    const inkoop = s.finHerstelInkoop || 0;
+    const uitbesteed = s.finHerstelUitbesteed || 0;
+    const expertise = s.finExpertiseOmzet || 0;
+    const marge = omzet - inkoop - uitbesteed;
+
     base.profit = s.profit;
     base.fin = {
-      expertiseOmzet: s.finExpertiseOmzet,
-      herstelOmzet: s.finHerstelOmzet,
-      herstelInkoop: s.finHerstelInkoop,
-      herstelUitbesteed: s.finHerstelUitbesteed,
+      expertiseOmzet: expertise,
+      herstelOmzet: omzet,
+      herstelInkoop: inkoop,
+      herstelUitbesteed: uitbesteed,
+      // De marge gaat over het herstel. De expertise staat er los naast,
+      // en telt wel mee in de totale schadeomzet.
+      marge,
+      margeInclusiefRapport: marge + expertise,
+      totaleOmzet: omzet + expertise,
     };
+    base.facturen = (s.facturen || []).map((f) => ({
+      id: f.id, nummer: f.nummer, status: f.status, jorttStatus: f.jorttStatus,
+      datum: f.datum, termijn: f.termijn, vervaltAt: f.vervaltAt,
+      aanNaam: f.aanNaam, totaal: f.totaal, openstaand: f.openstaand,
+      verstuurdAt: f.verstuurdAt, betaaldAt: f.betaaldAt, herinneringen: f.herinneringen,
+    }));
   }
   return base;
 }
@@ -130,6 +191,7 @@ function schadeForUser(s, user) {
 function schadeForClient(s) {
   const dv = s.docVisible || {};
   const documents = DOCS.filter((d) => dv[d.key]).map((d) => ({ naam: d.naam, ico: d.ico, kleur: d.kleur }));
+  const haltes = normaliseerHaltes(s.haltes);
   return {
     nummer: s.nummer,
     owner: s.owner,
@@ -139,8 +201,24 @@ function schadeForClient(s) {
     status: s.status,
     step: s.step,
     traject: s.traject,
-    haltes: normaliseerHaltes(s.haltes),
+    haltes,
+    halteNamen: halteNamen(s.preset),
+    halteNaam: halteNaam(s.step, s.preset),
+    positie: positie(s.step, haltes).positie,
+    totaal: positie(s.step, haltes).totaal,
+    eigenRisico: isEigenRisico(s.preset),
+    verzStatus: s.verzStatus,
+    verzStatusLabel: (standen(s.preset) || {})[s.verzStatus] || null,
     bronStatus: s.bronStatus,
+    // Alleen de punten die voor de klant bedoeld zijn.
+    actiepunten: (s.actiepunten || [])
+      .filter((a) => a.open && a.klant)
+      .map((a) => ({ tekst: a.tekst })),
+    // Alleen wat er echt staat, geen interne planning.
+    uitvoeringen: (s.uitvoeringen || []).map((u) => ({
+      datum: u.datum, starttijd: u.starttijd, uren: u.uren,
+      omschrijving: u.omschrijving, afgerond: u.afgerond,
+    })),
     documents,
   };
 }
