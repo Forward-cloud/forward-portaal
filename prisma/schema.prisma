@@ -36,6 +36,9 @@ model User {
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
   logs         LogEntry[]
+
+  // Dossiers waar deze medewerker op staat
+  behandelt Schade[] @relation("SchadeBehandelaar")
 }
 
 model Relatie {
@@ -52,6 +55,13 @@ model Relatie {
   contactpersoon String?
   notitie        String?
   reactietermijn Int          @default(7)
+  // Waar deze leverancier goed in is. Bepaalt welke namen je te zien krijgt
+  // als je een opdrachtbon of prijsaanvraag maakt.
+  vakken         String[]     @default([])
+  land           String?      @default("Nederland")
+  kvk            String?
+  btwNummer      String?
+  iban           String?
   factuurwijze   String       @default("per_klus")
   btwVerlegd     Boolean      @default(true)
   actief         Boolean      @default(true)
@@ -106,6 +116,14 @@ model Schade {
   verzEmail        String?
   tussenpersoon    String?
   verzIngediendAt  DateTime?
+
+  // Termijnbewaking: de teller loopt vanaf indienen, de laatste herinnering
+  // of onze eigen aanlevering -- welke van die drie het laatst was.
+  herinnerDagen    Int       @default(7)
+  herinnerAantal   Int       @default(0)
+  herinnerLaatstAt DateTime?
+  infoVerstuurdAt  DateTime?
+
   afwijzingReden   String?
   afwijzingAt      DateTime?
   naAfwijzing      String?   // herstel | gesloten
@@ -126,7 +144,13 @@ model Schade {
   weigerReden String?
   weigerAt    DateTime?
 
+  // Wie het dossier behandelt. Deze naam komt onder de brieven en op de bonnen.
+  behandelaar    User?     @relation("SchadeBehandelaar", fields: [behandelaarId], references: [id])
+  behandelaarId  String?
+
   bronStatus     String    @default("nvt")
+  bronBeoordeeld Boolean   @default(false) // pas na beoordelen kleurt de kaart rood
+  bronAanbod     String?   // prijs | mandaat -- wij boden aan de bron zelf op te lossen
   bronFactuur    Boolean   @default(false)
   bronDoorOns    Boolean   @default(false)
   bronOpmerking  String?
@@ -150,6 +174,9 @@ model Schade {
   offertes       Offerte[]
   afspraken      Afspraak[]
   opdrachtbonnen Opdrachtbon[]
+  uitvoeringen   Uitvoering[]
+  actiepunten    Actiepunt[]
+  facturen       Factuur[]
   logs           LogEntry[]
 
   createdAt DateTime @default(now())
@@ -184,10 +211,109 @@ model Locatie {
   opgeleverdAt DateTime?
   notitie      String?
 
+  uitvoeringen Uitvoering[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([schadeId, volgorde])
+}
+
+// Eén werkgang op één adres. Meerdere per adres mag: sloopwerk maandag,
+// stucwerk woensdag, schilderwerk vrijdag.
+model Uitvoering {
+  id           String    @id @default(cuid())
+  schade       Schade    @relation(fields: [schadeId], references: [id], onDelete: Cascade)
+  schadeId     String
+  locatie      Locatie?  @relation(fields: [locatieId], references: [id], onDelete: SetNull)
+  locatieId    String?
+
+  datum        DateTime
+  starttijd    String?   // '08.00'
+  uren         Int       @default(8)
+  omschrijving String
+
+  afgerond     Boolean   @default(false)
+  afgerondAt   DateTime?
+  doorNaam     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([schadeId, datum])
+}
+
+// Wat er nu open staat. Blijft staan als de halte verspringt.
+model Actiepunt {
+  id        String    @id @default(cuid())
+  schade    Schade    @relation(fields: [schadeId], references: [id], onDelete: Cascade)
+  schadeId  String
+  soort     String    // machtiging | bron | herinnering | bellen | info | herstel | offerte | klant
+  tekst     String
+  open      Boolean   @default(true)
+  klant     Boolean   @default(false) // ziet de klant dit punt
+  afgerondAt DateTime?
+  doorNaam  String?
+  createdAt DateTime  @default(now())
+
+  @@index([schadeId, open])
+}
+
+// Verkoopfactuur. Het nummer komt van Jortt zodra die koppeling er is;
+// zolang dat niet zo is vullen wij het zelf.
+model Factuur {
+  id          String    @id @default(cuid())
+  schade      Schade    @relation(fields: [schadeId], references: [id], onDelete: Cascade)
+  schadeId    String
+  nummer      String?   @unique
+  jorttId     String?   // id van de factuur in Jortt
+
+  datum       DateTime  @default(now())
+  termijn     Int       @default(30)
+  vervaltAt   DateTime?
+  aan         String    @default("klant") // klant | beheerder | verzekeraar
+  aanSoort    String    @default("bedrijf") // bedrijf | particulier
+  aanNaam     String
+  aanTav      String?
+  aanStraat   String?
+  aanPostcode String?
+  aanPlaats   String?
+  aanLand     String?   @default("Nederland")
+  aanExtra    String?
+  aanKvk      String?   // voor e-facturatie via Peppol
+  aanEmail    String?
+  aanhef      String?   // aanhef in de begeleidende mail
+  ccEmails    String?
+
+  // Jortt kent twee referenties: de onze en die van de klant.
+  verkooporder String?  // ons dossiernummer
+  inkooporder  String?  // opdrachtnummer van de beheerder
+
+  leverMaand  String?   // 2026-08
+  leverTot    String?   // bij een levering langer dan een maand
+  bedragenIncl Boolean  @default(false)
+  btwVerlegd  Boolean   @default(false)
+  regels      Json      @default("[]") // [{ omschrijving, aantal, prijs, btw }]
+  korting     Json?     // { soort, waarde, omschrijving }
+  intro       String?   // opmerking boven de regels
+  notitie     String?   // opmerking onder de regels
+
+  subtotaal   Int       @default(0) // in centen, exclusief btw
+  btwBedrag   Int       @default(0)
+  totaal      Int       @default(0)
+
+  status      String    @default("concept") // concept | verstuurd | betaald | vervallen
+  jorttStatus String?   // wat jortt zelf teruggeeft
+  verstuurdAt DateTime?
+  betaaldAt   DateTime?
+  openstaand  Int?      // in centen, uit jortt
+  herinneringen Int     @default(0) // door jortt verstuurd
+  doorNaam    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([schadeId, status])
 }
 
 model Document {
@@ -226,6 +352,18 @@ model Opdrachtbon {
   uitvoerenOp   DateTime?
   tijdvak       String?
   soort         String    @default("opdracht") // aanvraag | opdracht
+  vak           String?   // stuc | schilder | tegel | loodgieter | dak | elektra | ...
+  kanaal        String?   // mail | app
+  maxBedrag     Int?      // plafond bij een mandaat, in centen
+  btwVorm       String    @default("excl") // excl | incl | verlegd
+  openCount     Int       @default(0)
+  geopendAt     DateTime?
+  besluitAt     DateTime?
+  akkoordNaam   String?
+  weigerReden   String?
+  gebeurtenissen Json     @default("[]") // verstuurd, geopend, herinnerd, besluit
+  // Bij een prijsaanvraag: per leverancier wat er terugkwam.
+  reacties      Json      @default("{}")
   bedrag        Int       @default(0)   // in centen, exclusief btw
   prijsvorm     String    @default("vast") // vast | mandaat | regie
   reactieVoor   DateTime?
@@ -235,7 +373,7 @@ model Opdrachtbon {
   btwVerlegd    Boolean   @default(true)
   bewonerMee    Boolean   @default(true)
   documentIds   String[]
-  status        String    @default("concept") // concept | verstuurd | afgemeld | gefactureerd
+  status        String    @default("concept") // concept | verstuurd | geopend | geaccepteerd | geweigerd | afgemeld | gefactureerd
   verstuurdAt   DateTime?
   afgemeldAt    DateTime?
   herinnerdAt   DateTime?
@@ -267,6 +405,7 @@ model Afspraak {
   besluitAt    DateTime?
   naam         String?
   reden        String?
+  tegenDatum   DateTime? // de datum die de klant zelf voorstelt
   ip           String?
 
   geopendAt    DateTime?
