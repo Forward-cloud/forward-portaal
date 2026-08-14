@@ -13,35 +13,35 @@ const prisma = require('./db');
 
 // Dossiernummer, postcode, plaats. Laat staan wat je nog niet weet.
 const LIJST = {
-  'FS-2025-0001': ['', ''],             // Athenesingel 43
-  'FS-2025-0002': ['', ''],             // van der Helsstraat 22
-  'FS-2025-0003': ['', ''],             // Jan van der Heijdenstraat 194
-  'FS-2025-0004': ['', ''],             // Valeriusstraat 50
-  'FS-2025-0005': ['', ''],             // Acacialaan 25
-  'FS-2025-0006': ['', ''],             // Woudenbergstraat 71
+  'FS-2025-0001': ['', ''],               // Athenesingel 43
+  'FS-2025-0002': ['2526 BD', 'Den Haag'],// Van der Helststraat 22
+  'FS-2025-0003': ['', ''],               // Jan van der Heijdenstraat 194
+  'FS-2025-0004': ['2517 HS', 'Den Haag'],// Valeriusstraat 50
+  'FS-2025-0005': ['2282 AW', 'Rijswijk'],// Acacialaan 25
+  'FS-2025-0006': ['', ''],               // Woudenbergstraat 71
   'FS-2025-0007': ['2525 ER', 'Den Haag'],// De Heemstraat 216
   'FS-2025-0008': ['2522 TD', 'Den Haag'],// Oudemansstraat 298
-  'FS-2025-0009': ['', ''],             // Monstersestraat 176
+  'FS-2025-0009': ['', ''],               // Monstersestraat 176
   'FS-2025-0010': ['2562 TN', 'Den Haag'],// Vinkensteynstraat 115
   'FS-2025-0011': ['2572 CC', 'Den Haag'],// Brandtstraat 119
-  'FS-2025-0012': ['', ''],             // Pasteurstraat 248
-  'FS-2025-0013': ['', ''],             // Harderwijkstraat 152
-  'FS-2025-0014': ['', ''],             // J.J.Heggekade 56
-  'FS-2025-0015': ['', ''],             // Athenesingel 57
-  'FS-2025-0016': ['', ''],             // De La Reyweg 457
-  'FS-2025-0017': ['', ''],             // Pleinweg 208B
-  'FS-2025-0018': ['', ''],             // Pasteurstraat 274
-  'FS-2026-0001': ['', ''],             // Dierenselaan 177
-  'FS-2026-0002': ['', ''],             // Kaapstraat 67A
-  'FS-2026-0003': ['', ''],             // Goudenregenplein 60
-  'FS-2026-0004': ['', ''],             // Schepenstraat 112A
-  'FS-2026-0005': ['', ''],             // Jasmijnstraat 14
+  'FS-2025-0012': ['', ''],               // Pasteurstraat 248
+  'FS-2025-0013': ['', ''],               // Harderwijkstraat 152
+  'FS-2025-0014': ['', ''],               // J.J.Heggekade 56
+  'FS-2025-0015': ['', ''],               // Athenesingel 57
+  'FS-2025-0016': ['', ''],               // De La Reyweg 457
+  'FS-2025-0017': ['', ''],               // Pleinweg 208B
+  'FS-2025-0018': ['', ''],               // Pasteurstraat 274
+  'FS-2026-0001': ['', ''],               // Dierenselaan 177
+  'FS-2026-0002': ['', ''],               // Kaapstraat 67A
+  'FS-2026-0003': ['', ''],               // Goudenregenplein 60
+  'FS-2026-0004': ['', ''],               // Schepenstraat 112A
+  'FS-2026-0005': ['', ''],               // Jasmijnstraat 14
   'FS-2026-0006': ['2524 CK', 'Den Haag'],// Guido Gezellestraat 1
-  'FS-2026-0007': ['', ''],             // Rhenenstraat 75
-  'FS-2026-0008': ['', ''],             // Valkenboskade 358
-  'FS-2026-0009': ['', ''],             // Van Oestendestraat 17B
-  'FS-2026-0010': ['', ''],             // Amelandseplein 10C
-  'FS-2026-0011': ['', ''],             // Bussumsestraat 58
+  'FS-2026-0007': ['', ''],               // Rhenenstraat 75
+  'FS-2026-0008': ['', ''],               // Valkenboskade 358
+  'FS-2026-0009': ['', ''],               // Van Oestendestraat 17B
+  'FS-2026-0010': ['', ''],               // Amelandseplein 10C
+  'FS-2026-0011': ['', ''],               // Bussumsestraat 58
 };
 
 function schoonPostcode(p) {

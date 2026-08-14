@@ -15,6 +15,7 @@ const prisma = require('./db');
 
 // Dossiernummer -> het juiste adres.
 const CORRECTIES = {
+  'FS-2025-0002': 'Van der Helststraat 22',
   'FS-2025-0007': 'De Heemstraat 216',
   'FS-2025-0008': 'Oudemansstraat 298',
   'FS-2025-0010': 'Vinkensteynstraat 115',
