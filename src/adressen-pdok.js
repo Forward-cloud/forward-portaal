@@ -15,13 +15,9 @@ const prisma = require('./db');
 
 const PDOK = 'https://api.pdok.nl/bzk/locatieserver/search/v3_1/free';
 
-// Waar jullie werken. Een adres buiten deze plaatsen wordt niet vanzelf
-// ingevuld, ook al vindt PDOK er een. Vul de lijst gerust aan.
-const REGIO = [
-  'Den Haag', "'s-Gravenhage", 'Rotterdam', 'Rijswijk', 'Delft', 'Voorburg',
-  'Leidschendam', 'Zoetermeer', 'Wassenaar', 'Schiedam', 'Vlaardingen',
-  'Capelle aan den IJssel', 'Barendrecht', 'Pijnacker', 'Nootdorp',
-];
+// Waar jullie werken. Alles daarbuiten wordt niet ingevuld, ook al vindt PDOK
+// er een. Komt er later een andere plaats bij, zet die er dan gewoon achter.
+const REGIO = ["'s-Gravenhage", 'Den Haag', 'Rotterdam', 'Rijswijk'];
 
 const pauze = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -48,24 +44,39 @@ async function zoek(adres) {
   }));
 }
 
+// 'J.J.Heggekade' en 'J.J. Heggekade' zijn dezelfde straat.
+function kaal(naam) {
+  return String(naam || '').toLowerCase().replace(/[^a-z]/g, '');
+}
+
 function kiesBeste(treffers, adres) {
   const uit = ontleed(adres);
   const nummer = (uit.nummer + uit.toevoeging).toUpperCase();
 
-  // Eerst op huisnummer inclusief toevoeging, anders op het kale nummer.
-  let passend = treffers.filter((t) => t.nummer.toUpperCase().replace(/\s/g, '') === nummer);
-  if (!passend.length) passend = treffers.filter((t) => t.nummer.replace(/\D/g, '') === uit.nummer);
-  if (!passend.length) passend = treffers;
-
-  const inRegio = passend.filter((t) => REGIO.some((p) => t.plaats.toLowerCase() === p.toLowerCase()));
-  const keuze = inRegio.length ? inRegio : passend;
-
-  // Alleen zeker als er precies één plaats overblijft.
-  const plaatsen = [...new Set(keuze.map((t) => `${t.postcode}|${t.plaats}`))];
-  if (plaatsen.length === 1 && keuze[0].postcode) {
-    return { zeker: true, treffer: keuze[0], buitenRegio: !inRegio.length };
+  // De straatnaam moet kloppen. Zonder deze controle matcht PDOK soms op
+  // alleen het huisnummer, en dan krijg je een heel andere straat terug.
+  const zelfdeStraat = treffers.filter((t) => kaal(t.straat) === kaal(uit.straat));
+  if (!zelfdeStraat.length) {
+    return { zeker: false, reden: 'straatnaam komt niet overeen', opties: treffers.slice(0, 5) };
   }
-  return { zeker: false, opties: keuze.slice(0, 5) };
+
+  // Eerst op huisnummer inclusief toevoeging, anders op het kale nummer.
+  let passend = zelfdeStraat.filter((t) => t.nummer.toUpperCase().replace(/\s/g, '') === nummer);
+  if (!passend.length) passend = zelfdeStraat.filter((t) => t.nummer.replace(/\D/g, '') === uit.nummer);
+  if (!passend.length) passend = zelfdeStraat;
+
+  // Buiten jullie werkgebied vullen we niets in. Liever leeg dan verkeerd.
+  const inRegio = passend.filter((t) => REGIO.some((p) => t.plaats.toLowerCase() === p.toLowerCase()));
+  if (!inRegio.length) {
+    return { zeker: false, reden: 'alleen treffers buiten jullie regio', opties: passend.slice(0, 5) };
+  }
+
+  // Alleen zeker als er precies één adres overblijft.
+  const uniek = [...new Set(inRegio.map((t) => `${t.postcode}|${t.plaats}`))];
+  if (uniek.length === 1 && inRegio[0].postcode) {
+    return { zeker: true, treffer: inRegio[0] };
+  }
+  return { zeker: false, reden: 'meerdere mogelijkheden', opties: inRegio.slice(0, 5) };
 }
 
 async function main() {
@@ -113,8 +124,7 @@ async function main() {
     if (uitslag.zeker) {
       const t = uitslag.treffer;
       gevonden++;
-      const let_ = uitslag.buitenRegio ? '   (let op: buiten jullie regio)' : '';
-      console.log(`  ${nr}  ${l.adres}  ->  ${t.postcode}  ${t.plaats}${let_}`);
+      console.log(`  ${nr}  ${l.adres}  ->  ${t.postcode}  ${t.plaats}`);
 
       if (opslaan) {
         await prisma.locatie.update({
@@ -127,20 +137,24 @@ async function main() {
       }
     } else {
       twijfel++;
-      console.log(`  ${nr}  ${l.adres}  ->  meerdere mogelijkheden:`);
+      console.log(`  ${nr}  ${l.adres}  ->  ${uitslag.reden}:`);
       uitslag.opties.forEach((t) => console.log(`        ${t.postcode}  ${t.plaats}   (${t.naam})`));
+      // Klaar om over te nemen in src/adressen-aanvullen.js
+      const eerste = uitslag.opties[0];
+      console.log(`        '${nr}': ['${eerste ? eerste.postcode : ''}', '${eerste ? eerste.plaats : ''}'],   // ${l.adres}`);
     }
 
     await pauze(250);
   }
 
   console.log('');
-  console.log(`${gevonden} zeker, ${twijfel} met meerdere mogelijkheden, ${niets} niet gevonden.`);
+  console.log(`${gevonden} zeker, ${twijfel} onzeker, ${niets} niet gevonden.`);
   if (!opslaan && gevonden) {
     console.log('Draai hetzelfde commando met  opslaan  erachter om ze weg te schrijven.');
   }
   if (twijfel) {
-    console.log('De twijfelgevallen vul je met de hand in via src/adressen-aanvullen.js.');
+    console.log('De onzekere gevallen vul je met de hand in via src/adressen-aanvullen.js.');
+    console.log('Klopt een straatnaam niet, kijk dan of het adres in het dossier goed staat.');
   }
 }
 
