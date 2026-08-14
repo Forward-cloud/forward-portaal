@@ -26,14 +26,14 @@ app.use('/api', require('./routes/verzenden.routes'));
 app.use('/api', require('./routes/locaties.routes'));
 app.use('/api', require('./routes/afspraken.routes'));
 app.use('/api', require('./routes/opdrachtbonnen.routes'));
+app.use('/api', require('./routes/uitvoeringen.routes'));
+app.use('/api', require('./routes/actiepunten.routes'));
 app.use('/api', require('./routes/offerte.routes'));
-// De klant opent de offerte zonder in te loggen.
+
+// De klant opent de offerte en kiest een afspraakmoment zonder in te loggen.
 app.use('/', require('./routes/offerte.routes'));
-// De klant kiest een afspraakmoment zonder in te loggen.
 app.use('/', require('./routes/afspraken.routes'));
-app.use('/api', require('./routes/offerte.routes'));
-// De klant opent de offerte zonder in te loggen.
-app.use('/', require('./routes/offerte.routes'));
+
 app.use('/api/portal', require('./routes/portal.routes'));
 
 app.use(express.static(path.join(__dirname, '..', 'public')));
