@@ -2,7 +2,11 @@ const express = require('express');
 const prisma = require('../db');
 const { requireAuth, isDirectie } = require('../auth/middleware');
 const { schadeForUser } = require('../lib/serialize');
-const { VERSIE, PRESETS, BRON_STATUS, haltesVoorPreset, normaliseerHaltes, leidAfUitKaart, bronBlokkeert, positie } = require('../lib/haltes');
+const {
+  VERSIE, PRESETS, BRON_STATUS, ACTIEPUNTEN,
+  haltesVoorPreset, normaliseerHaltes, leidAfUitKaart, bronBlokkeert, positie,
+  isEigenRisico, standen, termijnOver, dagenOpen,
+} = require('../lib/haltes');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -89,8 +93,10 @@ router.get('/', async (req, res) => {
       offertes: { orderBy: { verstuurdAt: 'desc' } },
       locaties: { orderBy: [{ hoofd: 'desc' }, { volgorde: 'asc' }] },
       opdrachtbonnen: { select: { soort: true, bedrag: true, status: true, reactieVoor: true } },
+      actiepunten: { where: { open: true } },
       verzekeraar: true,
       tussenpersoonRel: true,
+      behandelaar: { select: { id: true, naam: true, role: true } },
     },
   });
   res.json({ schades: schades.map((s) => schadeForUser(s, req.user)) });
@@ -107,8 +113,13 @@ router.get('/:nummer', async (req, res) => {
     where: { nummer: req.params.nummer },
     include: {
       locaties: { orderBy: [{ hoofd: 'desc' }, { volgorde: 'asc' }] },
+      uitvoeringen: { orderBy: { datum: 'asc' } },
+      actiepunten: { orderBy: [{ open: 'desc' }, { createdAt: 'asc' }] },
+      facturen: { orderBy: { createdAt: 'desc' } },
+      offertes: { orderBy: { verstuurdAt: 'desc' } },
       verzekeraar: true,
       tussenpersoonRel: true,
+      behandelaar: { select: { id: true, naam: true, role: true } },
     },
   });
   if (!s) return res.status(404).json({ error: 'Dossier niet gevonden' });
@@ -242,6 +253,10 @@ router.patch('/:nummer', async (req, res) => {
   if (b.step !== undefined) data.step = Number(b.step) || 1;
 
   if (b.bronDoorReden !== undefined) data.bronDoorReden = b.bronDoorReden || null;
+  if (b.behandelaarId !== undefined) data.behandelaarId = b.behandelaarId || null;
+  if (b.herinnerDagen !== undefined) {
+    data.herinnerDagen = Math.max(1, Math.min(Number(b.herinnerDagen) || 7, 60));
+  }
   if (b.gefactureerd !== undefined) data.gefactureerd = !!b.gefactureerd;
   if (b.uitvoeringAt !== undefined) data.uitvoeringAt = datum(b.uitvoeringAt);
   if (b.opnameAt !== undefined) data.opnameAt = datum(b.opnameAt);
@@ -257,7 +272,7 @@ router.patch('/:nummer', async (req, res) => {
 
   // Verzekeraarstatus — afwijzing sluit het dossier
   if (b.verzStatus !== undefined) {
-    const geldig = ['geen', 'ingediend', 'informatie', 'akkoord', 'afgewezen', 'doorverwezen'];
+    const geldig = ['geen', 'ingediend', 'informatie', 'akkoord', 'afgewezen'];
     if (!geldig.includes(b.verzStatus)) return res.status(400).json({ error: 'Onbekende verzekeraarstatus' });
     data.verzStatus = b.verzStatus;
     // Indienen zet de indieningsdatum automatisch, tenzij die wordt meegegeven.
@@ -351,13 +366,291 @@ router.post('/:nummer/bron', async (req, res) => {
   }
   const data = {
     bronStatus: status,
+    bronBeoordeeld: true,
     bronOpmerking: opmerking ? String(opmerking).trim() : null,
     bronHersteldAt: status === 'hersteld' ? new Date() : null,
   };
+  // Is de bron in orde, dan vervalt een lopend aanbod om hem zelf op te lossen.
+  if (status === 'hersteld' || status === 'nvt') data.bronAanbod = null;
   if (status !== 'onvoldoende') data.bronDoorReden = null;
 
   const s = await prisma.schade.update({ where: { nummer: req.params.nummer }, data });
   await log(req.user, `Bron ${BRON_STATUS[status].toLowerCase()}: ${s.nummer}` + (data.bronOpmerking ? ` — ${data.bronOpmerking}` : ''));
+  res.json({ schade: schadeForUser(s, req.user) });
+});
+
+/* ─────────── opdracht aannemen of weigeren ───────────
+   Bij aannemen kies je meteen de route, want daar hangt aan of er een
+   machtiging nodig is. */
+router.post('/:nummer/aannemen', async (req, res) => {
+  const preset = String(req.body?.preset || '').trim();
+  if (!PRESETS[preset]) return res.status(400).json({ error: 'Kies een route voor dit dossier.' });
+
+  const s = await prisma.schade.update({
+    where: { nummer: req.params.nummer },
+    data: {
+      preset,
+      haltes: haltesVoorPreset(preset),
+      status: 'prog',
+      aangenomenAt: new Date(),
+    },
+    include: { locaties: true, actiepunten: true, verzekeraar: true },
+  }).catch(() => null);
+  if (!s) return res.status(404).json({ error: 'Dossier niet gevonden' });
+
+  // Alleen de volledige route loopt via de verzekeraar, en daar is een
+  // getekende machtiging voor nodig.
+  if (preset === 'volledig') {
+    const open = await prisma.actiepunt.findFirst({
+      where: { schadeId: s.id, soort: 'machtiging', open: true },
+    });
+    if (!open) {
+      await prisma.actiepunt.create({
+        data: {
+          schadeId: s.id,
+          soort: 'machtiging',
+          tekst: `Machtiging aanvragen bij ${s.opdrachtgever || s.owner}`,
+          klant: true,
+          doorNaam: req.user.naam,
+        },
+      });
+    }
+  }
+
+  await log(req.user, `Opdracht aangenomen: ${s.nummer}`, { schadeId: s.id, detail: PRESETS[preset].label });
+  res.json({ schade: schadeForUser(s, req.user) });
+});
+
+router.post('/:nummer/weigeren', async (req, res) => {
+  const reden = String(req.body?.reden || '').trim();
+  if (!reden) return res.status(400).json({ error: 'Geef een reden op. Die gaat naar de opdrachtgever.' });
+
+  const s = await prisma.schade.update({
+    where: { nummer: req.params.nummer },
+    data: { weigerReden: reden, archived: true, archivedAt: new Date(), status: 'done' },
+  }).catch(() => null);
+  if (!s) return res.status(404).json({ error: 'Dossier niet gevonden' });
+
+  await log(req.user, `Opdracht geweigerd: ${s.nummer}`, { schadeId: s.id, detail: reden });
+  res.json({ schade: schadeForUser(s, req.user) });
+});
+
+/* ─────────── ons aanbod om de bron zelf op te lossen ─────────── */
+router.post('/:nummer/bronaanbod', async (req, res) => {
+  const vorm = String(req.body?.vorm || '').trim(); // prijs | mandaat | geen
+  if (!['prijs', 'mandaat', 'geen'].includes(vorm)) {
+    return res.status(400).json({ error: 'Kies of we een prijsopgave doen of op mandaat werken.' });
+  }
+  const wat = String(req.body?.wat || '').trim();
+
+  const s = await prisma.schade.update({
+    where: { nummer: req.params.nummer },
+    data: { bronAanbod: vorm === 'geen' ? null : vorm },
+  }).catch(() => null);
+  if (!s) return res.status(404).json({ error: 'Dossier niet gevonden' });
+
+  const naar = s.opdrachtgever || s.owner;
+  const bestaat = await prisma.actiepunt.findFirst({
+    where: { schadeId: s.id, soort: 'bron', open: true },
+  });
+  const tekst = `Wacht op antwoord over het bronherstel \u2014 ${naar}`;
+  if (bestaat) {
+    await prisma.actiepunt.update({ where: { id: bestaat.id }, data: { tekst } });
+  } else {
+    await prisma.actiepunt.create({
+      data: { schadeId: s.id, soort: 'bron', tekst, klant: true, doorNaam: req.user.naam },
+    });
+  }
+
+  const erbij = vorm === 'prijs' ? ' \u00b7 met aanbod, prijsopgave vooraf'
+    : vorm === 'mandaat' ? ' \u00b7 met aanbod tegen mandaat' : '';
+  await log(req.user, `Bronherstel aangevraagd bij ${naar}`, { schadeId: s.id, detail: wat + erbij });
+
+  res.json({ schade: schadeForUser(s, req.user) });
+});
+
+/* ─────────── herinnering aan de verzekeraar of de klant ───────────
+   Het nummer telt vanzelf op en de teller begint opnieuw. */
+router.post('/:nummer/herinnering', async (req, res) => {
+  const nu = await prisma.schade.findUnique({
+    where: { nummer: req.params.nummer },
+    include: { verzekeraar: true },
+  });
+  if (!nu) return res.status(404).json({ error: 'Dossier niet gevonden' });
+  if (nu.verzStatus !== 'ingediend') {
+    return res.status(400).json({ error: 'Er staat op dit moment niets open bij de andere partij.' });
+  }
+
+  const aantal = (nu.herinnerAantal || 0) + 1;
+  const naar = isEigenRisico(nu.preset)
+    ? nu.owner
+    : (nu.verzekeraar ? nu.verzekeraar.naam : 'de verzekeraar');
+
+  const s = await prisma.schade.update({
+    where: { nummer: req.params.nummer },
+    data: { herinnerAantal: aantal, herinnerLaatstAt: new Date() },
+    include: { locaties: true, verzekeraar: true },
+  });
+
+  // Na de derde blijft aandringen zinloos; dan is het tijd om te bellen.
+  if (aantal >= 3) {
+    const bestaat = await prisma.actiepunt.findFirst({
+      where: { schadeId: s.id, soort: 'bellen', open: true },
+    });
+    if (!bestaat) {
+      await prisma.actiepunt.create({
+        data: { schadeId: s.id, soort: 'bellen', tekst: `Bellen met ${naar}`, klant: false, doorNaam: req.user.naam },
+      });
+    }
+  }
+
+  await log(req.user, `${aantal}e herinnering verstuurd aan ${naar}`, {
+    schadeId: s.id,
+    detail: `Verzoek om binnen ${s.herinnerDagen} dagen te reageren.`,
+  });
+
+  res.json({ schade: schadeForUser(s, req.user), aantal });
+});
+
+/* ─────────── wat de verzekeraar of de klant terugstuurt ─────────── */
+router.post('/:nummer/uitkomst', async (req, res) => {
+  const soort = String(req.body?.soort || '').trim(); // informatie | akkoord | afgewezen
+  const tekst = String(req.body?.tekst || '').trim();
+  if (!['informatie', 'akkoord', 'afgewezen'].includes(soort)) {
+    return res.status(400).json({ error: 'Onbekende uitkomst' });
+  }
+
+  const nu = await prisma.schade.findUnique({
+    where: { nummer: req.params.nummer },
+    include: { verzekeraar: true },
+  });
+  if (!nu) return res.status(404).json({ error: 'Dossier niet gevonden' });
+
+  const eigen = isEigenRisico(nu.preset);
+  const wie = eigen ? nu.owner : (nu.verzekeraar ? nu.verzekeraar.naam : 'de verzekeraar');
+  const data = {};
+
+  if (soort === 'informatie') {
+    if (!tekst) return res.status(400).json({ error: 'Leg vast wat er gevraagd is.' });
+    // De teller staat stil tot wij hebben aangeleverd.
+    data.verzStatus = 'informatie';
+  }
+  if (soort === 'akkoord') {
+    data.verzStatus = 'akkoord';
+    data.step = 6;
+  }
+  if (soort === 'afgewezen') {
+    if (!tekst) return res.status(400).json({ error: 'Leg de reden van de afwijzing vast.' });
+    data.verzStatus = 'afgewezen';
+    data.afwijzingReden = tekst;
+    data.afwijzingAt = new Date();
+    data.naAfwijzing = null;
+  }
+
+  const s = await prisma.schade.update({
+    where: { nummer: req.params.nummer },
+    data,
+    include: { locaties: true, verzekeraar: true, actiepunten: true },
+  });
+
+  if (soort === 'informatie') {
+    const bestaat = await prisma.actiepunt.findFirst({
+      where: { schadeId: s.id, soort: 'info', open: true },
+    });
+    const punt = `Aanleveren aan ${wie} \u2014 ${tekst}`;
+    if (bestaat) await prisma.actiepunt.update({ where: { id: bestaat.id }, data: { tekst: punt } });
+    else await prisma.actiepunt.create({
+      data: { schadeId: s.id, soort: 'info', tekst: punt, klant: true, doorNaam: req.user.naam },
+    });
+    await log(req.user, `${wie} vraagt aanvullende informatie`, { schadeId: s.id, detail: tekst });
+  }
+
+  if (soort === 'akkoord') {
+    await prisma.actiepunt.updateMany({
+      where: { schadeId: s.id, soort: 'info', open: true },
+      data: { open: false, afgerondAt: new Date() },
+    });
+    await log(req.user, eigen ? 'Klant akkoord met de offerte' : `${wie} akkoord`, { schadeId: s.id });
+  }
+
+  if (soort === 'afgewezen') {
+    if (!eigen) {
+      await prisma.actiepunt.create({
+        data: {
+          schadeId: s.id, soort: 'klant',
+          tekst: 'Klant informeren over de afwijzing',
+          klant: false, doorNaam: req.user.naam,
+        },
+      });
+    }
+    await log(req.user, eigen ? 'Klant wijst de offerte af' : 'Claim afgewezen', {
+      schadeId: s.id, detail: tekst,
+    });
+  }
+
+  res.json({ schade: schadeForUser(s, req.user) });
+});
+
+/* ─────────── informatie aangeleverd ───────────
+   Daarmee loopt de teller weer, vanaf vandaag. */
+router.post('/:nummer/aangeleverd', async (req, res) => {
+  const wat = String(req.body?.wat || '').trim();
+  const nu = await prisma.schade.findUnique({
+    where: { nummer: req.params.nummer },
+    include: { verzekeraar: true },
+  });
+  if (!nu) return res.status(404).json({ error: 'Dossier niet gevonden' });
+
+  const wie = isEigenRisico(nu.preset)
+    ? nu.owner
+    : (nu.verzekeraar ? nu.verzekeraar.naam : 'de verzekeraar');
+
+  const s = await prisma.schade.update({
+    where: { nummer: req.params.nummer },
+    data: {
+      infoVerstuurdAt: new Date(),
+      verzStatus: nu.verzStatus === 'informatie' ? 'ingediend' : nu.verzStatus,
+    },
+    include: { locaties: true, verzekeraar: true },
+  });
+
+  await prisma.actiepunt.updateMany({
+    where: { schadeId: s.id, soort: 'info', open: true },
+    data: { open: false, afgerondAt: new Date() },
+  });
+
+  await log(req.user, `Aanvullende informatie naar ${wie} gestuurd`, { schadeId: s.id, detail: wat });
+  res.json({ schade: schadeForUser(s, req.user) });
+});
+
+/* ─────────── behandelaar wisselen ───────────
+   Deze naam komt onder de brieven en op de opdrachtbonnen. */
+router.post('/:nummer/behandelaar', async (req, res) => {
+  const id = String(req.body?.behandelaarId || '').trim();
+  const medewerker = id
+    ? await prisma.user.findUnique({ where: { id }, select: { id: true, naam: true, active: true } })
+    : null;
+  if (id && (!medewerker || !medewerker.active)) {
+    return res.status(400).json({ error: 'Die medewerker bestaat niet of is niet actief.' });
+  }
+
+  const nu = await prisma.schade.findUnique({
+    where: { nummer: req.params.nummer },
+    include: { behandelaar: { select: { naam: true } } },
+  });
+  if (!nu) return res.status(404).json({ error: 'Dossier niet gevonden' });
+
+  const s = await prisma.schade.update({
+    where: { nummer: req.params.nummer },
+    data: { behandelaarId: medewerker ? medewerker.id : null },
+    include: { locaties: true, verzekeraar: true, behandelaar: { select: { id: true, naam: true, role: true } } },
+  });
+
+  await log(req.user, medewerker ? `Dossier overgedragen aan ${medewerker.naam}` : 'Behandelaar losgemaakt', {
+    schadeId: s.id,
+    detail: nu.behandelaar ? `was ${nu.behandelaar.naam}` : '',
+  });
+
   res.json({ schade: schadeForUser(s, req.user) });
 });
 
