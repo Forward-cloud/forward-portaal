@@ -148,6 +148,8 @@ model Schade {
   behandelaar    User?     @relation("SchadeBehandelaar", fields: [behandelaarId], references: [id])
   behandelaarId  String?
 
+  aangenomenAt   DateTime? // wanneer wij de opdracht hebben aangenomen
+
   bronStatus     String    @default("nvt")
   bronBeoordeeld Boolean   @default(false) // pas na beoordelen kleurt de kaart rood
   bronAanbod     String?   // prijs | mandaat -- wij boden aan de bron zelf op te lossen
