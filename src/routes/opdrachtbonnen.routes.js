@@ -6,6 +6,34 @@ const { BEDRIJF, eur, datumNL } = require('../lib/brieven');
 const router = express.Router();
 router.use(requireAuth);
 
+// Wat er op een bon kan staan aan verloop. Elke stap wordt vastgelegd, zodat
+// je later kunt zien wanneer een leverancier de bon opende en wat hij besloot.
+function verloop(bon, wat, detail) {
+  const lijst = Array.isArray(bon.gebeurtenissen) ? bon.gebeurtenissen.slice() : [];
+  lijst.unshift({ at: new Date().toISOString(), wat, detail: detail || '' });
+  return lijst;
+}
+
+const VAKKEN = {
+  droging: 'Drogen en meten',
+  loodgieter: 'Loodgieterswerk',
+  dak: 'Dakwerk',
+  stuc: 'Stucwerk',
+  tegel: 'Tegelwerk',
+  schilder: 'Schilderwerk',
+  vloer: 'Vloeren',
+  timmer: 'Timmerwerk',
+  elektra: 'Elektra',
+  schoonmaak: 'Schoonmaak',
+  overig: 'Overig',
+};
+
+const BTWVORMEN = {
+  excl: 'Bedragen exclusief btw',
+  incl: 'Bedragen inclusief btw',
+  verlegd: 'Btw verlegd naar ons',
+};
+
 const PRIJSVORMEN = {
   vast: 'Afgesproken aanneemsom',
   mandaat: 'Mandaat tot maximaal',
@@ -55,6 +83,8 @@ router.get('/schades/:nummer/opdrachtbonnen', async (req, res) => {
     bonnen: bonnen.filter((b) => b.soort !== 'aanvraag'),
     aanvragen: bonnen.filter((b) => b.soort === 'aanvraag' && b.status !== 'vervallen'),
     prijsvormen: Object.entries(PRIJSVORMEN).map(([k, v]) => ({ key: k, label: v })),
+    vakken: Object.entries(VAKKEN).map(([k, v]) => ({ key: k, label: v })),
+    btwvormen: Object.entries(BTWVORMEN).map(([k, v]) => ({ key: k, label: v })),
   });
 });
 
@@ -87,7 +117,10 @@ router.post('/schades/:nummer/opdrachtbonnen', async (req, res) => {
       bedrag: cent(b.bedrag),
       prijsvorm: PRIJSVORMEN[b.prijsvorm] ? b.prijsvorm : 'vast',
       uurtarief: b.uurtarief != null ? cent(b.uurtarief) : null,
-      btwVerlegd: verlegd,
+      maxBedrag: b.maxBedrag != null ? cent(b.maxBedrag) : null,
+      vak: VAKKEN[b.vak] ? b.vak : null,
+      btwVorm: BTWVORMEN[b.btwVorm] ? b.btwVorm : (verlegd ? 'verlegd' : 'excl'),
+      btwVerlegd: b.btwVorm ? b.btwVorm === 'verlegd' : verlegd,
       bewonerMee: b.bewonerMee !== false,
       documentIds: Array.isArray(b.documentIds) ? b.documentIds : [],
       doorNaam: req.user.naam,
@@ -184,6 +217,173 @@ router.post('/opdrachtbonnen/:id/herinneren', async (req, res) => {
 });
 
 /* ─────────── aanvraag gunnen: wordt een opdrachtbon ─────────── */
+/* ─────────── versturen, en wat de leverancier ermee doet ───────────
+   Een bon gaat per mail of via WhatsApp de deur uit. Daarna houden we bij
+   of hij hem opent, accepteert of weigert. */
+router.post('/opdrachtbonnen/:id/versturen', async (req, res) => {
+  const kanaal = String(req.body?.kanaal || 'mail').trim();
+  if (!['mail', 'app'].includes(kanaal)) {
+    return res.status(400).json({ error: 'Kies e-mail of WhatsApp.' });
+  }
+
+  const nu = await prisma.opdrachtbon.findUnique({
+    where: { id: req.params.id },
+    include: { leverancier: true },
+  });
+  if (!nu) return res.status(404).json({ error: 'Niet gevonden' });
+  if (!nu.leverancierId) return res.status(400).json({ error: 'Kies eerst een leverancier.' });
+  if (!nu.werk || !nu.werk.trim()) return res.status(400).json({ error: 'Beschrijf eerst het werk.' });
+  if (nu.prijsvorm === 'mandaat' && !nu.maxBedrag) {
+    return res.status(400).json({ error: 'Een mandaat zonder maximum is een blanco cheque.' });
+  }
+
+  const naam = nu.leverancier ? nu.leverancier.naam : 'de leverancier';
+  const bon = await prisma.opdrachtbon.update({
+    where: { id: nu.id },
+    data: {
+      status: 'verstuurd',
+      kanaal,
+      verstuurdAt: new Date(),
+      gebeurtenissen: verloop(nu, `Bon verstuurd naar ${naam}`,
+        kanaal === 'app' ? 'via WhatsApp' : 'via e-mail'),
+    },
+    include: { leverancier: true },
+  });
+
+  await log(req.user, `Opdrachtbon ${bon.nummer} verstuurd aan ${naam}`, bon.schadeId, 'bon');
+  res.json({ bon });
+});
+
+// De leverancier opent de bon. In het portaal komt dit uit zijn link.
+router.post('/opdrachtbonnen/:id/geopend', async (req, res) => {
+  const nu = await prisma.opdrachtbon.findUnique({
+    where: { id: req.params.id },
+    include: { leverancier: true },
+  });
+  if (!nu) return res.status(404).json({ error: 'Niet gevonden' });
+
+  const naam = nu.leverancier ? nu.leverancier.naam : 'de leverancier';
+  const bon = await prisma.opdrachtbon.update({
+    where: { id: nu.id },
+    data: {
+      status: nu.status === 'verstuurd' ? 'geopend' : nu.status,
+      openCount: { increment: 1 },
+      geopendAt: nu.geopendAt || new Date(),
+      gebeurtenissen: verloop(nu, `Bon geopend door ${naam}`, `${(nu.openCount || 0) + 1}e keer`),
+    },
+  });
+  res.json({ bon });
+});
+
+// Akkoord of weigeren. Bij weigeren komt er een actiepunt om iemand anders
+// te zoeken, want anders blijft dat werk liggen.
+router.post('/opdrachtbonnen/:id/besluit', async (req, res) => {
+  const akkoord = req.body?.akkoord === true;
+  const naam = String(req.body?.naam || '').trim();
+  const reden = String(req.body?.reden || '').trim();
+
+  const nu = await prisma.opdrachtbon.findUnique({
+    where: { id: req.params.id },
+    include: { leverancier: true },
+  });
+  if (!nu) return res.status(404).json({ error: 'Niet gevonden' });
+  if (!akkoord && !reden) return res.status(400).json({ error: 'Vraag om een reden bij een weigering.' });
+
+  const lev = nu.leverancier ? nu.leverancier.naam : 'de leverancier';
+
+  const bon = await prisma.opdrachtbon.update({
+    where: { id: nu.id },
+    data: akkoord
+      ? {
+          status: 'geaccepteerd',
+          besluitAt: new Date(),
+          akkoordNaam: naam || lev,
+          gebeurtenissen: verloop(nu, 'Akkoord gegeven', naam || lev),
+        }
+      : {
+          status: 'geweigerd',
+          besluitAt: new Date(),
+          weigerReden: reden,
+          gebeurtenissen: verloop(nu, 'Opdracht geweigerd', reden),
+        },
+    include: { leverancier: true },
+  });
+
+  if (akkoord) {
+    await prisma.actiepunt.updateMany({
+      where: { schadeId: bon.schadeId, soort: 'bellen', open: true },
+      data: { open: false, afgerondAt: new Date() },
+    });
+    await log(req.user, `Opdrachtbon ${bon.nummer} geaccepteerd door ${lev}`, bon.schadeId, 'bon');
+  } else {
+    await prisma.actiepunt.create({
+      data: {
+        schadeId: bon.schadeId,
+        soort: 'offerte',
+        tekst: `Andere leverancier zoeken voor ${VAKKEN[bon.vak] || 'dit werk'}`,
+        klant: false,
+        doorNaam: req.user.naam,
+      },
+    });
+    await log(req.user, `Opdrachtbon ${bon.nummer} geweigerd door ${lev}`, bon.schadeId, 'bon');
+  }
+
+  res.json({ bon });
+});
+
+/* ─────────── reactie op een prijsaanvraag ───────────
+   Per leverancier houden we bij wat er terugkwam: een offerte, niets, of een
+   afwijzing van onze kant. */
+router.post('/opdrachtbonnen/:id/reactie', async (req, res) => {
+  const soort = String(req.body?.soort || '').trim(); // offerte | niets | afgewezen
+  if (!['offerte', 'niets', 'afgewezen'].includes(soort)) {
+    return res.status(400).json({ error: 'Onbekende reactie' });
+  }
+
+  const a = await prisma.opdrachtbon.findUnique({
+    where: { id: req.params.id },
+    include: { leverancier: true },
+  });
+  if (!a) return res.status(404).json({ error: 'Niet gevonden' });
+  if (a.soort !== 'aanvraag') return res.status(400).json({ error: 'Dit is geen prijsaanvraag.' });
+
+  const naam = a.leverancier ? a.leverancier.naam : 'de leverancier';
+  const data = {};
+
+  if (soort === 'offerte') {
+    const bedrag = cent(req.body?.bedrag);
+    if (!bedrag) return res.status(400).json({ error: 'Vul het bedrag van de offerte in.' });
+    data.bedrag = bedrag;
+    data.status = 'ontvangen';
+    data.reactieAt = new Date();
+    data.reactieNotitie = String(req.body?.notitie || '').trim() || null;
+    data.gebeurtenissen = verloop(a, `Offerte ontvangen van ${naam}`, eur(bedrag / 100));
+  }
+  if (soort === 'niets') {
+    data.status = 'nietaangeleverd';
+    data.reactieAt = new Date();
+    data.gebeurtenissen = verloop(a, `Geen offerte ontvangen van ${naam}`);
+  }
+  if (soort === 'afgewezen') {
+    data.status = 'afgewezen';
+    data.besluitAt = new Date();
+    data.gebeurtenissen = verloop(a, `Offerte afgewezen \u2014 ${naam}`);
+  }
+
+  const bon = await prisma.opdrachtbon.update({
+    where: { id: a.id },
+    data,
+    include: { leverancier: true },
+  });
+
+  const tekst = soort === 'offerte' ? `Offerte ontvangen van ${naam}`
+    : soort === 'niets' ? `Geen offerte ontvangen van ${naam}`
+    : `Offerte afgewezen \u2014 ${naam}`;
+  await log(req.user, tekst, bon.schadeId, 'aanvraag');
+
+  res.json({ bon });
+});
+
 router.post('/opdrachtbonnen/:id/gunnen', async (req, res) => {
   const a = await prisma.opdrachtbon.findUnique({
     where: { id: req.params.id },
@@ -192,17 +392,43 @@ router.post('/opdrachtbonnen/:id/gunnen', async (req, res) => {
   if (!a) return res.status(404).json({ error: 'Niet gevonden' });
   if (a.soort !== 'aanvraag') return res.status(400).json({ error: 'Dit is al een opdrachtbon' });
 
-  // De andere aanvragen voor dezelfde klus vervallen.
+  // Wie wel een offerte stuurde maar het niet werd, krijgt een bedankbericht.
+  // Wie niets stuurde krijgt niets -- bedanken voor een offerte die er nooit
+  // was leest als spot.
+  const anderen = await prisma.opdrachtbon.findMany({
+    where: {
+      schadeId: a.schadeId, soort: 'aanvraag', werk: a.werk, id: { not: a.id },
+      status: 'ontvangen',
+    },
+    include: { leverancier: true },
+  });
+  await prisma.opdrachtbon.updateMany({
+    where: { id: { in: anderen.map((x) => x.id) } },
+    data: { status: 'afgewezen', besluitAt: new Date() },
+  });
   await prisma.opdrachtbon.updateMany({
     where: { schadeId: a.schadeId, soort: 'aanvraag', werk: a.werk, id: { not: a.id },
-             status: { in: ['concept', 'verstuurd', 'ontvangen'] } },
+             status: { in: ['concept', 'verstuurd'] } },
     data: { status: 'vervallen' },
   });
+  if (anderen.length) {
+    await log(req.user,
+      `${anderen.length} leverancier(s) bericht gestuurd \u2014 niet gegund`,
+      a.schadeId, 'aanvraag');
+  }
 
   const nummer = await volgendNummer('opdracht');
   const bon = await prisma.opdrachtbon.update({
     where: { id: a.id },
-    data: { soort: 'opdracht', nummer, status: 'concept' },
+    data: {
+      soort: 'opdracht', nummer, status: 'concept',
+      gebeurtenissen: verloop(a, 'Opdracht gegund', a.leverancier ? a.leverancier.naam : ''),
+    },
+  });
+
+  await prisma.actiepunt.updateMany({
+    where: { schadeId: a.schadeId, soort: 'offerte', open: true },
+    data: { open: false, afgerondAt: new Date() },
   });
 
   await log(req.user, `Opdracht gegund aan ${a.leverancier ? a.leverancier.naam : 'leverancier'} ` +
