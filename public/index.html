@@ -209,7 +209,7 @@
   .dh-meta strong{display:block;color:var(--text);font-weight:550;font-size:13.5px;margin-top:2px}
   .dh-actions{display:flex;gap:9px;flex-wrap:wrap}
   .btn{display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:550;padding:9px 15px;border-radius:11px;transition:.16s;border:1px solid transparent}
-  .btn svg{width:15px;height:15px}
+  .btn svg{width:14px;height:14px;flex:none}
   .btn.primary{background:var(--teal);color:#fff;box-shadow:0 6px 16px rgba(0,155,168,.24)}.btn.primary:hover{background:var(--teal-deep)}
   .btn.dark{background:var(--navy);color:#fff}.btn.dark:hover{background:var(--navy-2)}
   .btn.ghost{background:var(--surface);border-color:var(--line);color:var(--text)}.btn.ghost:hover{border-color:#c8d0db}
@@ -406,8 +406,14 @@
   .jchk.found{background:var(--green-soft);color:var(--green)}
   .jchk.new{background:var(--amber-soft);color:var(--amber)}
   .jchk.unknown{background:#EEF1F5;color:var(--muted)}
-  .jbtn{font-size:12px;font-weight:600;color:var(--teal-ink);border:1px solid var(--line);border-radius:9px;padding:6px 11px;background:#fff}
+  .jbtn{font-size:12px;font-weight:600;color:var(--teal-ink);border:1px solid var(--line);border-radius:9px;padding:6px 11px;background:#fff;
+    display:inline-flex;align-items:center;gap:5px;line-height:1.3}
   .jbtn:hover{border-color:var(--teal)}
+  /* Zonder maat vult een icoon de hele knop. Hier staat de maat, en meteen
+     een lichtere lijn dan de iconen zelf meebrengen. */
+  .jbtn svg{width:12px;height:12px;flex:none}
+  .jbtn svg path,.jbtn svg circle,.jbtn svg rect,.jbtn svg line{stroke-width:1.6}
+  .btn svg path,.btn svg circle,.btn svg rect,.btn svg line{stroke-width:1.6}
   .termijn-row{display:flex;align-items:center;gap:9px;margin-top:7px}
   .termijn-row .tlabel{font-size:12px;color:var(--muted);width:84px;flex:none}
   .termijn-row .inp{max-width:140px}
@@ -5492,6 +5498,65 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
   .fwk-halte{flex:0 0 82px}
   .fwk-rp-grid{grid-template-columns:1fr}
 }
+
+.fwk .weg svg{width:13px;height:13px}
+.fwk .weg svg path{stroke-width:1.7}
+
+/* ── iconen alleen op de grote knoppen in de stuurkaart, zoals in het
+   voorbeeld. In de tabbladen staan tekstknoppen. ── */
+.fwk .btn svg{width:14px;height:14px}
+.fwk .fwk-blok svg{width:14px;height:14px}
+.fwk .fwk-apl svg{width:13px;height:13px}
+.fwk-dico svg{width:14px;height:14px}
+.fwk-fmelding{justify-content:flex-start}
+
+/* ── werkgangen, tijdlijn en de machtiging ── */
+.fwk-uitv{margin:10px 0 2px;border-top:1px solid var(--line-2);padding-top:10px}
+.fwk-uitvr{display:flex;align-items:center;gap:10px;padding:7px 0;font-size:13px;flex-wrap:wrap}
+.fwk-uitvr.af{color:var(--muted)}
+.fwk-uitvd{font-weight:600;color:var(--navy);min-width:52px}
+.fwk-uitvr.af .fwk-uitvd{color:var(--muted)}
+.fwk-uitvt{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--muted);min-width:84px}
+.fwk-uitvo{flex:1;min-width:140px}
+.fwk-vak{display:inline-block;background:var(--teal-soft);color:var(--teal-ink);font-size:11px;
+  font-weight:600;padding:2px 8px;border-radius:20px;margin-right:7px;vertical-align:1px}
+.fwk-uitvr.af .fwk-vak{background:var(--line-2);color:var(--muted)}
+.fwk-bon-v .jbtn svg{width:12px;height:12px;margin-right:3px}
+.fwk-tl{position:relative}
+.fwk-tld{display:flex;align-items:baseline;gap:9px;margin:16px 0 8px;padding-bottom:6px;
+  border-bottom:1px solid var(--line-2)}
+.fwk-tld:first-child{margin-top:0}
+.fwk-tld b{font-size:13.5px;color:var(--navy);text-transform:capitalize}
+.fwk-tld span{font-size:11.5px;color:var(--muted-2)}
+.fwk-tlr{display:flex;align-items:center;gap:12px;padding:9px 0}
+.fwk-tlr.af{opacity:.62}
+.fwk-tlico{width:26px;height:26px;border-radius:8px;background:var(--teal-soft);color:var(--teal-ink);
+  display:flex;align-items:center;justify-content:center;flex:none}
+.fwk-tlico svg{width:13px;height:13px}
+.fwk-tlico svg path,.fwk-tlico svg circle,.fwk-tlico svg rect{stroke-width:1.6}
+.fwk-tlr.af .fwk-tlico{background:var(--green-soft);color:#12704A}
+.fwk-tlt{font-size:14px;font-weight:500;color:var(--navy);line-height:1.4}
+.fwk-tls{font-size:11.5px;color:var(--muted);margin-top:2px}
+.fwk-doc.wacht{border-color:rgba(199,126,0,.3);background:#FFFDF8}
+.fwk-doc.wacht .fwk-dico{background:#FDF3E0;color:#8A5A0B}
+.fwk-doc a.jbtn{text-decoration:none;display:inline-flex;align-items:center}
+
+/* ── behandelaar en het financiële blok ── */
+.fwk-beh{display:flex;align-items:center;gap:12px;border-top:1px solid var(--line-2);
+  margin-top:6px;padding-top:11px}
+.fwk-behl{font-size:11px;color:var(--muted-2);letter-spacing:.04em;text-transform:uppercase;font-weight:600}
+.fwk-behn{font-size:13.5px;font-weight:500;color:var(--navy);margin-top:3px}
+.fwk-behn span{font-weight:400;color:var(--muted);font-size:12px}
+.fwk-beh .jbtn{margin-left:auto;flex:none}
+.fwk-fr b.min{color:var(--muted)}
+.fwk-frap{border-top:1px solid var(--line-2);margin-top:9px;padding-top:9px}
+.fwk-fnoot{font-size:11px;color:var(--muted-2);line-height:1.45;margin-top:3px}
+.fwk-fr.eind{border-top:1px solid var(--line);margin-top:9px;padding-top:10px}
+.fwk-fr.eind span{color:var(--navy);font-weight:500}
+.fwk-fr.eind b{font-family:'Poppins',sans-serif;font-weight:600;font-size:15px;color:var(--green)}
+.fwk-fmelding{display:flex;align-items:center;gap:8px;margin-top:12px;padding:9px 12px;
+  border-radius:10px;background:#FDF3E0;color:#8A5A0B;font-size:12px}
+.fwk-fmelding.groen{background:var(--green-soft);color:#12704A}
 
 /* ── bronstrip, teller, actiepunten ── */
 .fwk-bronrij{gap:7px;flex-wrap:wrap}
