@@ -5,7 +5,17 @@ const { hashPassword, verifyPassword, tempPassword } = require('../auth/hash');
 const { safeUser } = require('../lib/serialize');
 
 const router = express.Router();
-const ROLES = ['DIRECTIE', 'FINANCIEEL', 'SCHADEBEHANDELAAR', 'PLANNER'];
+// OPLEIDING is een account om nieuwe medewerkers in te laten oefenen: die
+// ziet alleen testdossiers, geen echte klanten en nergens bedragen.
+const ROLES = ['DIRECTIE', 'FINANCIEEL', 'SCHADEBEHANDELAAR', 'PLANNER', 'OPLEIDING'];
+
+const ROL_UITLEG = {
+  DIRECTIE: 'Ziet alles, inclusief financi\u00ebn en facturen.',
+  FINANCIEEL: 'Facturen en betalingen, geen dossierbeheer.',
+  SCHADEBEHANDELAAR: 'Dossiers behandelen, geen financi\u00ebn.',
+  PLANNER: 'Afspraken en uitvoering inplannen.',
+  OPLEIDING: 'Alleen testdossiers. Geen echte klanten, geen bedragen, geen facturen.',
+};
 const MIN_LENGTE = 10;
 
 async function log(user, text) {
@@ -84,7 +94,11 @@ router.use(requireAuth, requireDirectie);
 
 router.get('/', async (req, res) => {
   const users = await prisma.user.findMany({ orderBy: { createdAt: 'asc' } });
-  res.json({ users: users.map(safeUser), rollen: ROLES });
+  res.json({
+    users: users.map(safeUser),
+    rollen: ROLES,
+    uitleg: ROL_UITLEG,
+  });
 });
 
 router.post('/', async (req, res) => {

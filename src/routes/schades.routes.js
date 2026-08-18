@@ -1,6 +1,7 @@
 const express = require('express');
 const prisma = require('../db');
 const { requireAuth, isDirectie } = require('../auth/middleware');
+const { isOpleiding, magDossierZien } = require('../auth/roles');
 const { schadeForUser } = require('../lib/serialize');
 const {
   VERSIE, PRESETS, BRON_STATUS, ACTIEPUNTEN,
@@ -73,6 +74,10 @@ router.get('/', async (req, res) => {
   const where = {};
   if (archief === 'nee') where.archived = false;
   else if (archief === 'ja') where.archived = true;
+  // Testdossiers alleen tonen als je erom vraagt. Een opleidingsaccount ziet
+  // niets anders -- daar valt niets echts te raken.
+  if (isOpleiding(req.user)) where.test = true;
+  else if (String(req.query.test || '') !== 'ja') where.test = false;
 
   if (q) {
     where.OR = [
@@ -123,6 +128,9 @@ router.get('/:nummer', async (req, res) => {
     },
   });
   if (!s) return res.status(404).json({ error: 'Dossier niet gevonden' });
+  if (!magDossierZien(req.user, s)) {
+    return res.status(403).json({ error: 'Dit dossier hoort niet bij je opleidingsomgeving.' });
+  }
   res.json({ schade: schadeForUser(s, req.user) });
 });
 
@@ -169,6 +177,8 @@ router.post('/:nummer/na-afwijzing', async (req, res) => {
 
 /* ─────────── aanmaken ─────────── */
 router.post('/', async (req, res) => {
+  // Wat een opleidingsaccount aanmaakt is per definitie oefenmateriaal.
+  if (isOpleiding(req.user)) req.body = { ...(req.body || {}), test: true };
   const b = req.body || {};
   if (!b.owner) return res.status(400).json({ error: 'Eigenaar is verplicht' });
 
@@ -192,6 +202,7 @@ router.post('/', async (req, res) => {
           traject: b.traject || 'volledig',
           opdrachtnummer: b.opdrachtnummer || null,
           opdrachtgever: b.opdrachtgever || null,
+          test: b.test === true,
         },
       });
       // Het opgegeven adres wordt meteen het hoofdadres; extra adressen kun je erbij zetten.
@@ -377,6 +388,96 @@ router.post('/:nummer/bron', async (req, res) => {
   const s = await prisma.schade.update({ where: { nummer: req.params.nummer }, data });
   await log(req.user, `Bron ${BRON_STATUS[status].toLowerCase()}: ${s.nummer}` + (data.bronOpmerking ? ` — ${data.bronOpmerking}` : ''));
   res.json({ schade: schadeForUser(s, req.user) });
+});
+
+/* ─────────── testdossier ───────────
+   Om alles te kunnen doorlopen zonder een echt dossier te vervuilen. Een
+   testdossier telt niet mee in de cijfers en mag in één keer weg. */
+router.post('/test', async (req, res) => {
+  const jaar = new Date().getFullYear();
+  const nummer = await volgendNummer(jaar);
+
+  // Een testdossier begint precies zo leeg als een echte melding: alleen de
+  // gegevens die je bij een telefoontje ook zou noteren. De route, de
+  // machtiging en de opname moet je zelf doorlopen -- dat is juist het punt.
+  const zakelijk = String(req.body?.soort || 'vve') === 'vve';
+  const email = String(req.body?.email || req.user.email || '').trim();
+  const nu = new Date();
+  const merk = 'TEST-' + String(nu.getTime()).slice(-5);
+
+  const s = await prisma.schade.create({
+    data: {
+      nummer,
+      test: true,
+      owner: zakelijk ? 'Fam. de Vries' : 'Fam. de Vries',
+      email,
+      telefoon: '06 - 12 34 56 78',
+      adres: 'Teststraat 1',
+      postcode: '2511 AA',
+      plaats: 'Den Haag',
+      // Bij een VvE loopt de opstalverzekering via de vereniging; bij een
+      // particulier is de eigenaar zelf de opdrachtgever.
+      opdrachtgever: zakelijk ? 'VvE Teststraat' : null,
+      opdrachtgeverType: zakelijk ? 'vve' : 'particulier',
+      beheerderEmail: zakelijk ? email : null,
+      contactpersoon: zakelijk ? 'T. Tester' : null,
+      bewonerSoort: 'eigenaar',
+      opdrachtnummer: zakelijk ? merk : null,
+      // Geen route, geen behandelaar, geen bedragen: dat kies je zelf.
+      step: 1,
+      status: 'new',
+      oorzaak: 'Lekkage vanuit de bovenwoning',
+      schadedatum: nu,
+      locaties: {
+        create: [{
+          adres: 'Teststraat 1', postcode: '2511 AA', plaats: 'Den Haag',
+          bewoner: 'Fam. de Vries', bewonerSoort: 'eigenaar',
+          telefoon: '06 - 12 34 56 78', email,
+          hoofd: true, volgorde: 0,
+        }],
+      },
+    },
+    include: { locaties: true, verzekeraar: true },
+  });
+
+  await log(req.user, `Testdossier ${nummer} aangemaakt`, {
+    schadeId: s.id,
+    detail: `Om mee te oefenen \u00b7 ${zakelijk ? 'VvE' : 'particulier'} \u00b7 post gaat naar ${email}`,
+  });
+
+  res.status(201).json({ schade: schadeForUser(s, req.user) });
+});
+
+// Een bestaand dossier alsnog als test markeren, of dat weer intrekken.
+router.post('/:nummer/test', async (req, res) => {
+  const aan = req.body?.test !== false;
+  const s = await prisma.schade.update({
+    where: { nummer: req.params.nummer },
+    data: { test: aan },
+    include: { locaties: true, verzekeraar: true },
+  }).catch(() => null);
+  if (!s) return res.status(404).json({ error: 'Dossier niet gevonden' });
+
+  await log(req.user, aan ? 'Gemarkeerd als testdossier' : 'Testmarkering weggehaald', { schadeId: s.id });
+  res.json({ schade: schadeForUser(s, req.user) });
+});
+
+// Alleen een testdossier kan echt weg. Een gewoon dossier archiveer je.
+router.delete('/:nummer', async (req, res) => {
+  const s = await prisma.schade.findUnique({
+    where: { nummer: req.params.nummer },
+    select: { id: true, nummer: true, test: true },
+  });
+  if (!s) return res.status(404).json({ error: 'Dossier niet gevonden' });
+  if (!s.test) {
+    return res.status(400).json({
+      error: 'Alleen een testdossier kan worden verwijderd. Een gewoon dossier archiveer je.',
+    });
+  }
+
+  await prisma.schade.delete({ where: { id: s.id } });
+  await log(req.user, `Testdossier ${s.nummer} verwijderd`, {});
+  res.json({ ok: true });
 });
 
 /* ─────────── opdracht aannemen of weigeren ───────────

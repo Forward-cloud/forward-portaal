@@ -3,6 +3,7 @@ const prisma = require('../db');
 const { requireAuth } = require('../auth/middleware');
 const { SOORTEN, AANLEIDINGEN, POLISVORMEN, soortenVoor, BIJLAGE_NAAM, stelOp, alsTekst, briefHtml, eur, datumNL } = require('../lib/brieven');
 const ai = require('../lib/ai');
+const { veiligeOntvangers, veiligOnderwerp, omleidingsregel } = require('../lib/testmodus');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -403,18 +404,29 @@ router.post('/schades/:nummer/verzenden', async (req, res) => {
 
   const bijlagen = Array.isArray(b.documentIds) ? b.documentIds : [];
 
+  // Bij een testdossier gaat alles naar degene die het verstuurt, nooit naar
+  // de verzekeraar of de bewoner.
+  const veilig = veiligeOntvangers(s, naar, req.user);
+
   const verzending = await prisma.verzending.create({
     data: {
       schadeId: s.id,
       soort,
-      naar,
-      onderwerp: String(b.onderwerp || '').slice(0, 300),
+      naar: veilig.naar,
+      onderwerp: veiligOnderwerp(s, String(b.onderwerp || '')).slice(0, 300),
       tekst: String(b.tekst || ''),
       documentIds: bijlagen,
       status: 'klaar',
       doorNaam: req.user.naam,
     },
   });
+
+  const omgeleid = omleidingsregel(veilig);
+  if (omgeleid) {
+    await prisma.logEntry.create({
+      data: { text: omgeleid, schadeId: s.id, byUserId: req.user.id, byName: req.user.naam },
+    });
+  }
 
   // Meesturen: beheerder en eigenaar krijgen elk hun eigen bericht.
   const kopieen = Array.isArray(b.kopieen) ? b.kopieen : [];
@@ -427,12 +439,13 @@ router.post('/schades/:nummer/verzenden', async (req, res) => {
     const kDocs = Array.isArray(k.documentIds) ? k.documentIds : [];
     if (b.aanleiding) s.aanleiding = String(b.aanleiding);
     const kBrief = stelOp(kSoort, s, s.documenten, kDocs);
+    const kVeilig = veiligeOntvangers(s, kNaar, req.user);
     const rij = await prisma.verzending.create({
       data: {
         schadeId: s.id,
         soort: kSoort,
-        naar: kNaar,
-        onderwerp: k.onderwerp || kBrief.onderwerp,
+        naar: kVeilig.naar,
+        onderwerp: veiligOnderwerp(s, k.onderwerp || kBrief.onderwerp),
         tekst: k.tekst || alsTekst(kBrief, req.user.naam),
         documentIds: kDocs,
         status: 'klaar',

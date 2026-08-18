@@ -2,6 +2,7 @@ const express = require('express');
 const prisma = require('../db');
 const { requireAuth, isDirectie } = require('../auth/middleware');
 const jortt = require('../lib/jortt');
+const { isTest } = require('../lib/testmodus');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -11,6 +12,11 @@ router.use(requireAuth);
 // de deur uit te doen.
 
 function alleenDirectie(req, res, next) {
+  if (req.user && req.user.role === 'OPLEIDING') {
+    return res.status(403).json({
+      error: 'In de opleidingsomgeving zijn geen facturen beschikbaar.',
+    });
+  }
   if (!isDirectie(req.user)) {
     return res.status(403).json({ error: 'Alleen directie kan facturen opstellen.' });
   }
@@ -270,13 +276,23 @@ router.patch('/facturen/:id', async (req, res) => {
 router.post('/facturen/:id/versturen', async (req, res) => {
   const f = await prisma.factuur.findUnique({
     where: { id: req.params.id },
-    include: { schade: { select: { id: true, nummer: true } } },
+    include: { schade: { select: { id: true, nummer: true, test: true } } },
   });
   if (!f) return res.status(404).json({ error: 'Factuur niet gevonden' });
   if (f.status !== 'concept') return res.status(400).json({ error: 'Deze factuur is al verstuurd.' });
 
   const mist = watMist(f);
   if (mist.length) return res.status(400).json({ error: `Nog nodig: ${mist.join(', ')}.` });
+
+  // Uit een testdossier gaat nooit een echte factuur de deur uit. Jortt mailt
+  // hem meteen naar de klant, en dat is niet terug te draaien.
+  if (isTest(f.schade)) {
+    return res.status(400).json({
+      error: 'Dit is een testdossier. Een factuur wordt hier niet echt verstuurd \u2014 ' +
+        'gebruik Voorbeeld om te zien hoe hij eruitziet.',
+    });
+  }
+
   if (!jortt.aan()) return res.status(400).json({ error: 'Jortt is niet gekoppeld.' });
 
   const t = reken(f);
