@@ -130,7 +130,11 @@ router.get('/jortt/test', async (req, res) => {
   try {
     token = await jortt.tokenTest();
   } catch (e) {
-    return res.status(502).json({ stap: 'inloggen', error: e.message });
+    // Lukt inloggen niet, dan lopen we de rechten één voor één langs. Zo zie
+    // je meteen welk vinkje in jortt ontbreekt of anders heet.
+    let rechten = null;
+    try { rechten = await jortt.scopeTest(); } catch (x) { rechten = null; }
+    return res.status(502).json({ stap: 'inloggen', error: e.message, rechten });
   }
 
   try {
