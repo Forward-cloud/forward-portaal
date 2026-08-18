@@ -51,6 +51,7 @@ function schadeForUser(s, user) {
     totaal: positie(s.step, haltes).totaal,
 
     aangenomenAt: s.aangenomenAt,
+    test: !!s.test,
     weigerReden: s.weigerReden,
     bronStatus: s.bronStatus,
     bronBeoordeeld: s.bronBeoordeeld,
@@ -64,6 +65,7 @@ function schadeForUser(s, user) {
 
     opdrachtnummer: s.opdrachtnummer,
     opdrachtgever: s.opdrachtgever,
+    opdrachtgeverType: s.opdrachtgeverType,
     beheerderEmail: s.beheerderEmail,
     beheerderTel: s.beheerderTel,
     telefoon: s.telefoon,
@@ -159,7 +161,9 @@ function schadeForUser(s, user) {
     createdAt: s.createdAt,
     updatedAt: s.updatedAt,
   };
-  if (isDirectie(user)) {
+  // Een opleidingsaccount krijgt nooit bedragen te zien, ook niet als de rol
+  // daar verder wel recht op zou geven.
+  if (isDirectie(user) && user.role !== 'OPLEIDING') {
     const omzet = s.finHerstelOmzet || 0;
     const inkoop = s.finHerstelInkoop || 0;
     const uitbesteed = s.finHerstelUitbesteed || 0;
