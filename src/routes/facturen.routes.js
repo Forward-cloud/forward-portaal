@@ -124,12 +124,20 @@ router.get('/jortt/test', async (req, res) => {
       error: 'Jortt is niet gekoppeld. Zet JORTT_CLIENT_ID en JORTT_CLIENT_SECRET in Coolify.',
     });
   }
+  // Eerst inloggen, dan pas de gegevens opvragen. Zo zie je meteen of het
+  // aan de sleutels ligt of aan de rechten.
+  let token;
+  try {
+    token = await jortt.tokenTest();
+  } catch (e) {
+    return res.status(502).json({ stap: 'inloggen', error: e.message });
+  }
+
   try {
     const bedrijf = await jortt.bedrijf();
-    if (!bedrijf) return res.status(502).json({ error: 'Jortt gaf geen bedrijfsgegevens terug.' });
-    res.json({ ok: true, bedrijf });
+    res.json({ ok: true, token, bedrijf });
   } catch (e) {
-    res.status(502).json({ error: e.message });
+    res.status(502).json({ stap: 'bedrijfsgegevens', ingelogd: true, error: e.message });
   }
 });
 
