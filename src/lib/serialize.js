@@ -50,6 +50,8 @@ function schadeForUser(s, user) {
     positie: positie(s.step, haltes).positie,
     totaal: positie(s.step, haltes).totaal,
 
+    aangenomenAt: s.aangenomenAt,
+    weigerReden: s.weigerReden,
     bronStatus: s.bronStatus,
     bronBeoordeeld: s.bronBeoordeeld,
     bronAanbod: s.bronAanbod,
