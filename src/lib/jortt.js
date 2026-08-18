@@ -38,12 +38,17 @@ let tokenTot = 0;
 // Twee manieren om in te loggen: met de sleutels in de kopregel, en met de
 // sleutels in de body. Welke jortt wil verschilt per omgeving, dus we
 // proberen ze allebei voordat we een fout melden.
-async function probeerToken(inBody) {
+async function probeerToken(inBody, scopes) {
   const id = process.env.JORTT_CLIENT_ID;
   const geheim = process.env.JORTT_CLIENT_SECRET;
 
   const kop = { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' };
-  const body = { grant_type: 'client_credentials', scope: SCOPES };
+  const body = { grant_type: 'client_credentials' };
+
+  // Zonder scope geeft jortt precies de rechten die bij de koppeling zijn
+  // aangevinkt. Dat is minder gedoe dan ze hier opsommen, want de namen
+  // verschillen per versie.
+  if (scopes) body.scope = scopes;
 
   if (inBody) {
     body.client_id = id;
@@ -65,14 +70,21 @@ async function haalToken() {
   if (token && Date.now() < tokenTot - 60000) return token;
 
   const pogingen = [];
-  for (const inBody of [false, true]) {
-    const uit = await probeerToken(inBody);
+  const rondes = [
+    { inBody: false, scopes: null,   naam: 'kopregel zonder scopes' },
+    { inBody: true,  scopes: null,   naam: 'body zonder scopes' },
+    { inBody: false, scopes: SCOPES, naam: 'kopregel met scopes' },
+    { inBody: true,  scopes: SCOPES, naam: 'body met scopes' },
+  ];
+
+  for (const r of rondes) {
+    const uit = await probeerToken(r.inBody, r.scopes);
     if (uit.ok && uit.data.access_token) {
       token = uit.data.access_token;
       tokenTot = Date.now() + (Number(uit.data.expires_in || 7200) * 1000);
       return token;
     }
-    pogingen.push(`${inBody ? 'sleutels in body' : 'sleutels in kopregel'}: ` + fout(uit.data, `HTTP ${uit.status}`));
+    pogingen.push(`${r.naam}: ` + fout(uit.data, `HTTP ${uit.status}`));
   }
 
   throw new Error(`Inloggen bij jortt mislukte. ${pogingen.join(' | ')}`);
@@ -313,13 +325,23 @@ async function openstaand() {
 
 // Alleen om te testen: haalt een token op en vertelt of dat lukte.
 // Het token zelf geven we nooit terug.
+// Loopt de rechten één voor één langs, zodat je ziet welke jortt niet kent.
+async function scopeTest() {
+  const uit = {};
+  for (const scope of SCOPES.split(' ')) {
+    const res = await probeerToken(false, scope);
+    uit[scope] = res.ok ? 'ok' : fout(res.data, `HTTP ${res.status}`);
+  }
+  return uit;
+}
+
 async function tokenTest() {
   const t = await haalToken();
   return { ok: true, geldigTot: new Date(tokenTot).toISOString(), lengte: String(t).length };
 }
 
 module.exports = {
-  aan, BETAALTERMIJN, TRADENAME, tokenTest,
+  aan, BETAALTERMIJN, TRADENAME, tokenTest, scopeTest,
   bedrijf, zoekKlant, maakKlant, klantVoor,
   zetFactuur, leesFactuur, openstaand,
 };
