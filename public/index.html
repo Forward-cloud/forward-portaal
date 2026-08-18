@@ -5493,29 +5493,6 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
   .fwk-rp-grid{grid-template-columns:1fr}
 }
 
-/* ── werkgangen per adres en de tijdlijn ── */
-.fwk-uitv{margin:10px 0 2px;border-top:1px solid var(--line-2);padding-top:10px}
-.fwk-uitvr{display:flex;align-items:center;gap:10px;padding:7px 0;font-size:13px;flex-wrap:wrap}
-.fwk-uitvr.af{color:var(--muted)}
-.fwk-uitvd{font-weight:600;color:var(--navy);min-width:52px}
-.fwk-uitvr.af .fwk-uitvd{color:var(--muted)}
-.fwk-uitvt{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--muted);min-width:84px}
-.fwk-uitvo{flex:1;min-width:140px}
-.fwk-tl{position:relative}
-.fwk-tld{display:flex;align-items:baseline;gap:9px;margin:16px 0 8px;padding-bottom:6px;
-  border-bottom:1px solid var(--line-2)}
-.fwk-tld:first-child{margin-top:0}
-.fwk-tld b{font-size:13.5px;color:var(--navy);text-transform:capitalize}
-.fwk-tld span{font-size:11.5px;color:var(--muted-2)}
-.fwk-tlr{display:flex;align-items:center;gap:12px;padding:9px 0}
-.fwk-tlr.af{opacity:.62}
-.fwk-tlico{width:30px;height:30px;border-radius:9px;background:var(--teal-soft);color:var(--teal-ink);
-  display:flex;align-items:center;justify-content:center;flex:none}
-.fwk-tlico svg{width:15px;height:15px}
-.fwk-tlr.af .fwk-tlico{background:var(--green-soft);color:#12704A}
-.fwk-tlt{font-size:14px;font-weight:500;color:var(--navy);line-height:1.4}
-.fwk-tls{font-size:11.5px;color:var(--muted);margin-top:2px}
-
 /* ── bronstrip, teller, actiepunten ── */
 .fwk-bronrij{gap:7px;flex-wrap:wrap}
 .fwk-bronl{font-size:11px;font-weight:700;color:var(--muted-2);letter-spacing:.05em;
@@ -5603,7 +5580,11 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
     plus:'<path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
     schild:'<path d="M12 3l7.5 3v6c0 4.4-3 8.3-7.5 9.5C7.5 20.3 4.5 16.4 4.5 12V6L12 3z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>',
     pen:'<path d="M4 20h4l10-10a2.8 2.8 0 10-4-4L4 16v4z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>',
-    stuur:'<path d="M4 4l16 8-16 8 3-8-3-8z" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/>'
+    stuur:'<path d="M4 4l16 8-16 8 3-8-3-8z" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/>',
+    // Gereedschap voor een werkgang, een kalender met plus voor het inplannen.
+    werk:'<path d="M14.7 6.3a3.7 3.7 0 004.9 4.9l-7.4 7.4a2 2 0 01-2.8 0l-2.1-2.1a2 2 0 010-2.8l7.4-7.4z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M6.5 3.5l2.8 2.8-1.6 1.6L4.9 5.1a1 1 0 010-1.4l.2-.2a1 1 0 011.4 0z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>',
+    planplus:'<rect x="3.5" y="5.5" width="17" height="15" rx="2.4" stroke="currentColor" stroke-width="1.8"/><path d="M3.5 10h17M8.5 3.5v4M15.5 3.5v4M12 13v5M9.5 15.5h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
+    annuleer:'<circle cx="12" cy="12" r="8.6" stroke="currentColor" stroke-width="1.8"/><path d="M6.2 6.2l11.6 11.6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'
   };
   function svg(p){ return '<svg viewBox="0 0 24 24" fill="none">'+p+'</svg>'; }
   function esc(v){ return String(v==null?'':v).replace(/[&<>"]/g,function(c){
@@ -5615,7 +5596,7 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
 
   var S = null, tab = 'doc', klant = false, routeOpen = false;
   var docs = [], bonnen = [], corr = [], logs = [], offertes = [], levs = [], locaties = [], afspraken = [];
-  var acties = [], uitvoeringen = [];
+  var acties = [], uitvoeringen = [], mensen = [];
 
   function api(pad, opts){ return window.fwApi(pad, opts); }
 
@@ -5679,6 +5660,14 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
       : '<button class="btn primary" onclick="fwkAfronden()">Dossier afronden</button>';
   }
 
+  var ROLLEN = {directie:'Directie', schadebehandelaar:'Schadebehandelaar',
+    planner:'Planner', financieel:'Financi\u00eble administratie', medewerker:'Medewerker'};
+  function rolNaam(r){ return ROLLEN[r] || r || ''; }
+  function behandelaarNaam(){
+    if (S.behandelaar && S.behandelaar.naam) return S.behandelaar.naam;
+    return S.contactpersoon || (window.__fwIk ? window.__fwIk.naam : '\u2014');
+  }
+
   /* ── laden ── */
   function laadAlles(nr){
     return Promise.all([
@@ -5692,13 +5681,15 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
       api('/api/schades/'+encodeURIComponent(nr)+'/afspraken').catch(function(){return{afspraken:[]}}),
       api('/api/relaties?soort=VERZEKERAAR,TUSSENPERSOON').catch(function(){return{relaties:[]}}),
       api('/api/schades/'+encodeURIComponent(nr)+'/actiepunten').catch(function(){return{actiepunten:[]}}),
-      api('/api/schades/'+encodeURIComponent(nr)+'/uitvoeringen').catch(function(){return{uitvoeringen:[]}})
+      api('/api/schades/'+encodeURIComponent(nr)+'/uitvoeringen').catch(function(){return{uitvoeringen:[]}}),
+      api('/api/users').catch(function(){return{users:[]}})
     ]).then(function(r){
       docs = r[0].documenten || []; bonnen = r[1].bonnen || []; aanvragen = r[1].aanvragen || []; corr = r[2].verzendingen || [];
       logs = r[3].regels || []; offertes = r[4].offertes || []; levs = r[5].relaties || [];
       locaties = r[6].locaties || []; afspraken = r[7].afspraken || []; verzs = r[8].relaties || [];
       acties = r[9].actiepunten || [];
       uitvoeringen = r[10].uitvoeringen || [];
+      mensen = (r[11].users || []).filter(function(u){ return u.active !== false; });
       teken();
     });
   }
@@ -6566,20 +6557,42 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
 
         /* verzekeraar */
         (eigen ? '' : verzekeraarBlok())+
-        '<div class="fwk-ct" style="border-top:1px solid var(--line-2);margin-top:6px;padding-top:11px;color:var(--muted);font-size:12.5px">'+
-          'Op brieven en bonnen: <b style="color:var(--text);margin-left:4px">'+
-          esc(S.contactpersoon || (window.__fwIk?window.__fwIk.naam:'\u2014'))+'</b></div>'+
+        '<div class="fwk-beh">'+
+          '<div><div class="fwk-behl">Op brieven en bonnen</div>'+
+          '<div class="fwk-behn">'+esc(behandelaarNaam())+
+          (S.behandelaar && S.behandelaar.role ? ' <span>'+esc(rolNaam(S.behandelaar.role))+'</span>' : '')+
+          '</div></div>'+
+          (klant?'':'<button class="jbtn" onclick="fwkBehandelaar()">Wijzigen</button>')+
+        '</div>'+
       '</div></div>';
 
     if (S.magFin && S.fin) {
       var om = S.fin.herstel.omzet||S.amount||0, ik2 = S.fin.herstel.inkoop||0, ut = S.fin.herstel.uitbesteed||0;
+      var exp = (S.fin.expertise && S.fin.expertise.omzet) || 0;
+      // De marge gaat over het herstel. Het rapport staat er los naast, want dat
+      // is omzet zonder inkoop -- daarom een tweede regel eronder.
       var marge = om-ik2-ut, pct = om>0?Math.round(marge/om*100):0;
+      var totaal = om + exp, margePlus = marge + exp;
+      var pctPlus = totaal>0?Math.round(margePlus/totaal*100):0;
+
       x += '<div class="fwk-kaart"><div class="fwk-kkop"><h4>Financieel</h4><div class="r">alleen directie</div></div>'+
         '<div class="fwk-kbody"><div class="fwk-fg">'+eur(marge)+'</div>'+
-        '<div class="fwk-fl">netto marge \u00b7 '+pct+'% van de omzet</div>'+
-        '<div class="fwk-fr"><span>Offertesom</span><b>'+eur(om)+'</b></div>'+
-        '<div class="fwk-fr"><span>Inkoop materiaal</span><b>'+eur(ik2)+'</b></div>'+
-        '<div class="fwk-fr"><span>Onderaanneming</span><b>'+eur(ut)+'</b></div></div></div>';
+        '<div class="fwk-fl">marge op het herstel \u00b7 '+pct+'% van '+eur(om)+'</div>'+
+        '<div class="fwk-fr"><span>Herstelomzet</span><b>'+eur(om)+'</b></div>'+
+        '<div class="fwk-fr"><span>Inkoop materiaal</span><b class="min">\u2212'+eur(ik2)+'</b></div>'+
+        '<div class="fwk-fr"><span>Onderaanneming</span><b class="min">\u2212'+eur(ut)+'</b></div>'+
+        (exp
+          ? '<div class="fwk-frap"><div class="fwk-fr"><span>Omzet schaderapport</span><b>'+eur(exp)+'</b></div>'+
+            '<div class="fwk-fnoot">Rapportage buiten de marge gehouden \u2014 hier staat geen inkoop tegenover.</div></div>'+
+            '<div class="fwk-fr eind"><span>Marge inclusief rapport</span><b>'+eur(margePlus)+'</b></div>'+
+            '<div class="fwk-fr"><span>Totale schadeomzet</span><b>'+eur(totaal)+'</b></div>'+
+            '<div class="fwk-fl" style="margin-top:4px">'+pctPlus+'% van de totale omzet</div>'
+          : '')+
+        (S.invoiced
+          ? '<div class="fwk-fmelding groen">'+svg(I.vink)+'<span>Gefactureerd</span></div>'
+          : '<div class="fwk-fmelding">'+svg(I.klok)+'<span>Nog niet gefactureerd \u00b7 '+
+            eur(totaal)+' openstaand</span></div>')+
+      '</div></div>';
     }
     x += '</div>';
 
@@ -6615,13 +6628,16 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
     return '<div class="fwk-uitv">'+lijst.map(function(u){
       return '<div class="fwk-uitvr'+(u.afgerond?' af':'')+'">'+
         '<span class="fwk-uitvd">'+dag(u.datum)+'</span>'+
-        '<span class="fwk-uitvt">'+esc(u.starttijd||'08.00')+'\u2013'+tot(u.starttijd,u.uren)+'</span>'+
-        '<span class="fwk-uitvo">'+esc(u.omschrijving)+'</span>'+
+        '<span class="fwk-uitvt">'+esc(u.starttijd||'08.00')+'\u2013'+tot(u.starttijd,u.uren)+
+          ' \u00b7 '+duurTekst(u.uren)+'</span>'+
+        '<span class="fwk-uitvo">'+
+          (u.vak?'<span class="fwk-vak">'+esc(VAKKEN[u.vak]||u.vak)+'</span>':'')+
+          esc(u.omschrijving)+'</span>'+
         (klant ? (u.afgerond?'<span class="fwk-pil groen">Klaar</span>':'')
                : (u.afgerond
                   ? '<span class="fwk-pil groen">Klaar</span>'
-                  : '<button class="jbtn" onclick="fwkUitvoerKlaar(\''+u.id+'\')">Afronden</button>'+
-                    '<button class="jbtn" onclick="fwkUitvoerWeg(\''+u.id+'\')">\u2715</button>'))+
+                  : '<button class="jbtn" onclick="fwkUitvoerKlaar(\''+u.id+'\')">'+svg(I.vink)+'Afronden</button>'+
+                    '<button class="jbtn" onclick="fwkUitvoerWeg(\''+u.id+'\')">'+svg(I.annuleer)+'Annuleren</button>'))+
       '</div>';
     }).join('')+'</div>';
   }
@@ -6648,6 +6664,7 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
     uitvoeringen.forEach(function(u){
       var l = locaties.filter(function(x){ return x.id===u.locatieId; })[0];
       punten.push({datum:u.datum, soort:'werk', tekst:u.omschrijving, af:u.afgerond,
+        vak:u.vak, duur:duurTekst(u.uren),
         waar:l?l.adres:'', tijd:(u.starttijd||'08.00')+'\u2013'+tot(u.starttijd,u.uren), id:u.id});
     });
 
@@ -6680,8 +6697,11 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
       var ico = p.soort==='opname'?I.camera:p.soort==='werk'?I.hamer:p.soort==='op'?I.vink:I.kalender;
       x += '<div class="fwk-tlr'+(p.af?' af':'')+'">'+
         '<span class="fwk-tlico">'+svg(ico)+'</span>'+
-        '<div style="flex:1;min-width:0"><div class="fwk-tlt">'+esc(p.tekst)+'</div>'+
-        '<div class="fwk-tls">'+(p.tijd?esc(p.tijd)+' \u00b7 ':'')+esc(p.waar||S.addr||'')+'</div></div>'+
+        '<div style="flex:1;min-width:0"><div class="fwk-tlt">'+
+          (p.vak?'<span class="fwk-vak">'+esc(VAKKEN[p.vak]||p.vak)+'</span>':'')+esc(p.tekst)+'</div>'+
+        '<div class="fwk-tls">'+(p.tijd?esc(p.tijd):'')+
+          (p.duur?' \u00b7 '+esc(p.duur):'')+
+          (p.waar?' \u00b7 '+esc(p.waar):'')+'</div></div>'+
         (p.af?'<span class="fwk-pil groen">Klaar</span>':'')+
       '</div>';
     });
@@ -6689,9 +6709,41 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
     return x + '</div>';
   }
 
+  var VAKKEN = {droging:'Drogen en meten',loodgieter:'Loodgieterswerk',dak:'Dakwerk',
+    stuc:'Stucwerk',tegel:'Tegelwerk',schilder:'Schilderwerk',vloer:'Vloeren',
+    timmer:'Timmerwerk',elektra:'Elektra',schoonmaak:'Schoonmaak',overig:'Overig'};
+  // Vier uur is een dagdeel, acht een hele dag. Daarboven rekenen we in dagen.
+  var DUUR = [['2','2 uur'],['4','een dagdeel'],['8','een hele dag'],
+    ['16','twee dagen'],['24','drie dagen'],['40','een week']];
+  function duurTekst(uren){
+    var u = Number(uren)||8;
+    if (u <= 2) return u+' uur';
+    if (u <= 4) return 'een dagdeel';
+    if (u <= 8) return 'een hele dag';
+    return Math.round(u/8)+' dagen';
+  }
+
   var LSTAT = {open:['grijs','Nog niet ingepland'],ingepland:['teal','Ingepland'],
     uitvoering:['amber','In uitvoering'],opgeleverd:['groen','Opgeleverd']};
   var LSOORT = {eigenaar:'eigenaar',huurder:'huurder',leeg:'staat leeg',gemeenschappelijk:'gemeenschappelijk'};
+
+  window.fwkBehandelaar = function(){
+    if (!mensen.length) { melden('Geen medewerkers','De lijst kon niet worden geladen.','info'); return; }
+    window.fwVraag({
+      titel:'Wie behandelt dit dossier',
+      uitleg:'Deze naam komt onder de brieven te staan en op de opdrachtbonnen.',
+      velden:[{naam:'wie',label:'Behandelaar',type:'keuze',
+        waarde:S.behandelaarId||'',
+        opties:mensen.map(function(m){ return [m.id, m.naam + ' \u2014 ' + rolNaam(m.role)]; })}],
+      ok:'Overzetten'
+    }).then(function(r){
+      if (!r) return;
+      api('/api/schades/'+encodeURIComponent(S.nr)+'/behandelaar',
+        {method:'POST', body:JSON.stringify({behandelaarId:r.wie})})
+        .then(function(){ melden('Overgezet','De brieven gaan nu op deze naam.'); return ververs(); })
+        .catch(function(e){ melden('Niet gelukt', e.message, 'err'); });
+    });
+  };
 
   window.fwkUitvoerErbij = function(locId){
     var l = locaties.filter(function(x){ return x.id===locId; })[0] || {};
@@ -6702,8 +6754,9 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
         {naam:'datum',label:'Datum',type:'datum',verplicht:'Kies een datum.'},
         {naam:'start',label:'Starttijd',type:'keuze',waarde:'08.00',
          opties:['07.00','08.00','09.00','10.00','11.00','13.00','14.00'].map(function(t){return [t,t+' uur'];})},
-        {naam:'uren',label:'Hoeveel uur',type:'keuze',waarde:'8',
-         opties:[['2','2 uur'],['4','een halve dag'],['8','een hele dag'],['16','twee dagen'],['24','drie dagen']]},
+        {naam:'vak',label:'Type werk',type:'keuze',waarde:'stuc',
+         opties:Object.keys(VAKKEN).map(function(k){ return [k, VAKKEN[k]]; })},
+        {naam:'uren',label:'Hoe lang',type:'keuze',waarde:'8',opties:DUUR},
         {naam:'wat',label:'Wat gebeurt er',type:'tekst',
          plaats:'bijvoorbeeld: stucwerk plafond hal, uitvlakken en sausklaar',
          verplicht:'Beschrijf wat er die dag gebeurt.'}
@@ -6713,7 +6766,7 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
       if (!r) return;
       api('/api/schades/'+encodeURIComponent(S.nr)+'/uitvoeringen',
         {method:'POST', body:JSON.stringify({locatieId:locId, datum:r.datum, starttijd:r.start,
-          uren:Number(r.uren), omschrijving:r.wat})})
+          uren:Number(r.uren), vak:r.vak, omschrijving:r.wat})})
         .then(function(){ melden('Ingepland', dag(r.datum)); return ververs(); })
         .catch(function(e){ melden('Niet gelukt', e.message, 'err'); });
     });
@@ -6743,21 +6796,75 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
   };
   window.fwkLocPlan = function(id){
     var l = locaties.find(function(x){return x.id===id}) || {};
+    var eerste = uitvoeringen.filter(function(u){ return u.locatieId===id && !u.afgerond; })[0];
     window.fwVraag({
-      titel:'Herstel inplannen',
-      uitleg: l.adres ? 'Voor ' + l.adres : '',
+      titel: l.ingepland ? 'Datum wijzigen' : 'Herstel inplannen',
+      uitleg: (l.adres ? l.adres + ' \u2014 ' : '') + 'wat gebeurt er, wanneer, en hoe lang duurt het?',
       velden:[
-        {naam:'datum',label:'Datum',type:'datum',waarde:l.ingepland?String(l.ingepland).slice(0,10):'',
+        {naam:'vak',label:'Type werk',type:'keuze',waarde:(eerste&&eerste.vak)||'stuc',
+         opties:Object.keys(VAKKEN).map(function(k){ return [k, VAKKEN[k]]; })},
+        {naam:'datum',label:'Startdatum',type:'datum',waarde:l.ingepland?String(l.ingepland).slice(0,10):'',
          verplicht:'Kies een datum.'},
-        {naam:'tijdvak',label:'Tijdvak',waarde:l.tijdvak||'',plaats:'bijvoorbeeld 08.00 \u2013 12.00 uur',
-         snel:['08.00 \u2013 12.00 uur','13.00 \u2013 17.00 uur','Hele dag']}
+        {naam:'start',label:'Starttijd',type:'keuze',waarde:(eerste&&eerste.starttijd)||'08.00',
+         opties:['07.00','08.00','09.00','10.00','11.00','13.00','14.00'].map(function(t){return [t,t+' uur'];})},
+        {naam:'uren',label:'Hoe lang',type:'keuze',waarde:String((eerste&&eerste.uren)||8),opties:DUUR},
+        {naam:'wat',label:'Omschrijving van de werkzaamheden',type:'tekst',
+         waarde:(eerste&&eerste.omschrijving)||'',
+         plaats:'bijvoorbeeld: plafond en wand hal uitvlakken en sausklaar opleveren',
+         verplicht:'Beschrijf wat er gebeurt \u2014 de bewoner leest dit ook.'}
       ],
-      ok:'Inplannen'
+      ok: l.ingepland ? 'Wijzigen' : 'Inplannen'
     }).then(function(r){
       if (!r) return;
+      // Het adres krijgt de datum, en er komt een werkgang bij met het type
+      // werk en de duur. Zo staat het ook in de planning.
+      var tijdvak = r.start + ' \u2013 ' + tot(r.start, r.uren) + ' uur \u00b7 ' + duurTekst(r.uren);
       api('/api/locaties/'+id,{method:'PATCH',
-        body:JSON.stringify({ingepland:r.datum, tijdvak:r.tijdvak||null, status:'ingepland'})})
-        .then(function(){ return ververs(); }).catch(function(e){melden('Niet gelukt',e.message,'err')});
+        body:JSON.stringify({ingepland:r.datum, tijdvak:tijdvak, status:'ingepland'})})
+        .then(function(){
+          var body = {locatieId:id, datum:r.datum, starttijd:r.start,
+            uren:Number(r.uren), vak:r.vak, omschrijving:r.wat};
+          return eerste
+            ? api('/api/uitvoeringen/'+eerste.id, {method:'PATCH', body:JSON.stringify(body)})
+            : api('/api/schades/'+encodeURIComponent(S.nr)+'/uitvoeringen',
+                {method:'POST', body:JSON.stringify(body)});
+        })
+        .then(function(){ melden('Ingepland', dag(r.datum)+' \u00b7 '+VAKKEN[r.vak]); return ververs(); })
+        .catch(function(e){melden('Niet gelukt',e.message,'err')});
+    });
+  };
+
+  // Een geplande datum weer loslaten. De werkgangen mag je erbij weghalen.
+  window.fwkLocAnnuleer = function(id){
+    var l = locaties.find(function(x){return x.id===id}) || {};
+    var open = uitvoeringen.filter(function(u){ return u.locatieId===id && !u.afgerond; });
+    window.fwVraag({
+      titel:'Planning annuleren',
+      uitleg:(l.adres||'') + (l.ingepland ? ' staat gepland op ' + dag(l.ingepland) : '') + '.',
+      velden:[
+        {naam:'werk',label:'Wat doen we met de werkgangen',type:'keuze',
+         waarde: open.length ? 'weg' : 'houden',
+         opties:[['weg', open.length+' geplande werkgang(en) ook verwijderen'],
+                 ['houden','Werkgangen laten staan']]},
+        {naam:'reden',label:'Waarom gaat het niet door',type:'tekst',
+         plaats:'bijvoorbeeld: bewoner is op vakantie'}
+      ],
+      ok:'Annuleren', gevaar:true
+    }).then(function(r){
+      if (!r) return;
+      var kar = Promise.resolve();
+      if (r.werk === 'weg') {
+        open.forEach(function(u){
+          kar = kar.then(function(){ return api('/api/uitvoeringen/'+u.id, {method:'DELETE'}); });
+        });
+      }
+      kar.then(function(){
+        return api('/api/locaties/'+id,{method:'PATCH',
+          body:JSON.stringify({ingepland:null, tijdvak:null, status:'open',
+            notitie: r.reden ? 'Planning geannuleerd: ' + r.reden : undefined})});
+      })
+      .then(function(){ melden('Geannuleerd', l.adres||''); return ververs(); })
+      .catch(function(e){melden('Niet gelukt',e.message,'err')});
     });
   };
   window.fwkLocHoofd = function(id){
@@ -6820,11 +6927,13 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
           'Opgeleverd op '+dag(l.opgeleverdAt)+'</div>':'')+
         uitvoeringenBij(l.id)+
         '<div class="fwk-bon-v">'+
-          '<button class="jbtn" onclick="fwkUitvoerErbij(\''+l.id+'\')">'+svg(I.hamer)+'Werkgang toevoegen</button>'+
-          (l.status==='open'?'<button class="jbtn" onclick="fwkLocPlan(\''+l.id+'\')">Herstel inplannen</button>':'')+
+          '<button class="jbtn" onclick="fwkUitvoerErbij(\''+l.id+'\')">'+svg(I.werk)+'Werkgang toevoegen</button>'+
+          (l.status==='open'
+            ? '<button class="jbtn" onclick="fwkLocPlan(\''+l.id+'\')">'+svg(I.planplus)+'Herstel inplannen</button>'
+            : '<button class="jbtn" onclick="fwkLocPlan(\''+l.id+'\')">'+svg(I.kalender)+'Datum wijzigen</button>'+
+              '<button class="jbtn" onclick="fwkLocAnnuleer(\''+l.id+'\')">'+svg(I.annuleer)+'Planning annuleren</button>')+
           (l.status==='ingepland'?'<button class="jbtn" onclick="fwkLocStatus(\''+l.id+'\',\'uitvoering\')">Werk gestart</button>':'')+
           (l.status==='uitvoering'?'<button class="jbtn" onclick="fwkLocStatus(\''+l.id+'\',\'opgeleverd\')">Opleveren</button>':'')+
-          (l.status!=='open'?'<button class="jbtn" onclick="fwkLocPlan(\''+l.id+'\')">Datum wijzigen</button>':'')+
           (!l.hoofd?'<button class="jbtn" onclick="fwkLocHoofd(\''+l.id+'\')">Hoofdadres maken</button>'+
             '<button class="jbtn" onclick="fwkLocWeg(\''+l.id+'\',\''+esc(l.adres).replace(/\x27/g,'')+'\')">Verwijderen</button>':'')+
         '</div></div>';
