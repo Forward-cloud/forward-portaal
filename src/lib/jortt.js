@@ -11,13 +11,24 @@
 const TOKEN_URL = 'https://app.jortt.nl/oauth-provider/oauth/token';
 const API = 'https://api.jortt.nl';
 
+// De vier rechten die jortt zeker kent. Meer heb je niet nodig om te
+// factureren: KvK en btw-nummer zet jortt zelf al op de factuur.
 const SCOPES = [
   'invoices:read',
   'invoices:write',
   'customers:read',
   'customers:write',
-  'organizations:read',
 ].join(' ');
+
+// Het recht om je administratiegegevens te lezen heet per versie anders.
+// Deze namen proberen we; wat werkt onthouden we.
+const ORG_SCOPES = [
+  'organization:read',
+  'organisation:read',
+  'administration:read',
+  'settings:read',
+  'organizations:read',
+];
 
 const BETAALTERMIJN = 14;
 
@@ -145,6 +156,8 @@ async function vraag(pad, opties = {}) {
 const ORG_PADEN = ['/v3/organizations', '/v3/organization', '/v3/tradenames'];
 let orgPad = null;
 
+// Deze gegevens zijn een extraatje: jortt zet ze zelf op de factuur. Lukt het
+// ophalen niet, dan is dat geen reden om het factureren tegen te houden.
 async function bedrijf() {
   if (!aan()) return null;
 
@@ -328,7 +341,7 @@ async function openstaand() {
 // Loopt de rechten één voor één langs, zodat je ziet welke jortt niet kent.
 async function scopeTest() {
   const uit = {};
-  for (const scope of SCOPES.split(' ')) {
+  for (const scope of SCOPES.split(' ').concat(ORG_SCOPES)) {
     const res = await probeerToken(false, scope);
     uit[scope] = res.ok ? 'ok' : fout(res.data, `HTTP ${res.status}`);
   }
