@@ -11,14 +11,18 @@
 const TOKEN_URL = 'https://app.jortt.nl/oauth-provider/oauth/token';
 const API = 'https://api.jortt.nl';
 
-// De vier rechten die jortt zeker kent. Meer heb je niet nodig om te
-// factureren: KvK en btw-nummer zet jortt zelf al op de factuur.
+// De vier rechten die je nodig hebt om te factureren.
 const SCOPES = [
   'invoices:read',
   'invoices:write',
   'customers:read',
   'customers:write',
 ].join(' ');
+
+// Het lezen van je administratiegegevens is een extraatje. Staat dat vinkje
+// niet aan in jortt, dan weigert hij het hele inloggen -- daarom vragen we het
+// apart en vallen we terug op de vier als het niet mag.
+const SCOPES_PLUS = `${SCOPES} organizations:read`;
 
 // Het recht om je administratiegegevens te lezen heet per versie anders.
 // Deze namen proberen we; wat werkt onthouden we.
@@ -45,6 +49,7 @@ function aan() {
    nieuwe zodra hij bijna verloopt. Bij een herstart gebeurt dat vanzelf. */
 let token = null;
 let tokenTot = 0;
+let tokenRonde = null;
 
 // Twee manieren om in te loggen: met de sleutels in de kopregel, en met de
 // sleutels in de body. Welke jortt wil verschilt per omgeving, dus we
@@ -81,11 +86,13 @@ async function haalToken() {
   if (token && Date.now() < tokenTot - 60000) return token;
 
   const pogingen = [];
+  // Eerst met het extra recht erbij; kan dat niet, dan met de vier die altijd
+  // werken. Zo blijft factureren mogelijk, ook zonder dat vinkje.
   const rondes = [
-    { inBody: false, scopes: null,   naam: 'kopregel zonder scopes' },
-    { inBody: true,  scopes: null,   naam: 'body zonder scopes' },
-    { inBody: false, scopes: SCOPES, naam: 'kopregel met scopes' },
-    { inBody: true,  scopes: SCOPES, naam: 'body met scopes' },
+    { inBody: false, scopes: SCOPES_PLUS, naam: 'kopregel met administratie' },
+    { inBody: true,  scopes: SCOPES_PLUS, naam: 'body met administratie' },
+    { inBody: false, scopes: SCOPES,      naam: 'kopregel zonder administratie' },
+    { inBody: true,  scopes: SCOPES,      naam: 'body zonder administratie' },
   ];
 
   for (const r of rondes) {
@@ -93,6 +100,7 @@ async function haalToken() {
     if (uit.ok && uit.data.access_token) {
       token = uit.data.access_token;
       tokenTot = Date.now() + (Number(uit.data.expires_in || 7200) * 1000);
+      tokenRonde = r.naam;
       return token;
     }
     pogingen.push(`${r.naam}: ` + fout(uit.data, `HTTP ${uit.status}`));
@@ -350,7 +358,7 @@ async function scopeTest() {
 
 async function tokenTest() {
   const t = await haalToken();
-  return { ok: true, geldigTot: new Date(tokenTot).toISOString(), lengte: String(t).length };
+  return { ok: true, geldigTot: new Date(tokenTot).toISOString(), lengte: String(t).length, via: tokenRonde };
 }
 
 module.exports = {
