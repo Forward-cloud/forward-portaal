@@ -83,6 +83,10 @@
   .live-chip .pulse{width:7px;height:7px;border-radius:50%;background:var(--green)}
   .top-btn{display:flex;align-items:center;gap:7px;background:var(--teal);color:#fff;font-size:13px;font-weight:550;padding:9px 15px;border-radius:11px;box-shadow:0 6px 16px rgba(0,155,168,.28);transition:.16s}
   .top-btn:hover{background:var(--teal-deep);transform:translateY(-1px)}
+  /* Een testdossier is geen echte schade. Paars, zodat niemand zich vergist. */
+  .top-btn.test{background:#6B4FA8;color:#fff;box-shadow:0 6px 16px rgba(107,79,168,.28)}
+  .top-btn.test:hover{background:#5A4090}
+  .top-btn.test:disabled{opacity:.5;cursor:wait;transform:none}
   .top-btn svg{width:15px;height:15px}
   .icon-btn{width:38px;height:38px;border-radius:11px;background:var(--surface);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;color:var(--muted);box-shadow:var(--shadow-s);position:relative}
   .icon-btn .dot{position:absolute;top:9px;right:9px;width:7px;height:7px;border-radius:50%;background:var(--red);border:1.5px solid var(--surface)}
@@ -148,6 +152,8 @@
   .chev{color:var(--muted-2);flex:none}.chev svg{width:16px;height:16px}
 
   .tag{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:3px 9px;border-radius:7px;white-space:nowrap}
+  /* Paars staat in het hele portaal voor oefenen, niet voor echt. */
+  .tag.paars{background:#F3F0FA;color:#4A3D6B}
   .tag.new{background:var(--red-soft);color:var(--red)}
   .tag.prog{background:var(--amber-soft);color:var(--amber)}
   .tag.done{background:var(--green-soft);color:var(--green)}
@@ -578,6 +584,7 @@
       <div class="live-chip"><span class="pulse"></span>Realtime</div>
       <button class="top-user" id="topUser" style="display:none"></button>
       <button class="icon-btn"><svg viewBox="0 0 24 24" fill="none"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="dot"></span></button>
+      <button class="top-btn test" id="btnTestdossier" onclick="fwTestdossier(this)" title="Een dossier om mee te oefenen"><svg viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>Testdossier</button>
       <button class="top-btn" onclick="openNewSchade()"><svg viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg>Nieuwe schade</button>
     </div>
 
@@ -1022,7 +1029,7 @@ let currentUserId='u1';
 window.__fwIk = null;
 let LOG=[];
 const PERM_LABELS={omzet:'Omzet & marge (KPI + grafiek)',beheer:'Gebruikersbeheer & instellingen'};
-const ROL_NL={DIRECTIE:'Directie',FINANCIEEL:'Financiële administratie',SCHADEBEHANDELAAR:'Schadebehandelaar',PLANNER:'Planner'};
+const ROL_NL={DIRECTIE:'Directie',FINANCIEEL:'Financiële administratie',SCHADEBEHANDELAAR:'Schadebehandelaar',PLANNER:'Planner',OPLEIDING:'Opleiding'};
 function currentUser(){
   if(window.__fwIk){
     return {id:window.__fwIk.id,naam:window.__fwIk.naam,email:window.__fwIk.email,
@@ -2913,6 +2920,7 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
       halteNamen: d.halteNamen || [],
       eigenRisico: !!d.eigenRisico,
       aangenomenAt: d.aangenomenAt,
+      test: !!d.test,
       bronBeoordeeld: !!d.bronBeoordeeld,
       bronAanbod: d.bronAanbod,
       herinnerDagen: d.herinnerDagen || 7,
@@ -2953,12 +2961,53 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
   window.fwNaarScherm = naarScherm;
 
   var archiefStand = 'nee';
+  var testStand = false;
   window.fwArchiefStand = function(){ return archiefStand; };
+
+  // Een dossier om mee te oefenen: compleet gevuld, met jouw e-mailadres
+  // overal, zodat testpost bij jou aankomt en niet bij een klant.
+  window.fwTestdossier = function(knop){
+    var ik = window.__fwIk || {};
+    window.fwVraag({
+      titel:'Testdossier aanmaken',
+      uitleg:'Je krijgt een lege melding, precies zoals een echte. De route, de machtiging '+
+        'en de opname doorloop je zelf.',
+      velden:[
+        {naam:'soort',label:'Wat voor opdrachtgever',type:'keuze',waarde:'vve',
+         opties:[['vve','VvE \u2014 verzekering loopt via de vereniging'],
+                 ['particulier','Particuliere eigenaar']]},
+        {naam:'email',label:'Post gaat naar',type:'',waarde:ik.email||'',
+         plaats:'e-mailadres van wie oefent',
+         verplicht:'Vul een e-mailadres in, anders komt de testpost nergens aan.'}
+      ],
+      ok:'Aanmaken'
+    }).then(function(r){
+      if (!r) return;
+      maakTest(r, knop);
+    });
+  };
+
+  function maakTest(gegevens, knop){
+    if (knop) knop.disabled = true;
+    api('/api/schades/test', { method:'POST', body:JSON.stringify(gegevens) })
+      .then(function(r){
+        testStand = true;
+        var t = document.querySelector('#fwArchief [data-test="1"]');
+        if (t) t.classList.add('active');
+        return window.fwLaadDossiers().then(function(){
+          if (typeof toast === 'function') toast('Testdossier aangemaakt', r.schade.nummer);
+          if (typeof window.fwkOpen === 'function') window.fwkOpen(r.schade.nummer);
+        });
+      })
+      .catch(function(e){ if (typeof toast === 'function') toast('Niet gelukt', e.message, 'err'); })
+      .then(function(){ if (knop) knop.disabled = false; });
+  }
 
   window.fwLaadDossiers = function(opties){
     opties = opties || {};
     var q = [];
     q.push('archief=' + encodeURIComponent(opties.archief || archiefStand));
+    if (testStand) q.push('test=ja');
     if (opties.q) q.push('q=' + encodeURIComponent(opties.q));
     return api('/api/schades?' + q.join('&')).then(function(res){
       var lijst = (res.schades || []).map(naarScherm);
@@ -2989,12 +3038,36 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
       b.textContent = o[1];
       b.onclick = function(){
         archiefStand = o[0];
-        Array.prototype.forEach.call(wrap.children, function(c){ c.classList.remove('active'); });
+        Array.prototype.forEach.call(wrap.children, function(c){
+          if (c.dataset.test !== '1') c.classList.remove('active');
+        });
         b.classList.add('active');
         window.fwLaadDossiers();
       };
       wrap.appendChild(b);
     });
+
+    // Testdossiers staan er standaard niet tussen. Met deze knop wel.
+    var t = document.createElement('button');
+    t.className = 'chip';
+    t.dataset.test = '1';
+    t.textContent = 'Testdossiers';
+    t.style.marginLeft = '8px';
+    t.onclick = function(){
+      testStand = !testStand;
+      t.classList.toggle('active', testStand);
+      window.fwLaadDossiers();
+    };
+    wrap.appendChild(t);
+
+    // En een knop om er een te maken, met alles er alvast in.
+    var n = document.createElement('button');
+    n.className = 'chip';
+    n.textContent = '+ Testdossier';
+    n.style.marginLeft = 'auto';
+    n.onclick = function(){ window.fwTestdossier(n); };
+    wrap.appendChild(n);
+
     f.parentNode.insertBefore(wrap, f);
   }
 
@@ -3447,7 +3520,16 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
 <script>
 /* ══ Wachtwoord en medewerkers ══ */
 (function(){
-  var ROLLABEL = { DIRECTIE:'Directie', FINANCIEEL:'Financieel', SCHADEBEHANDELAAR:'Schadebehandelaar', PLANNER:'Planner' };
+  var ROLLABEL = { DIRECTIE:'Directie', FINANCIEEL:'Financieel', SCHADEBEHANDELAAR:'Schadebehandelaar',
+    PLANNER:'Planner', OPLEIDING:'Opleiding' };
+  // Wat elke rol mag zien, in \u00e9\u00e9n regel. Staat onder de keuzelijst.
+  var ROLUITLEG = {
+    DIRECTIE:'Ziet alles, inclusief financi\u00ebn en facturen.',
+    FINANCIEEL:'Facturen en betalingen, geen dossierbeheer.',
+    SCHADEBEHANDELAAR:'Dossiers behandelen, geen financi\u00ebn.',
+    PLANNER:'Afspraken en uitvoering inplannen.',
+    OPLEIDING:'Alleen testdossiers. Geen echte klanten, geen bedragen, geen facturen.'
+  };
 
   function $$(id){ return document.getElementById(id); }
   function esc(v){ return String(v==null?'':v).replace(/[&<>"]/g,function(c){
@@ -3500,13 +3582,28 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
       '<div id="fwmMelding" style="display:none"></div>' +
       '<div><label>Naam</label><input type="text" id="fwmNaam" value="' + esc(bestaand ? bestaand.naam : '') + '"></div>' +
       '<div><label>E-mailadres</label><input type="email" id="fwmMail" value="' + esc(bestaand ? bestaand.email : '') + '"></div>' +
-      '<div><label>Rol</label><select id="fwmRol">' +
+      '<div><label>Rol</label><select id="fwmRol" onchange="fwmRolUitleg()">' +
         Object.keys(ROLLABEL).map(function(r){
           return '<option value="' + r + '"' + (bestaand && bestaand.role === r ? ' selected' : '') + '>' + ROLLABEL[r] + '</option>';
-        }).join('') + '</select></div>';
+        }).join('') + '</select>' +
+        '<div id="fwmUitleg" style="font-size:11.5px;color:var(--muted);margin-top:6px;line-height:1.5"></div></div>';
+    window.fwmRolUitleg();
     $$('fwmOk').textContent = bestaand ? 'Opslaan' : 'Toevoegen';
     $$('fwmOk').onclick = function(){ bewaarMedewerker(bestaand ? bestaand.id : null); };
     $$('fwmWrap').classList.add('on');
+  };
+
+  // Wat de gekozen rol mag zien, in \u00e9\u00e9n regel onder de keuzelijst.
+  window.fwmRolUitleg = function(){
+    var sel = document.getElementById('fwmRol');
+    var vak = document.getElementById('fwmUitleg');
+    if (!sel || !vak) return;
+    var r = sel.value;
+    vak.textContent = ROLUITLEG[r] || '';
+    vak.style.color = r === 'OPLEIDING' ? '#4A3D6B' : 'var(--muted)';
+    vak.style.background = r === 'OPLEIDING' ? '#F3F0FA' : 'transparent';
+    vak.style.padding = r === 'OPLEIDING' ? '8px 11px' : '0';
+    vak.style.borderRadius = r === 'OPLEIDING' ? '9px' : '0';
   };
 
   function bewaarMedewerker(id){
@@ -3567,7 +3664,8 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
         '<div><div class="t-owner">' + esc(u.naam) + '</div>' +
           (u.active ? '' : '<div class="t-addr" style="color:var(--red)">niet actief</div>') + '</div>' +
         '<div class="t-addr">' + esc(u.email) + '</div>' +
-        '<div><span class="tag ' + (u.role === 'DIRECTIE' ? 'teal' : 'grey') + '">' + (ROLLABEL[u.role] || u.role) + '</span></div>' +
+        '<div><span class="tag ' + (u.role === 'DIRECTIE' ? 'teal' : u.role === 'OPLEIDING' ? 'paars' : 'grey') + '">' +
+          (ROLLABEL[u.role] || u.role) + '</span></div>' +
         '<div style="display:flex;gap:6px;flex-wrap:wrap">' +
           '<button class="jbtn" onclick="fwmMedewerker(\'' + u.id + '\')">Bewerken</button>' +
           '<button class="jbtn" onclick="fwmReset(\'' + u.id + '\',\'' + esc(u.naam).replace(/'/g,'') + '\')">Reset</button>' +
@@ -5499,65 +5597,6 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
   .fwk-rp-grid{grid-template-columns:1fr}
 }
 
-.fwk .weg svg{width:13px;height:13px}
-.fwk .weg svg path{stroke-width:1.7}
-
-/* ── iconen alleen op de grote knoppen in de stuurkaart, zoals in het
-   voorbeeld. In de tabbladen staan tekstknoppen. ── */
-.fwk .btn svg{width:14px;height:14px}
-.fwk .fwk-blok svg{width:14px;height:14px}
-.fwk .fwk-apl svg{width:13px;height:13px}
-.fwk-dico svg{width:14px;height:14px}
-.fwk-fmelding{justify-content:flex-start}
-
-/* ── werkgangen, tijdlijn en de machtiging ── */
-.fwk-uitv{margin:10px 0 2px;border-top:1px solid var(--line-2);padding-top:10px}
-.fwk-uitvr{display:flex;align-items:center;gap:10px;padding:7px 0;font-size:13px;flex-wrap:wrap}
-.fwk-uitvr.af{color:var(--muted)}
-.fwk-uitvd{font-weight:600;color:var(--navy);min-width:52px}
-.fwk-uitvr.af .fwk-uitvd{color:var(--muted)}
-.fwk-uitvt{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--muted);min-width:84px}
-.fwk-uitvo{flex:1;min-width:140px}
-.fwk-vak{display:inline-block;background:var(--teal-soft);color:var(--teal-ink);font-size:11px;
-  font-weight:600;padding:2px 8px;border-radius:20px;margin-right:7px;vertical-align:1px}
-.fwk-uitvr.af .fwk-vak{background:var(--line-2);color:var(--muted)}
-.fwk-bon-v .jbtn svg{width:12px;height:12px;margin-right:3px}
-.fwk-tl{position:relative}
-.fwk-tld{display:flex;align-items:baseline;gap:9px;margin:16px 0 8px;padding-bottom:6px;
-  border-bottom:1px solid var(--line-2)}
-.fwk-tld:first-child{margin-top:0}
-.fwk-tld b{font-size:13.5px;color:var(--navy);text-transform:capitalize}
-.fwk-tld span{font-size:11.5px;color:var(--muted-2)}
-.fwk-tlr{display:flex;align-items:center;gap:12px;padding:9px 0}
-.fwk-tlr.af{opacity:.62}
-.fwk-tlico{width:26px;height:26px;border-radius:8px;background:var(--teal-soft);color:var(--teal-ink);
-  display:flex;align-items:center;justify-content:center;flex:none}
-.fwk-tlico svg{width:13px;height:13px}
-.fwk-tlico svg path,.fwk-tlico svg circle,.fwk-tlico svg rect{stroke-width:1.6}
-.fwk-tlr.af .fwk-tlico{background:var(--green-soft);color:#12704A}
-.fwk-tlt{font-size:14px;font-weight:500;color:var(--navy);line-height:1.4}
-.fwk-tls{font-size:11.5px;color:var(--muted);margin-top:2px}
-.fwk-doc.wacht{border-color:rgba(199,126,0,.3);background:#FFFDF8}
-.fwk-doc.wacht .fwk-dico{background:#FDF3E0;color:#8A5A0B}
-.fwk-doc a.jbtn{text-decoration:none;display:inline-flex;align-items:center}
-
-/* ── behandelaar en het financiële blok ── */
-.fwk-beh{display:flex;align-items:center;gap:12px;border-top:1px solid var(--line-2);
-  margin-top:6px;padding-top:11px}
-.fwk-behl{font-size:11px;color:var(--muted-2);letter-spacing:.04em;text-transform:uppercase;font-weight:600}
-.fwk-behn{font-size:13.5px;font-weight:500;color:var(--navy);margin-top:3px}
-.fwk-behn span{font-weight:400;color:var(--muted);font-size:12px}
-.fwk-beh .jbtn{margin-left:auto;flex:none}
-.fwk-fr b.min{color:var(--muted)}
-.fwk-frap{border-top:1px solid var(--line-2);margin-top:9px;padding-top:9px}
-.fwk-fnoot{font-size:11px;color:var(--muted-2);line-height:1.45;margin-top:3px}
-.fwk-fr.eind{border-top:1px solid var(--line);margin-top:9px;padding-top:10px}
-.fwk-fr.eind span{color:var(--navy);font-weight:500}
-.fwk-fr.eind b{font-family:'Poppins',sans-serif;font-weight:600;font-size:15px;color:var(--green)}
-.fwk-fmelding{display:flex;align-items:center;gap:8px;margin-top:12px;padding:9px 12px;
-  border-radius:10px;background:#FDF3E0;color:#8A5A0B;font-size:12px}
-.fwk-fmelding.groen{background:var(--green-soft);color:#12704A}
-
 /* ── bronstrip, teller, actiepunten ── */
 .fwk-bronrij{gap:7px;flex-wrap:wrap}
 .fwk-bronl{font-size:11px;font-weight:700;color:var(--muted-2);letter-spacing:.05em;
@@ -5645,11 +5684,7 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
     plus:'<path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
     schild:'<path d="M12 3l7.5 3v6c0 4.4-3 8.3-7.5 9.5C7.5 20.3 4.5 16.4 4.5 12V6L12 3z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>',
     pen:'<path d="M4 20h4l10-10a2.8 2.8 0 10-4-4L4 16v4z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>',
-    stuur:'<path d="M4 4l16 8-16 8 3-8-3-8z" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/>',
-    // Gereedschap voor een werkgang, een kalender met plus voor het inplannen.
-    werk:'<path d="M14.7 6.3a3.7 3.7 0 004.9 4.9l-7.4 7.4a2 2 0 01-2.8 0l-2.1-2.1a2 2 0 010-2.8l7.4-7.4z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M6.5 3.5l2.8 2.8-1.6 1.6L4.9 5.1a1 1 0 010-1.4l.2-.2a1 1 0 011.4 0z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>',
-    planplus:'<rect x="3.5" y="5.5" width="17" height="15" rx="2.4" stroke="currentColor" stroke-width="1.8"/><path d="M3.5 10h17M8.5 3.5v4M15.5 3.5v4M12 13v5M9.5 15.5h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
-    annuleer:'<circle cx="12" cy="12" r="8.6" stroke="currentColor" stroke-width="1.8"/><path d="M6.2 6.2l11.6 11.6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'
+    stuur:'<path d="M4 4l16 8-16 8 3-8-3-8z" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/>'
   };
   function svg(p){ return '<svg viewBox="0 0 24 24" fill="none">'+p+'</svg>'; }
   function esc(v){ return String(v==null?'':v).replace(/[&<>"]/g,function(c){
@@ -6482,6 +6517,14 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
     /* stuurkaart */
     x += '<div class="fwk-stuur'+(klant?' klant':'')+'">';
 
+    if (S.test) x += '<div class="fwk-testbalk">'+
+      '<span class="fwk-testpil">Testdossier</span>'+
+      '<span>Om mee te oefenen. Alles wat je verstuurt komt bij jezelf aan, nooit bij de klant '+
+      'of de verzekeraar. Facturen gaan niet echt de deur uit.</span>'+
+      (klant?'':'<button class="jbtn" onclick="fwkTestUit()">Toch echt maken</button>'+
+        '<button class="jbtn rood" onclick="fwkTestWeg()">Verwijderen</button>')+
+      '</div>';
+
     if (S.archived) x += '<div class="fwk-blok amber">'+svg(I.info)+
       '<span><b>Gearchiveerd.</b> Haal het dossier terug om te bewerken.</span>'+
       '<button class="jbtn" onclick="fwkUitArchief()">Uit archief</button></div>';
@@ -6627,10 +6670,8 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
             (mach.openCount?' \u00b7 '+mach.openCount+' keer bekeken':' \u00b7 nog niet geopend')+
             (mach.herinneringen?' \u00b7 '+mach.herinneringen+' herinnering(en)':'')+
             ' \u00b7 '+mach.dagenStil+' '+(mach.dagenStil===1?'dag':'dagen')+' stil')+'</span>'+
-        (getekend
-          ? (klant?'':'<a class="jbtn" href="/api/machtigingen/'+esc(mach.id)+'/bewijs" '+
-             'target="_blank" rel="noopener">Bewijsstuk</a>')
-          : '')+
+        (klant?'':'<a class="jbtn" href="/api/machtigingen/'+esc(mach.id)+'/document" '+
+          'target="_blank" rel="noopener">'+(getekend?'Bewijsstuk':'Bekijken')+'</a>')+
         (klant || getekend ? '' :
           '<button class="jbtn" onclick="fwkMachtHerinner(\''+mach.id+'\')">Herinneren</button>'+
           '<button class="jbtn" onclick="fwkMachtLink(\''+esc(mach.link)+'\')">Link kopi\u00ebren</button>')+
@@ -6701,9 +6742,8 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
             '<div class="fwk-fl" style="margin-top:4px">'+pctPlus+'% van de totale omzet</div>'
           : '')+
         (S.invoiced
-          ? '<div class="fwk-fmelding groen">'+svg(I.vink)+'<span>Gefactureerd</span></div>'
-          : '<div class="fwk-fmelding">'+svg(I.klok)+'<span>Nog niet gefactureerd \u00b7 '+
-            eur(totaal)+' openstaand</span></div>')+
+          ? '<div class="fwk-fmelding groen">Gefactureerd</div>'
+          : '<div class="fwk-fmelding">Nog niet gefactureerd \u00b7 '+eur(totaal)+' openstaand</div>')+
       '</div></div>';
     }
     x += '</div>';
@@ -6748,8 +6788,8 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
         (klant ? (u.afgerond?'<span class="fwk-pil groen">Klaar</span>':'')
                : (u.afgerond
                   ? '<span class="fwk-pil groen">Klaar</span>'
-                  : '<button class="jbtn" onclick="fwkUitvoerKlaar(\''+u.id+'\')">'+svg(I.vink)+'Afronden</button>'+
-                    '<button class="jbtn" onclick="fwkUitvoerWeg(\''+u.id+'\')">'+svg(I.annuleer)+'Annuleren</button>'))+
+                  : '<button class="jbtn" onclick="fwkUitvoerKlaar(\''+u.id+'\')">Afronden</button>'+
+                    '<button class="jbtn" onclick="fwkUitvoerWeg(\''+u.id+'\')">Annuleren</button>'))+
       '</div>';
     }).join('')+'</div>';
   }
@@ -6838,6 +6878,38 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
   var LSTAT = {open:['grijs','Nog niet ingepland'],ingepland:['teal','Ingepland'],
     uitvoering:['amber','In uitvoering'],opgeleverd:['groen','Opgeleverd']};
   var LSOORT = {eigenaar:'eigenaar',huurder:'huurder',leeg:'staat leeg',gemeenschappelijk:'gemeenschappelijk'};
+
+  window.fwkTestAan = function(){
+    window.fwBevestig('Markeren als testdossier',
+      S.nr+' verdwijnt uit de gewone lijst en telt niet meer mee in de cijfers. '+
+      'Je kunt hem daarna in \u00e9\u00e9n klik verwijderen.', 'Markeren').then(function(ja){
+      if (!ja) return;
+      return api('/api/schades/'+encodeURIComponent(S.nr)+'/test',
+        {method:'POST', body:JSON.stringify({test:true})})
+        .then(function(){ melden('Gemarkeerd','Dit is nu een testdossier.'); return ververs(); });
+    }).catch(function(e){ melden('Niet gelukt', e.message, 'err'); });
+  };
+
+  window.fwkTestUit = function(){
+    api('/api/schades/'+encodeURIComponent(S.nr)+'/test',
+      {method:'POST', body:JSON.stringify({test:false})})
+      .then(function(){ melden('Aangepast','Dit is nu een gewoon dossier.'); return ververs(); })
+      .catch(function(e){ melden('Niet gelukt', e.message, 'err'); });
+  };
+
+  window.fwkTestWeg = function(){
+    window.fwBevestig('Testdossier verwijderen',
+      S.nr+' gaat er met alles wat eraan hangt uit: adressen, documenten, bonnen en het logboek. '+
+      'Dit kan niet ongedaan worden gemaakt.', 'Verwijderen', true).then(function(ja){
+      if (!ja) return;
+      return api('/api/schades/'+encodeURIComponent(S.nr), {method:'DELETE'})
+        .then(function(){
+          melden('Verwijderd', S.nr);
+          return window.fwLaadDossiers();
+        })
+        .then(function(){ if (typeof setView === 'function') setView('schades'); });
+    }).catch(function(e){ melden('Niet gelukt', e.message, 'err'); });
+  };
 
   window.fwkMachtiging = function(){
     return window.fwVraag({
@@ -7085,11 +7157,11 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
           'Opgeleverd op '+dag(l.opgeleverdAt)+'</div>':'')+
         uitvoeringenBij(l.id)+
         '<div class="fwk-bon-v">'+
-          '<button class="jbtn" onclick="fwkUitvoerErbij(\''+l.id+'\')">'+svg(I.werk)+'Werkgang toevoegen</button>'+
+          '<button class="jbtn" onclick="fwkUitvoerErbij(\''+l.id+'\')">Werkgang toevoegen</button>'+
           (l.status==='open'
-            ? '<button class="jbtn" onclick="fwkLocPlan(\''+l.id+'\')">'+svg(I.planplus)+'Herstel inplannen</button>'
-            : '<button class="jbtn" onclick="fwkLocPlan(\''+l.id+'\')">'+svg(I.kalender)+'Datum wijzigen</button>'+
-              '<button class="jbtn" onclick="fwkLocAnnuleer(\''+l.id+'\')">'+svg(I.annuleer)+'Planning annuleren</button>')+
+            ? '<button class="jbtn" onclick="fwkLocPlan(\''+l.id+'\')">Herstel inplannen</button>'
+            : '<button class="jbtn" onclick="fwkLocPlan(\''+l.id+'\')">Datum wijzigen</button>'+
+              '<button class="jbtn" onclick="fwkLocAnnuleer(\''+l.id+'\')">Planning annuleren</button>')+
           (l.status==='ingepland'?'<button class="jbtn" onclick="fwkLocStatus(\''+l.id+'\',\'uitvoering\')">Werk gestart</button>':'')+
           (l.status==='uitvoering'?'<button class="jbtn" onclick="fwkLocStatus(\''+l.id+'\',\'opgeleverd\')">Opleveren</button>':'')+
           (!l.hoofd?'<button class="jbtn" onclick="fwkLocHoofd(\''+l.id+'\')">Hoofdadres maken</button>'+
@@ -7109,6 +7181,11 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
     if (!m || m.status === 'ingetrokken') return '';
     var getekend = m.status === 'getekend';
     if (klant && !getekend) return '';
+
+    // Wat er is verstuurd kun je altijd inzien en bewaren, ook zolang er nog
+    // niet getekend is. Dan staat erbij of hij hem geopend heeft.
+    var stuk = '/api/machtigingen/'+esc(m.id)+'/document';
+
     return '<div class="fwk-doc'+(getekend?'':' wacht')+'">'+
       '<div class="fwk-dico">'+svg(I.pen)+'</div>'+
       '<div style="flex:1;min-width:0">'+
@@ -7118,15 +7195,21 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
             ? esc(m.tekenNaam||m.naarNaam)+' \u00b7 '+dag(m.getekendAt)+
               (m.tekenPlaats?' te '+esc(m.tekenPlaats):'')
             : 'verstuurd '+dag(m.verstuurdAt)+' aan '+esc(m.naarNaam)+
-              (m.openCount?' \u00b7 '+m.openCount+' keer bekeken':' \u00b7 nog niet geopend'))+
+              (m.openCount
+                ? ' \u00b7 '+m.openCount+' keer bekeken, voor het laatst '+dag(m.geopendAt)
+                : ' \u00b7 nog niet geopend')+
+              (m.herinneringen?' \u00b7 '+m.herinneringen+' herinnering(en)':'')+
+              ' \u00b7 '+m.dagenStil+' '+(m.dagenStil===1?'dag':'dagen')+' stil')+
         '</div></div>'+
-      '<span class="fwk-pil '+(getekend?'groen':'amber')+'">'+(getekend?'Getekend':'Wacht')+'</span>'+
+      '<span class="fwk-pil '+(getekend?'groen':(m.status==='geopend'?'teal':'amber'))+'">'+
+        (getekend?'Getekend':(m.status==='geopend'?'Geopend':'Wacht'))+'</span>'+
       (klant?'':
-        (getekend
-          ? '<a class="jbtn" href="/api/machtigingen/'+esc(m.id)+'/bewijs" target="_blank" rel="noopener">'+
-            svg(I.oog)+'Bewijsstuk</a>'
-          : '<a class="jbtn" href="'+esc(m.link)+'" target="_blank" rel="noopener">Openen</a>'+
-            '<button class="jbtn" onclick="fwkMachtIntrekken(\''+m.id+'\')">Intrekken</button>'))+
+        '<a class="jbtn" href="'+stuk+'" target="_blank" rel="noopener">Bekijken</a>'+
+        '<a class="jbtn" href="'+stuk+'?download=ja" download="machtiging-'+esc(S.nr)+'.html">Downloaden</a>'+
+        (getekend?'':
+          '<button class="jbtn" onclick="fwkMachtHerinner(\''+m.id+'\')">Herinneren</button>'+
+          '<button class="jbtn" onclick="fwkMachtLink(\''+esc(m.link)+'\')">Link kopi\u00ebren</button>'+
+          '<button class="jbtn" onclick="fwkMachtIntrekken(\''+m.id+'\')">Intrekken</button>'))+
     '</div>';
   }
 
@@ -7632,6 +7715,9 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
                   :'<button class="btn" onclick="fwkWacht()">In de wacht zetten</button>')+
         (S.archived?'<button class="btn" onclick="fwkUitArchief()">Uit archief halen</button>'
                    :'<button class="btn" onclick="fwkAfronden()">Dossier afronden</button>')+
+        // Een dossier dat per ongeluk als oefening is aangemaakt kun je hier
+        // alsnog als test markeren. Daarna kan het in \u00e9\u00e9n klik weg.
+        (S.test?'':'<button class="btn" onclick="fwkTestAan()">Markeren als testdossier</button>')+
       '</div>';
   }
 
