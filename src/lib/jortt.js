@@ -35,34 +35,69 @@ function aan() {
 let token = null;
 let tokenTot = 0;
 
+// Twee manieren om in te loggen: met de sleutels in de kopregel, en met de
+// sleutels in de body. Welke jortt wil verschilt per omgeving, dus we
+// proberen ze allebei voordat we een fout melden.
+async function probeerToken(inBody) {
+  const id = process.env.JORTT_CLIENT_ID;
+  const geheim = process.env.JORTT_CLIENT_SECRET;
+
+  const kop = { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' };
+  const body = { grant_type: 'client_credentials', scope: SCOPES };
+
+  if (inBody) {
+    body.client_id = id;
+    body.client_secret = geheim;
+  } else {
+    kop.Authorization = `Basic ${Buffer.from(`${id}:${geheim}`).toString('base64')}`;
+  }
+
+  const res = await fetch(TOKEN_URL, { method: 'POST', headers: kop, body: new URLSearchParams(body) });
+  const tekst = await res.text();
+  let data = {};
+  try { data = JSON.parse(tekst); } catch (e) { data = { rauw: tekst.slice(0, 200) }; }
+
+  return { ok: res.ok, status: res.status, data };
+}
+
 async function haalToken() {
   if (!aan()) throw new Error('Jortt is niet gekoppeld. Zet JORTT_CLIENT_ID en JORTT_CLIENT_SECRET in Coolify.');
   if (token && Date.now() < tokenTot - 60000) return token;
 
-  const basis = Buffer.from(
-    `${process.env.JORTT_CLIENT_ID}:${process.env.JORTT_CLIENT_SECRET}`
-  ).toString('base64');
+  const pogingen = [];
+  for (const inBody of [false, true]) {
+    const uit = await probeerToken(inBody);
+    if (uit.ok && uit.data.access_token) {
+      token = uit.data.access_token;
+      tokenTot = Date.now() + (Number(uit.data.expires_in || 7200) * 1000);
+      return token;
+    }
+    pogingen.push(`${inBody ? 'sleutels in body' : 'sleutels in kopregel'}: ` + fout(uit.data, `HTTP ${uit.status}`));
+  }
 
-  const res = await fetch(TOKEN_URL, {
-    method: 'POST',
-    headers: {
-      Authorization: `Basic ${basis}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body: new URLSearchParams({ grant_type: 'client_credentials', scope: SCOPES }),
-  });
-
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(fout(data, 'Inloggen bij jortt mislukte'));
-
-  token = data.access_token;
-  tokenTot = Date.now() + (Number(data.expires_in || 7200) * 1000);
-  return token;
+  throw new Error(`Inloggen bij jortt mislukte. ${pogingen.join(' | ')}`);
 }
 
 function fout(data, val) {
   const e = data && data.error;
-  if (!e) return val;
+  if (!e) {
+    if (data && data.rauw) return `${val} \u2014 jortt antwoordde: ${data.rauw}`;
+    return val;
+  }
+
+  // Bij het inloggen gebruikt jortt het standaard oauth-formaat: een korte
+  // code als tekst, met een uitleg ernaast.
+  if (typeof e === 'string') {
+    const uitleg = data.error_description || data.message || '';
+    if (e === 'invalid_client') {
+      return `${val} \u2014 client ID of secret klopt niet. Controleer of ze zonder aanhalingstekens en zonder spaties in Coolify staan.`;
+    }
+    if (e === 'invalid_scope') {
+      return `${val} \u2014 een van de rechten is niet aangevinkt bij de koppeling in jortt.`;
+    }
+    return `${val} \u2014 ${e}${uitleg ? `: ${uitleg}` : ''}`;
+  }
+
   if (e.key === 'organization.requires_mkb_plan') {
     return 'Deze jortt-administratie heeft geen MKB- of Plus-abonnement, dus de API werkt niet.';
   }
