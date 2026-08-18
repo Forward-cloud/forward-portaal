@@ -1,14 +1,18 @@
 // Begeleidend schrijven per soort verzending — tekst volgt uit het dossier.
 
+// Brieven gaan uit naam van de handelsnaam: onder die naam kennen klanten,
+// beheerders en verzekeraars ons. De statutaire naam staat in de voetregel,
+// want daar moet hij staan -- en op de factuur, bij de tenaamstelling.
 const BEDRIJF = {
-  naam: 'Forward Real Estate B.V.',
+  naam: 'Forward Schadeherstel',
+  statutair: 'Forward Real Estate B.V.',
   handelsnaam: 'Forward Schadeherstel',
   adres: 'De Entree 201',
   postcode: '1101 HG',
   plaats: 'Amsterdam',
   telefoon: '',
-  email: 'info@forwardre.nl',
-  web: 'www.forwardre.nl',
+  email: 'info@forwardschadeherstel.nl',
+  web: 'www.forwardschadeherstel.nl',
   kvk: '76164144',
   btw: 'NL860530644B01',
   iban: 'NL98 INGB 0007 9448 84',
@@ -1054,7 +1058,7 @@ function briefHtml(brief, afzender, functie, handtekening) {
     </div>
 
     <div class="voet">
-      <span>${escH(B.naam)} &middot; ${escH(B.adres)} &middot; ${escH(B.postcode)} ${escH(B.plaats)} &middot; ${escH(B.web)}</span>
+      <span>${escH(B.naam)}${B.statutair && B.statutair !== B.naam ? `, handelsnaam van ${escH(B.statutair)}` : ''} &middot; ${escH(B.adres)} &middot; ${escH(B.postcode)} ${escH(B.plaats)} &middot; ${escH(B.web)}</span>
       <span>KvK ${escH(B.kvk)} &middot; ${escH(B.iban)}</span>
     </div>
   </div>
