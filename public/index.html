@@ -215,6 +215,12 @@
   .btn.ghost{background:var(--surface);border-color:var(--line);color:var(--text)}.btn.ghost:hover{border-color:#c8d0db}
   .btn.ok{background:var(--green);color:#fff}.btn.no{background:var(--surface);border-color:var(--line);color:var(--red)}.btn.no:hover{background:var(--red-soft)}
   .btn.alt{background:var(--surface);border-color:var(--line);color:var(--text)}
+  /* Een knop zonder variant kreeg geen rand en las als gewone tekst.
+     Alles wat een knop is, ziet er nu ook uit als een knop. */
+  .btn:not(.primary):not(.dark):not(.ok):not(.no):not(.ghost):not(.alt):not(.lijn){
+    background:var(--surface);border-color:var(--teal);color:var(--teal-ink)}
+  .btn:not(.primary):not(.dark):not(.ok):not(.no):not(.ghost):not(.alt):not(.lijn):hover{
+    background:var(--teal-soft);border-color:var(--teal-deep)}
 
   .route-card{background:linear-gradient(180deg,#fbfdfd,#fff);border:1px solid var(--line);border-radius:var(--radius);padding:22px 24px 6px;margin-bottom:16px;box-shadow:var(--shadow-s);overflow-x:auto}
   .route-title{display:flex;align-items:center;justify-content:space-between;margin-bottom:22px}
