@@ -20,6 +20,13 @@ async function log(user, text, schadeId, detail) {
   });
 }
 
+// De vakgebieden zoals ze ook bij de opdrachtbonnen worden gebruikt.
+const VAKKEN = {
+  droging: 'Drogen en meten', loodgieter: 'Loodgieterswerk', dak: 'Dakwerk',
+  stuc: 'Stucwerk', tegel: 'Tegelwerk', schilder: 'Schilderwerk', vloer: 'Vloeren',
+  timmer: 'Timmerwerk', elektra: 'Elektra', schoonmaak: 'Schoonmaak', overig: 'Overig',
+};
+
 const datum = (v) => {
   if (!v) return null;
   const d = new Date(v);
@@ -42,6 +49,7 @@ function schoon(b) {
   if (b.starttijd !== undefined) d.starttijd = b.starttijd ? String(b.starttijd).trim() : null;
   if (b.uren !== undefined) d.uren = Math.max(1, Math.min(Number(b.uren) || 8, 80));
   if (b.omschrijving !== undefined) d.omschrijving = String(b.omschrijving || '').trim();
+  if (b.vak !== undefined) d.vak = VAKKEN[b.vak] ? b.vak : null;
   if (b.locatieId !== undefined) d.locatieId = b.locatieId || null;
   return d;
 }
@@ -63,7 +71,7 @@ router.get('/schades/:nummer/uitvoeringen', async (req, res) => {
     orderBy: [{ datum: 'asc' }],
     include: { locatie: { select: { id: true, adres: true, aanduiding: true } } },
   });
-  res.json({ uitvoeringen });
+  res.json({ uitvoeringen, vakken: Object.entries(VAKKEN).map(([k, v]) => ({ key: k, label: v })) });
 });
 
 /* ─────────── toevoegen ─────────── */
@@ -82,6 +90,7 @@ router.post('/schades/:nummer/uitvoeringen', async (req, res) => {
       datum: d.datum,
       starttijd: d.starttijd || '08.00',
       uren: d.uren || 8,
+      vak: d.vak || null,
       omschrijving: d.omschrijving,
       doorNaam: req.user.naam,
     },
