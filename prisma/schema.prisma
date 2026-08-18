@@ -149,6 +149,9 @@ model Schade {
   behandelaarId  String?
 
   aangenomenAt   DateTime? // wanneer wij de opdracht hebben aangenomen
+  // Een testdossier om in te klooien. Telt niet mee in de cijfers en mag
+  // met alles eraan vast in één keer weg.
+  test           Boolean   @default(false)
   machtigingen   Machtiging[]
 
   bronStatus     String    @default("nvt")
@@ -260,6 +263,10 @@ model Machtiging {
 
   token     String   @unique          // zit in de link, verder nergens
   tekst     String                    // wat er getekend wordt, woordelijk bewaard
+  // Polisnummer, schadedatum en de rest zoals ze golden op het moment van
+  // tekenen. Verandert er later iets in het dossier, dan blijft de machtiging
+  // kloppen bij wat er is getekend.
+  gegevens  Json     @default("[]")
   naarNaam  String                    // aan wie hij is gestuurd
   naarEmail String?
   kanaal    String   @default("mail") // mail | app
@@ -276,6 +283,9 @@ model Machtiging {
   // De krabbel zelf, als afbeelding. Zo staat er een echte handtekening
   // onder en niet alleen een aangevinkt hokje.
   handtekening  String?               @db.Text
+  tekenWijze    String?               // getypt of zelf getekend
+  // Bij een particulier: heeft hij gevraagd om binnen de bedenktijd te starten.
+  directStart   Boolean  @default(false)
   zakelijk      Boolean  @default(false) // beheerder of bestuur, dan ook de functie
 
   herinneringen Int      @default(0)
