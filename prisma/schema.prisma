@@ -14,6 +14,10 @@ enum Role {
   FINANCIEEL
   SCHADEBEHANDELAAR
   PLANNER
+  // Een opleidingsaccount: ziet alleen testdossiers, geen echte klanten,
+  // geen financiën en geen facturen. Bedoeld om nieuwe medewerkers in te
+  // laten oefenen zonder dat ze iets echts kunnen raken.
+  OPLEIDING
 }
 
 enum RelatieSoort {
@@ -101,6 +105,10 @@ model Schade {
   beheerderEmail  String?
   beheerderTel    String?
   bewonerSoort    String? // eigenaar | huurder | leeg
+  // Bij een VvE loopt de opstalverzekering via de vereniging; bij een
+  // particulier is de eigenaar zelf de opdrachtgever. Dat bepaalt de
+  // machtiging, de facturatie en wie er tekent.
+  opdrachtgeverType String? // vve | particulier
   contactpersoon  String? // wie op brieven en bonnen staat
 
   // Verzekeraar
