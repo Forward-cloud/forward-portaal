@@ -270,8 +270,13 @@ model Machtiging {
   openCount     Int      @default(0)
   getekendAt    DateTime?
   tekenNaam     String?               // wie er tekende
+  tekenFunctie  String?               // alleen bij een beheerder of bestuur
   tekenPlaats   String?
   tekenIp       String?               // alleen het begin, voor het bewijs
+  // De krabbel zelf, als afbeelding. Zo staat er een echte handtekening
+  // onder en niet alleen een aangevinkt hokje.
+  handtekening  String?               @db.Text
+  zakelijk      Boolean  @default(false) // beheerder of bestuur, dan ook de functie
 
   herinneringen Int      @default(0)
   herinnerdAt   DateTime?
