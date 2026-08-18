@@ -149,6 +149,7 @@ model Schade {
   behandelaarId  String?
 
   aangenomenAt   DateTime? // wanneer wij de opdracht hebben aangenomen
+  machtigingen   Machtiging[]
 
   bronStatus     String    @default("nvt")
   bronBeoordeeld Boolean   @default(false) // pas na beoordelen kleurt de kaart rood
@@ -233,6 +234,9 @@ model Uitvoering {
   datum        DateTime
   starttijd    String?   // '08.00'
   uren         Int       @default(8)
+  // Wat voor werk: stucwerk, schilderwerk, tegelwerk. Zo kun je in de
+  // planning in één oogopslag zien wie er die dag komt.
+  vak          String?
   omschrijving String
 
   afgerond     Boolean   @default(false)
@@ -246,6 +250,41 @@ model Uitvoering {
 }
 
 // Wat er nu open staat. Blijft staan als de halte verspringt.
+// De machtiging waarmee de klant ons toestemming geeft om namens hem op te
+// treden: bij de verzekeraar indienen, stukken opvragen, herstel regelen.
+// Hij tekent digitaal via een link; wat hij tekent bewaren we woordelijk.
+model Machtiging {
+  id        String   @id @default(cuid())
+  schade    Schade   @relation(fields: [schadeId], references: [id], onDelete: Cascade)
+  schadeId  String
+
+  token     String   @unique          // zit in de link, verder nergens
+  tekst     String                    // wat er getekend wordt, woordelijk bewaard
+  naarNaam  String                    // aan wie hij is gestuurd
+  naarEmail String?
+  kanaal    String   @default("mail") // mail | app
+
+  status    String   @default("open") // open | geopend | getekend | ingetrokken
+  verstuurdAt   DateTime @default(now())
+  geopendAt     DateTime?
+  openCount     Int      @default(0)
+  getekendAt    DateTime?
+  tekenNaam     String?               // wie er tekende
+  tekenPlaats   String?
+  tekenIp       String?               // alleen het begin, voor het bewijs
+
+  herinneringen Int      @default(0)
+  herinnerdAt   DateTime?
+  herinnerDagen Int      @default(3)
+
+  documentId String?                  // het bewijsstuk in de documentenlijst
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([schadeId, status])
+}
+
 model Actiepunt {
   id        String    @id @default(cuid())
   schade    Schade    @relation(fields: [schadeId], references: [id], onDelete: Cascade)
