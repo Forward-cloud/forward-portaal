@@ -81,7 +81,7 @@ function schadeForUser(s, user) {
     // Werkgangen per adres
     uitvoeringen: (s.uitvoeringen || []).map((u) => ({
       id: u.id, locatieId: u.locatieId, datum: u.datum, starttijd: u.starttijd,
-      uren: u.uren, omschrijving: u.omschrijving, afgerond: u.afgerond,
+      uren: u.uren, vak: u.vak, omschrijving: u.omschrijving, afgerond: u.afgerond,
       afgerondAt: u.afgerondAt, doorNaam: u.doorNaam,
     })),
 
