@@ -92,12 +92,35 @@ async function vraag(pad, opties = {}) {
 }
 
 /* ── bedrijfsgegevens ──
-   Hiermee hoeven KvK, btw-nummer en adres nergens in het portaal te staan. */
+   Hiermee hoeven KvK, btw-nummer en adres nergens in het portaal te staan.
+   Jortt heeft dit endpoint in de loop van de tijd hernoemd, dus we proberen
+   de varianten en onthouden welke werkte. */
+const ORG_PADEN = ['/v3/organizations', '/v3/organization', '/v3/tradenames'];
+let orgPad = null;
+
 async function bedrijf() {
   if (!aan()) return null;
-  const data = await vraag('/v3/organizations').catch(() => null);
+
+  const paden = orgPad ? [orgPad] : ORG_PADEN;
+  const fouten = [];
+  let data = null;
+
+  for (const pad of paden) {
+    try {
+      data = await vraag(pad);
+      orgPad = pad;
+      break;
+    } catch (e) {
+      fouten.push(`${pad}: ${e.message}`);
+    }
+  }
+
+  // Niets gelukt? Dan geven we de echte foutmeldingen door, anders sta je
+  // te raden of het aan de sleutels, de rechten of het abonnement ligt.
+  if (!data) throw new Error(fouten.join(' | '));
+
   const o = Array.isArray(data) ? data[0] : data;
-  if (!o) return null;
+  if (!o) throw new Error(`Jortt gaf een lege lijst terug op ${orgPad}.`);
   return {
     naam: o.company_name || o.name || '',
     kvk: o.coc_number || '',
@@ -253,8 +276,15 @@ async function openstaand() {
   }));
 }
 
+// Alleen om te testen: haalt een token op en vertelt of dat lukte.
+// Het token zelf geven we nooit terug.
+async function tokenTest() {
+  const t = await haalToken();
+  return { ok: true, geldigTot: new Date(tokenTot).toISOString(), lengte: String(t).length };
+}
+
 module.exports = {
-  aan, BETAALTERMIJN, TRADENAME,
+  aan, BETAALTERMIJN, TRADENAME, tokenTest,
   bedrijf, zoekKlant, maakKlant, klantVoor,
   zetFactuur, leesFactuur, openstaand,
 };
