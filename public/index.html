@@ -5493,6 +5493,29 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
   .fwk-rp-grid{grid-template-columns:1fr}
 }
 
+/* ── werkgangen per adres en de tijdlijn ── */
+.fwk-uitv{margin:10px 0 2px;border-top:1px solid var(--line-2);padding-top:10px}
+.fwk-uitvr{display:flex;align-items:center;gap:10px;padding:7px 0;font-size:13px;flex-wrap:wrap}
+.fwk-uitvr.af{color:var(--muted)}
+.fwk-uitvd{font-weight:600;color:var(--navy);min-width:52px}
+.fwk-uitvr.af .fwk-uitvd{color:var(--muted)}
+.fwk-uitvt{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--muted);min-width:84px}
+.fwk-uitvo{flex:1;min-width:140px}
+.fwk-tl{position:relative}
+.fwk-tld{display:flex;align-items:baseline;gap:9px;margin:16px 0 8px;padding-bottom:6px;
+  border-bottom:1px solid var(--line-2)}
+.fwk-tld:first-child{margin-top:0}
+.fwk-tld b{font-size:13.5px;color:var(--navy);text-transform:capitalize}
+.fwk-tld span{font-size:11.5px;color:var(--muted-2)}
+.fwk-tlr{display:flex;align-items:center;gap:12px;padding:9px 0}
+.fwk-tlr.af{opacity:.62}
+.fwk-tlico{width:30px;height:30px;border-radius:9px;background:var(--teal-soft);color:var(--teal-ink);
+  display:flex;align-items:center;justify-content:center;flex:none}
+.fwk-tlico svg{width:15px;height:15px}
+.fwk-tlr.af .fwk-tlico{background:var(--green-soft);color:#12704A}
+.fwk-tlt{font-size:14px;font-weight:500;color:var(--navy);line-height:1.4}
+.fwk-tls{font-size:11.5px;color:var(--muted);margin-top:2px}
+
 /* ── bronstrip, teller, actiepunten ── */
 .fwk-bronrij{gap:7px;flex-wrap:wrap}
 .fwk-bronl{font-size:11px;font-weight:700;color:var(--muted-2);letter-spacing:.05em;
@@ -5592,7 +5615,7 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
 
   var S = null, tab = 'doc', klant = false, routeOpen = false;
   var docs = [], bonnen = [], corr = [], logs = [], offertes = [], levs = [], locaties = [], afspraken = [];
-  var acties = [];
+  var acties = [], uitvoeringen = [];
 
   function api(pad, opts){ return window.fwApi(pad, opts); }
 
@@ -5668,12 +5691,14 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
       api('/api/schades/'+encodeURIComponent(nr)+'/locaties').catch(function(){return{locaties:[]}}),
       api('/api/schades/'+encodeURIComponent(nr)+'/afspraken').catch(function(){return{afspraken:[]}}),
       api('/api/relaties?soort=VERZEKERAAR,TUSSENPERSOON').catch(function(){return{relaties:[]}}),
-      api('/api/schades/'+encodeURIComponent(nr)+'/actiepunten').catch(function(){return{actiepunten:[]}})
+      api('/api/schades/'+encodeURIComponent(nr)+'/actiepunten').catch(function(){return{actiepunten:[]}}),
+      api('/api/schades/'+encodeURIComponent(nr)+'/uitvoeringen').catch(function(){return{uitvoeringen:[]}})
     ]).then(function(r){
       docs = r[0].documenten || []; bonnen = r[1].bonnen || []; aanvragen = r[1].aanvragen || []; corr = r[2].verzendingen || [];
       logs = r[3].regels || []; offertes = r[4].offertes || []; levs = r[5].relaties || [];
       locaties = r[6].locaties || []; afspraken = r[7].afspraken || []; verzs = r[8].relaties || [];
       acties = r[9].actiepunten || [];
+      uitvoeringen = r[10].uitvoeringen || [];
       teken();
     });
   }
@@ -6560,7 +6585,8 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
 
     /* tabs */
     var tabs = [];
-    if (locaties.length > 1) tabs.push(['loc','Adressen',locaties.length]);
+    tabs.push(['loc','Adressen',locaties.length]);
+    tabs.push(['plan','Planning', uitvoeringen.filter(function(u){ return !u.afgerond; }).length]);
     tabs.push(['doc','Documenten',docs.length],['onder','Onderaanneming',bonnen.length]);
     if (eigen) tabs.push(['off','Offerte klant','']);
     tabs.push(['corr','Correspondentie',corr.length],['log','Logboek',logs.length],['fin','Financieel','']);
@@ -6577,9 +6603,33 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
     haakSleep();
   }
 
+  // '08.00' plus vier uur wordt '12.00'.
+  function tot(start, uren){
+    var u = parseInt(String(start||'8'),10) + Math.min(Number(uren)||1, 11);
+    return (u<10?'0':'')+Math.min(u,19)+'.00';
+  }
+
+  function uitvoeringenBij(locId){
+    var lijst = uitvoeringen.filter(function(u){ return u.locatieId === locId; });
+    if (!lijst.length) return '';
+    return '<div class="fwk-uitv">'+lijst.map(function(u){
+      return '<div class="fwk-uitvr'+(u.afgerond?' af':'')+'">'+
+        '<span class="fwk-uitvd">'+dag(u.datum)+'</span>'+
+        '<span class="fwk-uitvt">'+esc(u.starttijd||'08.00')+'\u2013'+tot(u.starttijd,u.uren)+'</span>'+
+        '<span class="fwk-uitvo">'+esc(u.omschrijving)+'</span>'+
+        (klant ? (u.afgerond?'<span class="fwk-pil groen">Klaar</span>':'')
+               : (u.afgerond
+                  ? '<span class="fwk-pil groen">Klaar</span>'
+                  : '<button class="jbtn" onclick="fwkUitvoerKlaar(\''+u.id+'\')">Afronden</button>'+
+                    '<button class="jbtn" onclick="fwkUitvoerWeg(\''+u.id+'\')">\u2715</button>'))+
+      '</div>';
+    }).join('')+'</div>';
+  }
+
   /* ══ panelen ══ */
   function paneel(t){
     if (t==='loc') return panLoc();
+    if (t==='plan') return panPlan();
     if (t==='doc') return panDoc();
     if (t==='onder') return panOnder();
     if (t==='off') return panOff();
@@ -6588,9 +6638,104 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
     return panFin();
   }
 
+  function panPlan(){
+    // Alles wat een datum heeft op één tijdlijn: opnames, werkgangen en
+    // opleveringen. Zo zie je in één blik wat er deze week gebeurt.
+    var punten = [];
+
+    if (S.opnameAt) punten.push({datum:S.opnameAt, soort:'opname', tekst:'Schade-opname', af:S.step>2});
+
+    uitvoeringen.forEach(function(u){
+      var l = locaties.filter(function(x){ return x.id===u.locatieId; })[0];
+      punten.push({datum:u.datum, soort:'werk', tekst:u.omschrijving, af:u.afgerond,
+        waar:l?l.adres:'', tijd:(u.starttijd||'08.00')+'\u2013'+tot(u.starttijd,u.uren), id:u.id});
+    });
+
+    locaties.forEach(function(l){
+      if (l.opgeleverdAt) punten.push({datum:l.opgeleverdAt, soort:'op', tekst:'Opgeleverd', af:true, waar:l.adres});
+      else if (l.ingepland) punten.push({datum:l.ingepland, soort:'plan', tekst:'Herstel ingepland', af:false,
+        waar:l.adres, tijd:l.tijdvak||''});
+    });
+
+    if (!punten.length) {
+      return '<div class="fwk-leeg">Nog niets ingepland. Voeg een werkgang toe bij een adres.</div>';
+    }
+
+    punten.sort(function(a,b){ return new Date(a.datum) - new Date(b.datum); });
+
+    var vandaag = new Date(); vandaag.setHours(0,0,0,0);
+    var vorigeDag = '';
+    var x = '<div class="fwk-tl">';
+
+    punten.forEach(function(p){
+      var d = new Date(p.datum);
+      var dagtekst = d.toLocaleDateString('nl-NL',{weekday:'long',day:'numeric',month:'long'});
+      if (dagtekst !== vorigeDag) {
+        var verschil = Math.round((new Date(d).setHours(0,0,0,0) - vandaag) / 864e5);
+        var wanneer = verschil === 0 ? 'vandaag' : verschil === 1 ? 'morgen'
+          : verschil < 0 ? Math.abs(verschil)+' dagen geleden' : 'over '+verschil+' dagen';
+        x += '<div class="fwk-tld"><b>'+dagtekst+'</b><span>'+wanneer+'</span></div>';
+        vorigeDag = dagtekst;
+      }
+      var ico = p.soort==='opname'?I.camera:p.soort==='werk'?I.hamer:p.soort==='op'?I.vink:I.kalender;
+      x += '<div class="fwk-tlr'+(p.af?' af':'')+'">'+
+        '<span class="fwk-tlico">'+svg(ico)+'</span>'+
+        '<div style="flex:1;min-width:0"><div class="fwk-tlt">'+esc(p.tekst)+'</div>'+
+        '<div class="fwk-tls">'+(p.tijd?esc(p.tijd)+' \u00b7 ':'')+esc(p.waar||S.addr||'')+'</div></div>'+
+        (p.af?'<span class="fwk-pil groen">Klaar</span>':'')+
+      '</div>';
+    });
+
+    return x + '</div>';
+  }
+
   var LSTAT = {open:['grijs','Nog niet ingepland'],ingepland:['teal','Ingepland'],
     uitvoering:['amber','In uitvoering'],opgeleverd:['groen','Opgeleverd']};
   var LSOORT = {eigenaar:'eigenaar',huurder:'huurder',leeg:'staat leeg',gemeenschappelijk:'gemeenschappelijk'};
+
+  window.fwkUitvoerErbij = function(locId){
+    var l = locaties.filter(function(x){ return x.id===locId; })[0] || {};
+    window.fwVraag({
+      titel:'Werkgang toevoegen',
+      uitleg:(l.adres||'') + ' \u2014 wanneer wordt er gewerkt en waaraan?',
+      velden:[
+        {naam:'datum',label:'Datum',type:'datum',verplicht:'Kies een datum.'},
+        {naam:'start',label:'Starttijd',type:'keuze',waarde:'08.00',
+         opties:['07.00','08.00','09.00','10.00','11.00','13.00','14.00'].map(function(t){return [t,t+' uur'];})},
+        {naam:'uren',label:'Hoeveel uur',type:'keuze',waarde:'8',
+         opties:[['2','2 uur'],['4','een halve dag'],['8','een hele dag'],['16','twee dagen'],['24','drie dagen']]},
+        {naam:'wat',label:'Wat gebeurt er',type:'tekst',
+         plaats:'bijvoorbeeld: stucwerk plafond hal, uitvlakken en sausklaar',
+         verplicht:'Beschrijf wat er die dag gebeurt.'}
+      ],
+      ok:'Inplannen'
+    }).then(function(r){
+      if (!r) return;
+      api('/api/schades/'+encodeURIComponent(S.nr)+'/uitvoeringen',
+        {method:'POST', body:JSON.stringify({locatieId:locId, datum:r.datum, starttijd:r.start,
+          uren:Number(r.uren), omschrijving:r.wat})})
+        .then(function(){ melden('Ingepland', dag(r.datum)); return ververs(); })
+        .catch(function(e){ melden('Niet gelukt', e.message, 'err'); });
+    });
+  };
+
+  window.fwkUitvoerKlaar = function(id){
+    api('/api/uitvoeringen/'+encodeURIComponent(id)+'/afronden', {method:'POST', body:'{}'})
+      .then(function(){ return ververs(); })
+      .catch(function(e){ melden('Niet gelukt', e.message, 'err'); });
+  };
+
+  window.fwkUitvoerWeg = function(id){
+    var u = uitvoeringen.filter(function(x){ return x.id===id; })[0] || {};
+    window.fwBevestig('Werkgang verwijderen',
+      (u.omschrijving||'') + ' op ' + dag(u.datum) + ' \u2014 weet je het zeker?', 'Verwijderen')
+      .then(function(ja){
+        if (!ja) return;
+        return api('/api/uitvoeringen/'+encodeURIComponent(id), {method:'DELETE'})
+          .then(function(){ return ververs(); });
+      })
+      .catch(function(e){ melden('Niet gelukt', e.message, 'err'); });
+  };
 
   window.fwkLocStatus = function(id, st){
     api('/api/locaties/'+id,{method:'PATCH',body:JSON.stringify({status:st})})
@@ -6673,7 +6818,9 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
           (l.tijdvak?' \u00b7 '+esc(l.tijdvak):'')+'</div>':'')+
         (l.opgeleverdAt?'<div class="fwk-bon-r" style="color:var(--green)">'+svg(I.vink)+
           'Opgeleverd op '+dag(l.opgeleverdAt)+'</div>':'')+
+        uitvoeringenBij(l.id)+
         '<div class="fwk-bon-v">'+
+          '<button class="jbtn" onclick="fwkUitvoerErbij(\''+l.id+'\')">'+svg(I.hamer)+'Werkgang toevoegen</button>'+
           (l.status==='open'?'<button class="jbtn" onclick="fwkLocPlan(\''+l.id+'\')">Herstel inplannen</button>':'')+
           (l.status==='ingepland'?'<button class="jbtn" onclick="fwkLocStatus(\''+l.id+'\',\'uitvoering\')">Werk gestart</button>':'')+
           (l.status==='uitvoering'?'<button class="jbtn" onclick="fwkLocStatus(\''+l.id+'\',\'opgeleverd\')">Opleveren</button>':'')+
