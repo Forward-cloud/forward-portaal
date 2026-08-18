@@ -5596,7 +5596,7 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
 
   var S = null, tab = 'doc', klant = false, routeOpen = false;
   var docs = [], bonnen = [], corr = [], logs = [], offertes = [], levs = [], locaties = [], afspraken = [];
-  var acties = [], uitvoeringen = [], mensen = [];
+  var acties = [], uitvoeringen = [], mensen = [], machtigingen = [];
 
   function api(pad, opts){ return window.fwApi(pad, opts); }
 
@@ -5605,7 +5605,10 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
   function hoofdknop(stap, vlg){
     var h = S.haltes || [];
     var bronOk = S.bronStatus==='hersteld' || S.bronStatus==='nvt';
-    var machtiging = (acties||[]).filter(function(a){ return a.open && a.soort==='machtiging'; })[0];
+    var mt = (machtigingen||[])[0];
+    var machtiging = mt && mt.status !== 'getekend' && mt.status !== 'ingetrokken'
+      ? mt : (acties||[]).filter(function(a){ return a.open && a.soort==='machtiging'; })[0];
+    var geenMacht = !mt || mt.status === 'ingetrokken';
 
     if (S.archived) return '<button class="btn" onclick="fwkUitArchief()">Uit archief halen</button>';
 
@@ -5638,8 +5641,13 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
     if (stap === 4) {
       if (h.indexOf(5)>-1) {
         // Zonder getekende machtiging kan de claim niet de deur uit.
+        if (geenMacht) {
+          return '<button class="btn lijn" onclick="fwkMachtiging()">'+svg(I.pen)+'Machtiging versturen</button>'+
+            '<button class="btn primary uit" onclick="fwkMelding()" title="Er is nog geen machtiging verstuurd">'+
+            svg(I.stuur)+'Claim indienen</button>';
+        }
         return machtiging
-          ? '<button class="btn lijn" onclick="fwkMachtigingBinnen()">Machtiging is binnen</button>'+
+          ? '<button class="btn lijn" onclick="fwkMachtHerinner(\''+machtiging.id+'\')">Herinneren</button>'+
             '<button class="btn primary uit" onclick="fwkMelding()" title="De getekende machtiging ontbreekt nog">'+
             svg(I.stuur)+'Claim indienen</button>'
           : '<button class="btn primary" onclick="fwkHalte(5)">'+svg(I.stuur)+'Claim indienen</button>';
@@ -5682,7 +5690,8 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
       api('/api/relaties?soort=VERZEKERAAR,TUSSENPERSOON').catch(function(){return{relaties:[]}}),
       api('/api/schades/'+encodeURIComponent(nr)+'/actiepunten').catch(function(){return{actiepunten:[]}}),
       api('/api/schades/'+encodeURIComponent(nr)+'/uitvoeringen').catch(function(){return{uitvoeringen:[]}}),
-      api('/api/users').catch(function(){return{users:[]}})
+      api('/api/users').catch(function(){return{users:[]}}),
+      api('/api/schades/'+encodeURIComponent(nr)+'/machtigingen').catch(function(){return{machtigingen:[]}})
     ]).then(function(r){
       docs = r[0].documenten || []; bonnen = r[1].bonnen || []; aanvragen = r[1].aanvragen || []; corr = r[2].verzendingen || [];
       logs = r[3].regels || []; offertes = r[4].offertes || []; levs = r[5].relaties || [];
@@ -5690,6 +5699,7 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
       acties = r[9].actiepunten || [];
       uitvoeringen = r[10].uitvoeringen || [];
       mensen = (r[11].users || []).filter(function(u){ return u.active !== false; });
+      machtigingen = r[12].machtigingen || [];
       teken();
     });
   }
@@ -5780,7 +5790,19 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
       if (!r) return;
       api('/api/schades/'+encodeURIComponent(S.nr)+'/aannemen',
         {method:'POST', body:JSON.stringify({preset:r.route})})
-        .then(function(){ melden('Aangenomen','Het dossier loopt.'); return ververs(); })
+        .then(function(){ return ververs(); })
+        .then(function(){
+          // Alleen de volledige route loopt via de verzekeraar, en daar is een
+          // getekende machtiging voor nodig. Meteen vragen scheelt een week.
+          if (r.route !== 'volledig') { melden('Aangenomen','Het dossier loopt.'); return; }
+          return window.fwBevestig('Machtiging nu versturen?',
+            'Zonder getekende machtiging kunnen we de claim niet indienen. '+
+            'De klant tekent hem digitaal via een link.', 'Versturen')
+            .then(function(ja){
+              if (!ja) { melden('Aangenomen','Vergeet de machtiging niet.'); return; }
+              return fwkMachtiging();
+            });
+        })
         .catch(function(e){ melden('Niet gelukt', e.message, 'err'); });
     });
   };
@@ -6525,6 +6547,31 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
                  : hoofdknop(stap, vlg))+
       '</div></div>';
 
+    var mach = (machtigingen||[])[0];
+    if (mach && mach.status !== 'ingetrokken') {
+      var getekend = mach.status === 'getekend';
+      x += '<div class="fwk-blok'+(getekend?'':' amber')+'"'+
+        (getekend?' style="background:var(--green-soft);color:#12704A"':'')+'>'+
+        svg(getekend?I.vink:I.pen)+'<span>'+
+        (getekend
+          ? '<b>Machtiging getekend</b> door '+esc(mach.tekenNaam||mach.naarNaam)+
+            (mach.tekenFunctie?', '+esc(mach.tekenFunctie):'')+
+            ' op '+dag(mach.getekendAt)+(mach.tekenPlaats?' te '+esc(mach.tekenPlaats):'')+'.'
+          : '<b>'+(mach.status==='geopend'?'Machtiging geopend, nog niet getekend':'Machtiging verstuurd')+'.</b> '+
+            esc(mach.naarNaam)+' \u00b7 '+dag(mach.verstuurdAt)+
+            (mach.openCount?' \u00b7 '+mach.openCount+' keer bekeken':' \u00b7 nog niet geopend')+
+            (mach.herinneringen?' \u00b7 '+mach.herinneringen+' herinnering(en)':'')+
+            ' \u00b7 '+mach.dagenStil+' '+(mach.dagenStil===1?'dag':'dagen')+' stil')+'</span>'+
+        (getekend
+          ? (klant?'':'<a class="jbtn" href="/api/machtigingen/'+esc(mach.id)+'/bewijs" '+
+             'target="_blank" rel="noopener">Bewijsstuk</a>')
+          : '')+
+        (klant || getekend ? '' :
+          '<button class="jbtn" onclick="fwkMachtHerinner(\''+mach.id+'\')">Herinneren</button>'+
+          '<button class="jbtn" onclick="fwkMachtLink(\''+esc(mach.link)+'\')">Link kopi\u00ebren</button>')+
+      '</div>';
+    }
+
     var open = (acties||[]).filter(function(a){ return a.open && (!klant || a.klant); });
     if (open.length) {
       x += '<div class="fwk-apblok"><div class="fwk-apl">'+svg(I.klok)+
@@ -6726,6 +6773,52 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
   var LSTAT = {open:['grijs','Nog niet ingepland'],ingepland:['teal','Ingepland'],
     uitvoering:['amber','In uitvoering'],opgeleverd:['groen','Opgeleverd']};
   var LSOORT = {eigenaar:'eigenaar',huurder:'huurder',leeg:'staat leeg',gemeenschappelijk:'gemeenschappelijk'};
+
+  window.fwkMachtiging = function(){
+    return window.fwVraag({
+      titel:'Machtiging versturen',
+      uitleg:'De klant krijgt een link, leest wat hij tekent, en zet er zijn naam onder. '+
+        'Zodra hij tekent staat het hier als binnen.',
+      velden:[
+        {naam:'naar',label:'Naar wie',type:'keuze',waarde:S.opdrachtgever?'beheerder':'klant',
+         opties:[['klant', S.owner + ' \u2014 eigenaar']].concat(
+           S.opdrachtgever ? [['beheerder', S.opdrachtgever + ' \u2014 beheerder']] : [])},
+        {naam:'dagen',label:'Herinneren na hoeveel dagen',type:'keuze',waarde:'3',
+         opties:[['2','2 dagen'],['3','3 dagen'],['5','5 dagen'],['7','een week']]}
+      ],
+      ok:'Versturen'
+    }).then(function(r){
+      if (!r) return;
+      return api('/api/schades/'+encodeURIComponent(S.nr)+'/machtigingen',
+        {method:'POST', body:JSON.stringify({naar:r.naar, herinnerDagen:Number(r.dagen)})})
+        .then(function(u){
+          melden(u && u.opnieuw ? 'Opnieuw verstuurd' : 'Verstuurd',
+            'De klant kan hem nu tekenen.');
+          return ververs();
+        })
+        .catch(function(e){ melden('Niet gelukt', e.message, 'err'); });
+    });
+  };
+
+  window.fwkMachtHerinner = function(id){
+    api('/api/machtigingen/'+encodeURIComponent(id)+'/herinneren', {method:'POST', body:'{}'})
+      .then(function(){ melden('Herinnering verstuurd',''); return ververs(); })
+      .catch(function(e){ melden('Niet gelukt', e.message, 'err'); });
+  };
+
+  window.fwkMachtLink = function(link){
+    if (navigator.clipboard) navigator.clipboard.writeText(link);
+    melden('Gekopieerd','De link staat op je klembord.');
+  };
+
+  window.fwkMachtIntrekken = function(id){
+    window.fwBevestig('Machtiging intrekken',
+      'De link werkt daarna niet meer. Weet je het zeker?', 'Intrekken', true).then(function(ja){
+      if (!ja) return;
+      return api('/api/machtigingen/'+encodeURIComponent(id)+'/intrekken', {method:'POST', body:'{}'})
+        .then(function(){ melden('Ingetrokken',''); return ververs(); });
+    }).catch(function(e){ melden('Niet gelukt', e.message, 'err'); });
+  };
 
   window.fwkBehandelaar = function(){
     if (!mensen.length) { melden('Geen medewerkers','De lijst kon niet worden geladen.','info'); return; }
@@ -6945,6 +7038,33 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
     return x;
   }
 
+  // De machtiging hoort bij de stukken, ook als hij nog niet getekend is.
+  function machtigingRegel(){
+    var m = (machtigingen||[])[0];
+    if (!m || m.status === 'ingetrokken') return '';
+    var getekend = m.status === 'getekend';
+    if (klant && !getekend) return '';
+    return '<div class="fwk-doc'+(getekend?'':' wacht')+'">'+
+      '<div class="fwk-dico">'+svg(I.pen)+'</div>'+
+      '<div style="flex:1;min-width:0">'+
+        '<div class="fwk-dnaam">Machtiging'+(getekend?' \u2014 getekend':'')+'</div>'+
+        '<div class="fwk-dsub">'+
+          (getekend
+            ? esc(m.tekenNaam||m.naarNaam)+' \u00b7 '+dag(m.getekendAt)+
+              (m.tekenPlaats?' te '+esc(m.tekenPlaats):'')
+            : 'verstuurd '+dag(m.verstuurdAt)+' aan '+esc(m.naarNaam)+
+              (m.openCount?' \u00b7 '+m.openCount+' keer bekeken':' \u00b7 nog niet geopend'))+
+        '</div></div>'+
+      '<span class="fwk-pil '+(getekend?'groen':'amber')+'">'+(getekend?'Getekend':'Wacht')+'</span>'+
+      (klant?'':
+        (getekend
+          ? '<a class="jbtn" href="/api/machtigingen/'+esc(m.id)+'/bewijs" target="_blank" rel="noopener">'+
+            svg(I.oog)+'Bewijsstuk</a>'
+          : '<a class="jbtn" href="'+esc(m.link)+'" target="_blank" rel="noopener">Openen</a>'+
+            '<button class="jbtn" onclick="fwkMachtIntrekken(\''+m.id+'\')">Intrekken</button>'))+
+    '</div>';
+  }
+
   function panDoc(){
     var eigen = docs.filter(function(d){ return d.soort!=='factuur_onder'; });
     var gedeeld = eigen.filter(function(d){return d.gedeeld}).length;
@@ -6952,7 +7072,9 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
       '<div class="s">of klik om te kiezen \u00b7 pdf, jpg, png, docx tot 20 MB</div></div>'+
       '<input type="file" id="fwkFile" multiple style="display:none">';
 
-    if (!eigen.length) return x + '<div class="fwk-leeg">Nog geen documenten bij dit dossier.</div>';
+    var mr = machtigingRegel();
+    if (!eigen.length) return x + mr + (mr?'':'<div class="fwk-leeg">Nog geen documenten bij dit dossier.</div>');
+    x += mr;
 
     x += '<div class="fwk-kd">'+svg(I.oog)+'<span><b>'+gedeeld+' van de '+eigen.length+
       ' stukken staan in het klantportaal.</b> Zet per document aan of de eigenaar en de beheerder het mogen zien.</span></div>';
