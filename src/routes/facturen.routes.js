@@ -137,12 +137,24 @@ router.get('/jortt/test', async (req, res) => {
     return res.status(502).json({ stap: 'inloggen', error: e.message, rechten });
   }
 
+  // De bedrijfsgegevens zijn een extraatje. Lukt dat niet, dan werkt het
+  // factureren gewoon -- jortt zet die gegevens zelf op de factuur.
+  let bedrijf = null;
+  let bedrijfFout = null;
   try {
-    const bedrijf = await jortt.bedrijf();
-    res.json({ ok: true, token, bedrijf });
+    bedrijf = await jortt.bedrijf();
   } catch (e) {
-    res.status(502).json({ stap: 'bedrijfsgegevens', ingelogd: true, error: e.message });
+    bedrijfFout = e.message;
   }
+
+  res.json({
+    ok: true,
+    ingelogd: true,
+    token,
+    bedrijf,
+    bedrijfFout,
+    klaarOmTeFactureren: true,
+  });
 });
 
 /* ─────────── nieuwe factuur ───────────
