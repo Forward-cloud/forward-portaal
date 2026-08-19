@@ -196,6 +196,34 @@
   .chip{font-size:12.5px;font-weight:500;padding:7px 14px;border-radius:10px;background:var(--surface);border:1px solid var(--line);color:var(--muted);transition:.14s}
   .chip:hover{border-color:#cfd6e0;color:var(--text)}
   .chip.active{background:var(--navy);color:#fff;border-color:var(--navy)}
+  /* Testdossiers staan los van de werkvoorraad. Paars betekent in dit portaal
+     overal: oefenen, niet echt. */
+  .chip.test{color:#4A3D6B;border-color:rgba(107,79,168,.40)}
+  .chip.test:hover{border-color:#6B4FA8;background:#F3F0FA;color:#3B2F58}
+  .chip.test.active{background:#6B4FA8;color:#fff;border-color:#6B4FA8}
+  .chip-streep{width:1px;background:var(--line);margin:2px 8px;align-self:stretch}
+  /* Nieuwe melding: dezelfde genummerde blokken als bij de datumvoorstellen,
+     zodat je ziet welke gegevens bij elkaar horen. */
+  .fwn-blok{border:1px solid var(--line);border-left:3px solid var(--fwnk,var(--teal));
+    border-radius:0 12px 12px 0;padding:12px 14px 14px;margin-bottom:11px;background:var(--canvas)}
+  .fwn-blok.k1{--fwnk:#009BA8}.fwn-blok.k2{--fwnk:#7F77DD}
+  .fwn-blok.k3{--fwnk:#C77E00}.fwn-blok.k4{--fwnk:#1E9E63}
+  .fwn-kop{display:flex;align-items:center;gap:9px;font-size:11px;font-weight:700;
+    letter-spacing:.05em;text-transform:uppercase;color:var(--muted-2);margin-bottom:10px}
+  .fwn-kop .n{width:20px;height:20px;border-radius:50%;flex:none;display:flex;align-items:center;
+    justify-content:center;font-size:11px;font-weight:700;letter-spacing:0;background:var(--fwnk);
+    color:#fff;font-family:'Poppins',sans-serif}
+  .fwn-kop .r{margin-left:auto;font-size:10.5px;font-weight:600;color:var(--muted-2);
+    text-transform:none;letter-spacing:0}
+  .fwn-blok label{display:block;font-size:11.5px;color:var(--muted);margin:0 0 4px}
+  .fwn-blok label+label,.fwn-rij+label{margin-top:11px}
+  .fwn-blok input,.fwn-blok select,.fwn-blok textarea{width:100%;padding:9px 11px;
+    border:1px solid var(--line);border-radius:9px;font-family:inherit;font-size:13.5px;
+    background:var(--surface);color:var(--text);min-height:40px}
+  .fwn-blok textarea{min-height:74px;resize:vertical;line-height:1.5}
+  .fwn-rij{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:9px}
+  .fwn-rij>div{min-width:0}
+  .fwn-noot{font-size:11.5px;color:var(--muted);margin-top:6px;line-height:1.45}
   .table{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow-s)}
   .t-head{display:grid;grid-template-columns:128px 1.3fr 1fr 132px 104px 96px 74px;gap:14px;padding:13px 18px;border-bottom:1px solid var(--line);font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted-2);font-weight:600}
   .t-row{display:grid;grid-template-columns:128px 1.3fr 1fr 132px 104px 96px 74px;gap:14px;padding:14px 18px;align-items:center;border-bottom:1px solid var(--line-2);cursor:pointer;transition:.14s}
@@ -419,6 +447,23 @@
      dan kleurt de knop amber in plaats van teal. */
   .jbtn.let{color:#8A5A0B;border-color:rgba(199,126,0,.45);background:#FDF3E0}
   .jbtn.let:hover{border-color:#C77E00}
+  .jbtn.rood{color:var(--red);border-color:rgba(216,74,74,.40);background:var(--red-soft)}
+  .jbtn.rood:hover{border-color:var(--red)}
+  /* Testdossier. Paars betekent in dit portaal overal: oefenen, niet echt.
+     De balk staat bovenaan de kaart zodat je het ziet voordat je iets doet. */
+  .fwk-testbalk{display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+    background:#F3F0FA;border:1px solid rgba(107,79,168,.28);border-left:3px solid #6B4FA8;
+    border-radius:0 12px 12px 0;padding:12px 15px;margin-bottom:14px}
+  .fwk-testbalk .tekst{flex:1;min-width:220px;font-size:12.5px;line-height:1.5;color:#4A3D6B}
+  .fwk-testbalk .tekst b{display:block;font-size:13.5px;font-weight:600;color:#3B2F58;margin-bottom:2px}
+  .fwk-testpil{display:inline-flex;align-items:center;gap:6px;flex:none;
+    background:#6B4FA8;color:#fff;border-radius:20px;padding:5px 12px;
+    font-family:'Poppins',sans-serif;font-size:11.5px;font-weight:600;letter-spacing:.02em}
+  .fwk-testpil svg{width:14px;height:14px}
+  .fwk-testknoppen{display:flex;gap:8px;flex-wrap:wrap;flex:none}
+  .fwk-testknoppen .jbtn{min-height:36px}
+  .jbtn.paars{color:#4A3D6B;border-color:rgba(107,79,168,.40);background:#fff}
+  .jbtn.paars:hover{border-color:#6B4FA8;background:#F3F0FA}
   /* Zonder maat vult een icoon de hele knop. Hier staat de maat, en meteen
      een lichtere lijn dan de iconen zelf meebrengen. */
   .jbtn svg{width:12px;height:12px;flex:none}
@@ -621,10 +666,7 @@
       <section class="view" id="view-schades">
         <div class="page-head"><div class="eyebrow">Werkvoorraad</div><h1>Schades</h1><p>Klik op een schade voor het volledige dossier.</p></div>
         <div class="filters" id="filters">
-          <button class="chip active" data-f="all">Alle</button>
-          <button class="chip" data-f="new">Nieuw</button>
-          <button class="chip" data-f="prog">In behandeling</button>
-          <button class="chip" data-f="done">Afgerond</button>
+          <!-- De knoppen worden gezet door schakelaar(); zie daar. -->
         </div>
         <div class="table"><div class="t-head"><div>Schadenr.</div><div>Eigenaar</div><div>Type / verzekeraar</div><div>Traject</div><div>Status</div><div>Bedrag</div><div>Factuur</div></div><div id="schadeRows"></div></div>
       </section>
@@ -984,7 +1026,15 @@ function planRepair(nr){const s=SCHADES.find(x=>x.nr===nr);s.step=trajOf(s).hers
 
 /* ---------- schade list ---------- */
 function renderSchades(filter){
-  filter=filter||(document.querySelector('#filters .chip.active[data-f]')?.dataset.f)||'all';
+  // De actieve knop bepaalt wat er in beeld komt. Bij Testdossiers laten we
+  // alles zien wat de server teruggaf; die zijn daar al op geselecteerd.
+  if (!filter) {
+    const aan = document.querySelector('#filters .chip.active');
+    filter = aan && aan.dataset.test ? 'all'
+      : (aan && aan.dataset.stand
+          ? ({alles:'all', nieuw:'new', lopend:'prog', klaar:'done'})[aan.dataset.stand]
+          : 'all');
+  }
   const rows=SCHADES.filter(s=>filter==='all'||s.status===filter);
   $('#schadeRows').innerHTML=rows.map(s=>`<div class="t-row" onclick="openDetail('${s.nr}')">
     <div class="t-num mono">${s.nr}${s.unread?' <span title="Nieuw bericht van de klant" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--teal);vertical-align:1px"></span>':''}</div>
@@ -997,7 +1047,8 @@ function renderSchades(filter){
 }
 // Alleen de statusknoppen reageren op elkaar. De knoppen voor archief en
 // testdossiers staan in dezelfde rij maar hebben hun eigen markering.
-document.querySelectorAll('#filters .chip[data-f]').forEach(c=>c.onclick=()=>{document.querySelectorAll('#filters .chip[data-f]').forEach(x=>x.classList.remove('active'));c.classList.add('active');renderSchades(c.dataset.f);});
+/* De filterknoppen worden gezet door schakelaar(); die roept zelf
+   fwLaadDossiers aan, en dat tekent de lijst opnieuw. */
 
 function renderFacturen(){$('#factuurRows').innerHTML=SCHADES.map(s=>`<div class="t-row" style="grid-template-columns:130px 1.4fr 1fr 120px 90px" onclick="openDetail('${s.nr}')"><div class="t-num mono">${s.nr}</div><div class="t-owner">${s.owner}</div><div class="t-type">${s.ins}</div><div class="t-amt">${money(s.amount)}</div><div>${s.invoiced?'<span class="tag done">Verstuurd</span>':s.draft?'<span class="tag prog">Concept</span>':'<span class="tag grey">Open</span>'}</div></div>`).join('');}
 function renderAgenda(){const rows=[];SCHADES.filter(s=>s.appt&&s.appt.options).forEach(s=>{const st=s.appt.state;if(st==='definitief'){const o=apptChosenOpt(s);if(o)rows.push({s,when:o.when,start:o.start,mode:'def'});}else if(st==='gekozen'){s.appt.options.forEach((o,i)=>rows.push({s,when:o.when,start:o.start,mode:i===s.appt.chosen?'confirm':'tent'}));}else if(st!=='declined'&&st!=='verlopen'){s.appt.options.forEach(o=>rows.push({s,when:o.when,start:o.start,mode:'tent'}));}});
@@ -2885,6 +2936,16 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
       type: d.opdrachtgever || 'Schadedossier',
       icon: 'water',
       ins: (d.verzekeraar && d.verzekeraar.naam) || d.ins || '—',
+      // De hele relatie, niet alleen de naam: de contactkaart toont er
+      // adres, extra e-mailadressen en de reactietermijn uit.
+      verzekeraar: d.verzekeraar || null,
+      verzekeraarId: d.verzekeraarId || null,
+      tussenpersoon: d.tussenpersoon || null,
+      tussenpersoonId: d.tussenpersoonId || null,
+      tussenpersoonRel: d.tussenpersoonRel || null,
+      opnameAt: d.opnameAt || null,
+      bronFactuur: d.bronFactuur || null,
+      gefactureerdAt: d.gefactureerdAt || null,
       amount: d.amount || 0,
       profit: d.profit || 0,
       step: d.step || 1,
@@ -2913,11 +2974,22 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
       verzIngediendAt: d.verzIngediendAt,
       opdrachtnummer: d.opdrachtnummer,
       opdrachtgever: d.opdrachtgever,
+      // Vve of particulier: bepaalt de kop van de contactkaart, welke
+      // machtiging de klant krijgt en naar wie de factuur gaat.
+      opdrachtgeverType: d.opdrachtgeverType,
       beheerderEmail: d.beheerderEmail,
+      beheerderTel: d.beheerderTel,
       telefoon: d.telefoon,
+      email: d.email,
       contactpersoon: d.contactpersoon,
+      algemeenEmail: d.algemeenEmail,
+      factuurEmail: d.factuurEmail,
       bewonerSoort: d.bewonerSoort,
       polisnummer: d.polisnummer,
+      verzEmail: d.verzEmail,
+      verzContactpersoon: d.verzContactpersoon,
+      verzTelefoon: d.verzTelefoon,
+      notitie: d.notitie,
       afwijzingReden: d.afwijzingReden,
       afwijzingAt: d.afwijzingAt,
       naAfwijzing: d.naAfwijzing,
@@ -2999,8 +3071,8 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
     api('/api/schades/test', { method:'POST', body:JSON.stringify(gegevens) })
       .then(function(r){
         testStand = true;
-        var t = document.querySelector('#filters [data-test="1"]');
-        if (t) t.classList.add('active');
+        archiefStand = 'alles';
+        schakelaar();
         return window.fwLaadDossiers().then(function(){
           if (typeof toast === 'function') toast('Testdossier aangemaakt', r.schade.nummer);
           if (typeof window.fwkOpen === 'function') window.fwkOpen(r.schade.nummer);
@@ -3014,7 +3086,8 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
     opties = opties || {};
     var q = [];
     q.push('archief=' + encodeURIComponent(opties.archief || archiefStand));
-    if (testStand) q.push('test=ja');
+    // alleen = uitsluitend testdossiers. Zonder deze vlag blijven ze buiten beeld.
+    if (testStand) q.push('test=alleen');
     if (opties.q) q.push('q=' + encodeURIComponent(opties.q));
     return api('/api/schades?' + q.join('&')).then(function(res){
       var lijst = (res.schades || []).map(naarScherm);
@@ -3034,43 +3107,53 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
 
   // Eén filterrij. De statusknoppen stonden er al; hier komen archief en
   // testdossiers erbij, met een scheiding ertussen zodat het niet dubbel leest.
+  // Eén rij filters. Links de werkvoorraad, rechts los daarvan de testdossiers.
+  // Elke knop weet zelf welk archiefbereik hij nodig heeft, zodat de server en
+  // het scherm nooit meer iets anders laten zien.
+  var STANDEN = [
+    ['alles',  'Alle schades',            'nee',   'all'],
+    ['nieuw',  'Nieuw',                   'nee',   'new'],
+    ['lopend', 'In behandeling',          'nee',   'prog'],
+    ['klaar',  'Afgerond en gearchiveerd','alles', 'done']
+  ];
+  var stand = 'alles';
+
   function schakelaar(){
     var f = document.getElementById('filters');
-    if (!f || f.dataset.fw === '1') return;
+    if (!f) return;
     f.dataset.fw = '1';
     f.style.flexWrap = 'wrap';
+    f.innerHTML = '';
 
-    var streep = document.createElement('span');
-    streep.style.cssText = 'width:1px;background:var(--line);margin:2px 6px;align-self:stretch';
-    f.appendChild(streep);
-
-    // Archief: lopend, archief, of allebei.
-    [['nee','Lopend'],['ja','Archief'],['alles','Beide']].forEach(function(o){
+    STANDEN.forEach(function(o){
       var b = document.createElement('button');
-      b.className = 'chip' + (o[0] === archiefStand ? ' active' : '');
-      b.dataset.arch = o[0];
+      b.className = 'chip' + (o[0] === stand && !testStand ? ' active' : '');
+      b.dataset.stand = o[0];
+      b.textContent = o[1];
       b.onclick = function(){
-        archiefStand = o[0];
-        f.querySelectorAll('[data-arch]').forEach(function(c){ c.classList.remove('active'); });
-        b.classList.add('active');
+        stand = o[0];
+        testStand = false;
+        archiefStand = o[2];
+        schakelaar();
         window.fwLaadDossiers();
       };
-      b.textContent = o[1];
       f.appendChild(b);
     });
 
-    var streep2 = document.createElement('span');
-    streep2.style.cssText = 'width:1px;background:var(--line);margin:2px 6px;align-self:stretch';
-    f.appendChild(streep2);
+    var streep = document.createElement('span');
+    streep.className = 'chip-streep';
+    f.appendChild(streep);
 
-    // Testdossiers staan er standaard niet tussen.
+    // Testdossiers: alleen die, en niets anders ertussen.
     var t = document.createElement('button');
-    t.className = 'chip' + (testStand ? ' active' : '');
+    t.className = 'chip test' + (testStand ? ' active' : '');
     t.dataset.test = '1';
     t.textContent = 'Testdossiers';
     t.onclick = function(){
       testStand = !testStand;
-      t.classList.toggle('active', testStand);
+      if (testStand) archiefStand = 'alles';
+      else { stand = 'alles'; archiefStand = 'nee'; }
+      schakelaar();
       window.fwLaadDossiers();
     };
     f.appendChild(t);
@@ -4208,33 +4291,141 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
   function esc(v){ return String(v==null?'':v).replace(/[&<>"]/g,function(c){
     return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
 
+  var SOORTEN = [['vve','Vereniging van eigenaars'],
+                 ['zakelijk','Zakelijke klant'],
+                 ['particulier','Particulier']];
+
+  // De labels volgen de gekozen soort, en een particulier heeft geen beheerder.
+  window.fwnSoortGewijzigd = function(){
+    var s = ($$('fwnSoort')||{}).value || 'vve';
+    var l = $$('fwnOwnerL'), o = $$('fwnOwner'), b = $$('fwnBeheerBlok');
+    if (l) l.textContent = s==='vve' ? 'Naam vereniging'
+                        : s==='zakelijk' ? 'Bedrijfsnaam' : 'Naam eigenaar';
+    if (o) o.placeholder = s==='vve' ? 'VvE Voorbeeldstraat 1 t/m 20'
+                        : s==='zakelijk' ? 'Voorbeeld Vastgoed B.V.' : 'Fam. de Vries';
+    if (b) b.style.display = s==='particulier' ? 'none' : '';
+  };
+
+  // Verzekeraars en tussenpersonen uit het relatiebestand.
+  function vulRelaties(){
+    window.fwApi('/api/relaties?soort=VERZEKERAAR,TUSSENPERSOON').then(function(res){
+      var lijst = res.relaties || [];
+      function vul(id, soort){
+        var sel = $$(id);
+        if (!sel) return;
+        lijst.filter(function(r){ return r.soort === soort; }).forEach(function(r){
+          var o = document.createElement('option');
+          o.value = r.id; o.textContent = r.naam;
+          sel.appendChild(o);
+        });
+      }
+      vul('fwnVerz', 'VERZEKERAAR');
+      vul('fwnTussen', 'TUSSENPERSOON');
+    }).catch(function(){ /* geen relaties: de keuzelijsten blijven leeg */ });
+  }
+
   window.fwNieuweSchade = function(){
     $$('fwmTitel').textContent = 'Nieuwe schademelding';
     $$('fwmSub').textContent = 'Het schadenummer wordt automatisch toegekend.';
     $$('fwmBody').innerHTML =
       '<div id="fwmMelding" style="display:none"></div>' +
-      '<div class="fwr-form">' +
-        '<div><label>Klant of VvE</label>' +
-          '<input type="text" id="fwnOwner" placeholder="VvE Voorbeeldstraat 1 t/m 20"></div>' +
-        '<div><label>Adres schadeobject</label>' +
-          '<input type="text" id="fwnAdres" placeholder="Voorbeeldstraat 12A"></div>' +
-        '<div class="fwr-2">' +
-          '<div><label>Plaats</label><input type="text" id="fwnPlaats"></div>' +
-          '<div><label>Route</label><select id="fwnPreset">' +
-            PRESETS.map(function(p){ return '<option value="' + p[0] + '">' + p[1] + '</option>'; }).join('') +
-          '</select></div>' +
+
+      // 1 — wie geeft de opdracht
+      '<div class="fwn-blok k1"><div class="fwn-kop"><span class="n">1</span>Opdrachtgever' +
+        '<span class="r">naam verplicht</span></div>' +
+        '<label for="fwnSoort">Wat voor opdrachtgever?</label>' +
+        '<select id="fwnSoort" onchange="fwnSoortGewijzigd()">' +
+          SOORTEN.map(function(o){ return '<option value="' + o[0] + '">' + o[1] + '</option>'; }).join('') +
+        '</select>' +
+        '<label for="fwnOwner" id="fwnOwnerL">Naam vereniging</label>' +
+          '<input type="text" id="fwnOwner" placeholder="VvE Voorbeeldstraat 1 t/m 20">' +
+        '<label for="fwnContact">Contactpersoon</label>' +
+          '<input type="text" id="fwnContact" placeholder="wie wij bellen en wie op de brieven staat">' +
+        '<div class="fwn-rij" style="margin-top:11px">' +
+          '<div><label for="fwnTel">Telefoon</label><input type="text" id="fwnTel"></div>' +
+          '<div><label for="fwnMail">E-mail contactpersoon</label><input type="text" id="fwnMail"></div>' +
         '</div>' +
-        '<div><div id="fwnExtra"></div>' +
-          '<button type="button" class="btn" onclick="fwnAdresErbij()" ' +
-            'style="font-size:12.5px;padding:8px 13px;min-height:auto">Nog een adres toevoegen</button>' +
-          '<div style="font-size:11.5px;color:var(--muted);margin-top:5px">' +
-            'Raakt de schade meerdere woningen? Voeg ze hier toe \u2014 \u00e9\u00e9n dossier, ' +
-            '\u00e9\u00e9n claim, eigen planning per adres.</div></div>' +
-        '<div><label>Waar gaat het over?</label>' +
+        '<div class="fwn-rij" style="margin-top:9px">' +
+          '<div><label for="fwnAlg">Algemeen e-mailadres</label><input type="text" id="fwnAlg"></div>' +
+          '<div><label for="fwnFac">Facturen naar</label><input type="text" id="fwnFac"></div>' +
+        '</div>' +
+        '<div id="fwnBeheerBlok">' +
+          '<label for="fwnBeheer">Beheerkantoor</label>' +
+            '<input type="text" id="fwnBeheer" placeholder="leeg laten als er geen beheerder is">' +
+          '<div class="fwn-rij" style="margin-top:9px">' +
+            '<div><label for="fwnBeheerMail">E-mail beheerder</label><input type="text" id="fwnBeheerMail"></div>' +
+            '<div><label for="fwnBeheerTel">Telefoon beheerder</label><input type="text" id="fwnBeheerTel"></div>' +
+          '</div>' +
+        '</div>' +
+        '<label for="fwnOpdrachtnr" style="margin-top:11px">Hun opdrachtnummer</label>' +
+          '<input type="text" id="fwnOpdrachtnr" placeholder="komt op de factuur als uw kenmerk">' +
+      '</div>' +
+
+      // 2 — waar zit de schade
+      '<div class="fwn-blok k2"><div class="fwn-kop"><span class="n">2</span>Schadeadres' +
+        '<span class="r">adres verplicht</span></div>' +
+        '<label for="fwnAdres">Straat en huisnummer</label>' +
+          '<input type="text" id="fwnAdres" placeholder="Voorbeeldstraat 12A">' +
+        '<div class="fwn-rij" style="margin-top:11px">' +
+          '<div><label for="fwnPostcode">Postcode</label><input type="text" id="fwnPostcode"></div>' +
+          '<div><label for="fwnPlaats">Plaats</label><input type="text" id="fwnPlaats"></div>' +
+        '</div>' +
+        '<label for="fwnBewoner" style="margin-top:11px">Naam bewoner</label>' +
+          '<input type="text" id="fwnBewoner" placeholder="leeg = zelfde als de opdrachtgever">' +
+        '<div class="fwn-rij" style="margin-top:9px">' +
+          '<div><label for="fwnBewTel">Telefoon bewoner</label><input type="text" id="fwnBewTel"></div>' +
+          '<div><label for="fwnBewSoort">Eigenaar of huurder?</label>' +
+            '<select id="fwnBewSoort">' +
+              '<option value="eigenaar">Eigenaar en bewoner</option>' +
+              '<option value="huurder">Huurder</option>' +
+              '<option value="gemeenschappelijk">Gemeenschappelijke ruimte</option>' +
+              '<option value="leeg">Staat leeg</option>' +
+            '</select></div>' +
+        '</div>' +
+        '<div id="fwnExtra" style="margin-top:11px"></div>' +
+        '<button type="button" class="btn" onclick="fwnAdresErbij()" ' +
+          'style="font-size:12.5px;padding:8px 13px;min-height:auto;margin-top:4px">Nog een adres toevoegen</button>' +
+        '<div class="fwn-noot">Raakt de schade meerdere woningen? Voeg ze hier toe \u2014 \u00e9\u00e9n dossier, ' +
+          '\u00e9\u00e9n claim, eigen planning per adres.</div>' +
+      '</div>' +
+
+      // 3 — bij wie is het verzekerd
+      '<div class="fwn-blok k3"><div class="fwn-kop"><span class="n">3</span>Verzekering' +
+        '<span class="r">mag later</span></div>' +
+        '<label for="fwnPreset">Route</label><select id="fwnPreset">' +
+          PRESETS.map(function(p){ return '<option value="' + p[0] + '">' + p[1] + '</option>'; }).join('') +
+        '</select>' +
+        '<div class="fwn-rij" style="margin-top:11px">' +
+          '<div><label for="fwnVerz">Verzekeraar</label><select id="fwnVerz">' +
+            '<option value="">Nog niet bekend</option></select></div>' +
+          '<div><label for="fwnTussen">Tussenpersoon</label><select id="fwnTussen">' +
+            '<option value="">Geen</option></select></div>' +
+        '</div>' +
+        '<div class="fwn-rij" style="margin-top:9px">' +
+          '<div><label for="fwnPolis">Polisnummer</label><input type="text" id="fwnPolis"></div>' +
+          '<div><label for="fwnVerzNr">Hun schadenummer</label>' +
+            '<input type="text" id="fwnVerzNr" placeholder="krijg je pas na de melding"></div>' +
+        '</div>' +
+      '</div>' +
+
+      // 4 — wat is er gebeurd
+      '<div class="fwn-blok k4"><div class="fwn-kop"><span class="n">4</span>De schade' +
+        '<span class="r">wat de melder vertelde</span></div>' +
+        '<div class="fwn-rij">' +
+          '<div><label for="fwnDatum">Datum van de schade</label>' +
+            '<input type="date" id="fwnDatum"></div>' +
+          '<div><label for="fwnOorzaak">Oorzaak</label>' +
+            '<input type="text" id="fwnOorzaak" placeholder="bijvoorbeeld gesprongen leiding"></div>' +
+        '</div>' +
+        '<label for="fwnNotitie" style="margin-top:11px">Waar gaat het over?</label>' +
           '<textarea id="fwnNotitie" placeholder="Lekkage in de badkamer, water komt door bij de benedenbuur\u2026"></textarea>' +
-          '<div style="font-size:11.5px;color:var(--muted);margin-top:3px">' +
-            'Wat de melder vertelde. De rest vul je later op het dossier aan.</div></div>' +
+        '<label for="fwnBijz" style="margin-top:11px">Bijzonderheden</label>' +
+          '<textarea id="fwnBijz" placeholder="sleutel, huisdier, bereikbaarheid \u2014 alles wat de vakman moet weten"></textarea>' +
+        '<div class="fwn-noot">Wat u nu niet weet vult u later aan op de contactkaart.</div>' +
       '</div>';
+
+    fwnSoortGewijzigd();
+    vulRelaties();
     extraAdressen = [];
     $$('fwmOk').textContent = 'Dossier aanmaken';
     $$('fwmOk').onclick = aanmaken;
@@ -4309,14 +4500,41 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
     var knop = $$('fwmOk');
     knop.disabled = true; knop.textContent = 'Bezig\u2026';
 
+    function v(id){ var e = $$(id); return e ? String(e.value).trim() : ''; }
+
     window.fwApi('/api/schades', {
       method:'POST',
       body: JSON.stringify({
         owner: owner || adres,
+        opdrachtgeverType: v('fwnSoort'),
+        contactpersoon: v('fwnContact'),
+        telefoon: v('fwnTel'),
+        email: v('fwnMail'),
+        algemeenEmail: v('fwnAlg'),
+        factuurEmail: v('fwnFac'),
+        opdrachtgever: v('fwnBeheer'),
+        beheerderEmail: v('fwnBeheerMail'),
+        beheerderTel: v('fwnBeheerTel'),
+        opdrachtnummer: v('fwnOpdrachtnr'),
+
         adres: adres,
-        plaats: $$('fwnPlaats').value.trim(),
-        preset: $$('fwnPreset').value,
-        notitie: $$('fwnNotitie').value.trim(),
+        postcode: v('fwnPostcode'),
+        plaats: v('fwnPlaats'),
+        // Geen naam ingevuld? Dan is de opdrachtgever ook de bewoner.
+        bewoner: v('fwnBewoner') || owner,
+        bewonerTelefoon: v('fwnBewTel'),
+        bewonerSoort: v('fwnBewSoort'),
+
+        preset: v('fwnPreset'),
+        verzekeraarId: v('fwnVerz'),
+        tussenpersoonId: v('fwnTussen'),
+        polisnummer: v('fwnPolis'),
+        verzSchadenummer: v('fwnVerzNr'),
+
+        schadedatum: v('fwnDatum'),
+        oorzaak: v('fwnOorzaak'),
+        notitie: v('fwnNotitie'),
+        bijzonderheden: v('fwnBijz'),
         locaties: leesExtra()
       })
     }).then(function(res){
@@ -4325,7 +4543,7 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
       $$('fwmBody').innerHTML =
         '<div class="fwm-ok">Dossier aangemaakt. Geef dit nummer door aan de melder.</div>' +
         '<div style="text-align:center;padding:16px 0"><span class="fwm-code" style="font-size:20px">' + esc(nr) + '</span></div>' +
-        '<div style="font-size:12.5px;color:var(--muted)">Vul verzekeraar, contactgegevens en bedragen aan op het dossier zelf.</div>';
+        '<div style="font-size:12.5px;color:var(--muted)">Wat u nog niet wist vult u aan op de contactkaart van het dossier.</div>';
       $$('fwmOk').textContent = 'Dossier openen';
       $$('fwmOk').onclick = function(){
         window.fwmSluit();
@@ -6036,6 +6254,24 @@ button.hd-cgl:hover .w{text-decoration:underline}
   var ROLLEN = {directie:'Directie', schadebehandelaar:'Schadebehandelaar',
     planner:'Planner', financieel:'Financi\u00eble administratie', medewerker:'Medewerker'};
   function rolNaam(r){ return ROLLEN[r] || r || ''; }
+
+  /* Soort opdrachtgever \u2014 zelfde regel als op de server (src/lib/haltes.js).
+     Een vereniging heeft een bestuur, een zakelijke klant is wel een
+     rechtspersoon maar geen vereniging, en een particulier heeft bedenktijd. */
+  var OG_SOORTEN = [['vve','Vereniging van eigenaars'],
+                    ['zakelijk','Zakelijke klant'],
+                    ['particulier','Particulier']];
+  function ogSoort(){
+    var t = String(S.opdrachtgeverType||'');
+    if (OG_SOORTEN.some(function(o){ return o[0]===t; })) return t;
+    return S.opdrachtgever ? 'vve' : 'particulier';
+  }
+  function ogNaam(){
+    var t = ogSoort();
+    return (OG_SOORTEN.filter(function(o){ return o[0]===t; })[0]||[])[1] || '';
+  }
+  function ogZakelijk(){ return ogSoort() !== 'particulier'; }
+  function ogVereniging(){ return ogSoort() === 'vve'; }
   // Zoals in het voorbeeld: hoort halte 4 bij de route, dan is er een rapport
   // en hoort de expertiseomzet erbij \u2014 ook als die nog op nul staat.
   function heeftRapport(){ return (S.haltes||[]).indexOf(4) > -1; }
@@ -6531,21 +6767,23 @@ button.hd-cgl:hover .w{text-decoration:underline}
     });
   };
   window.fwkOpdrachtgever = function(){
-    var vve = S.opdrachtgeverType === 'vve' || !!S.opdrachtgever;
+    var vve = ogVereniging(), zak = ogZakelijk();
     window.fwVraag({
       titel:'Opdrachtgever',
       uitleg: vve
         ? 'De vereniging geeft de opdracht. Facturen gaan naar het factuuradres; '+
           'gewone post naar de contactpersoon.'
+        : zak
+        ? 'Een bedrijf, stichting of belegger geeft de opdracht. De factuur komt op naam '+
+          'van de organisatie; er geldt geen bedenktijd zoals bij een particulier.'
         : 'De eigenaar geeft zelf de opdracht. Laat u de onderste velden leeg, dan '+
           'gebruiken wij overal het e-mailadres hierboven.',
       velden:[
         {groep:'Wie is de opdrachtgever', groepNoot:'verplicht',
          naam:'soort',label:'Wat voor opdrachtgever?',type:'keuze',
-         waarde:S.opdrachtgeverType||(vve?'vve':'particulier'),
-         opties:[['vve','Vereniging van eigenaars'],['particulier','Particulier']]},
+         waarde:ogSoort(), opties:OG_SOORTEN},
         {groep:'Wie is de opdrachtgever',
-         naam:'naam',label: vve?'Naam vereniging':'Naam eigenaar',
+         naam:'naam',label: vve?'Naam vereniging':(zak?'Bedrijfsnaam':'Naam eigenaar'),
          waarde:S.owner||'',verplicht:'Vul een naam in.'},
         {groep:'Wie is de opdrachtgever',
          naam:'contact',label:'Contactpersoon',waarde:S.contactpersoon||'',
@@ -6557,11 +6795,14 @@ button.hd-cgl:hover .w{text-decoration:underline}
          naam:'mail',label:'E-mail contactpersoon',waarde:S.email||''},
         {groep:'Bereikbaarheid',
          naam:'algemeen',label:'Algemeen e-mailadres',waarde:S.algemeenEmail||'',
-         plaats: vve?'bijvoorbeeld info@vve-naam.nl':'alleen als er een tweede adres is'},
+         plaats: vve?'bijvoorbeeld info@vve-naam.nl'
+               : zak?'bijvoorbeeld info@bedrijfsnaam.nl'
+               : 'alleen als er een tweede adres is'},
 
         {groep:'Facturen', groepNoot:'leeg = zelfde als hierboven',
          naam:'factuur',label:'Facturen naar',waarde:S.factuurEmail||'',
-         plaats: vve?'bijvoorbeeld administratie@beheerder.nl':''},
+         plaats: vve?'bijvoorbeeld administratie@beheerder.nl'
+               : zak?'bijvoorbeeld crediteuren@bedrijfsnaam.nl':''},
         {groep:'Facturen',
          naam:'opdrachtnr',label:'Ons opdrachtnummer bij de opdrachtgever',
          waarde:S.opdrachtnummer||'', plaats:'komt op de factuur als uw kenmerk'}
@@ -7172,11 +7413,13 @@ button.hd-cgl:hover .w{text-decoration:underline}
     x += '<div class="fwk-stuur'+(klant?' klant':'')+'">';
 
     if (S.test) x += '<div class="fwk-testbalk">'+
-      '<span class="fwk-testpil">Testdossier</span>'+
-      '<span>Om mee te oefenen. Alles wat je verstuurt komt bij jezelf aan, nooit bij de klant '+
-      'of de verzekeraar. Facturen gaan niet echt de deur uit.</span>'+
-      (klant?'':'<button class="jbtn" onclick="fwkTestUit()">Toch echt maken</button>'+
-        '<button class="jbtn rood" onclick="fwkTestWeg()">Verwijderen</button>')+
+      '<span class="fwk-testpil">'+svg(I.oog)+'Testdossier</span>'+
+      '<div class="tekst"><b>Om mee te oefenen \u2014 dit is geen echt dossier.</b>'+
+      'Alles wat je verstuurt komt bij jezelf aan, nooit bij de klant of de verzekeraar. '+
+      'Facturen gaan niet naar jortt.</div>'+
+      (klant?'':'<div class="fwk-testknoppen">'+
+        '<button class="jbtn paars" onclick="fwkTestUit()">Toch een echt dossier maken</button>'+
+        '<button class="jbtn rood" onclick="fwkTestWeg()">Dossier verwijderen</button></div>')+
       '</div>';
 
     if (S.archived) x += '<div class="fwk-blok amber">'+svg(I.info)+
@@ -7403,15 +7646,20 @@ button.hd-cgl:hover .w{text-decoration:underline}
         : '<div class="hd-cgl">'+esc(titel)+'</div>';
       return '<div class="hd-cg">'+kop+inhoud+'</div>';
     }
+    // Straat, postcode en plaats van een relatie op \u00e9\u00e9n regel.
+    function vzAdres(r){
+      if (!r) return '';
+      return [r.adres, [r.postcode, r.plaats].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+    }
     var hoofdLoc = locaties.filter(function(l){ return l.hoofd; })[0] || locaties[0] || {};
-    var vve = S.opdrachtgeverType === 'vve' || !!S.opdrachtgever;
+    var vve = ogVereniging();
 
     x += '<div class="fwk-duo">'+
       '<div class="fwk-kaart"><div class="fwk-kkop"><h4>Contact</h4>'+
         '</div><div class="fwk-kbody">'+
 
-        cGroep(vve ? 'Opdrachtgever \u00b7 VvE' : 'Opdrachtgever \u00b7 particulier',
-          cRij(I.huis, vve?'Naam vereniging':'Naam', S.owner)+
+        cGroep('Opdrachtgever \u00b7 '+ogNaam().toLowerCase(),
+          cRij(I.huis, vve?'Naam vereniging':(ogZakelijk()?'Bedrijfsnaam':'Naam'), S.owner)+
           cRij(I.pen,'Contactpersoon', S.contactpersoon)+
           cRij(I.tel,'Telefoon', S.telefoon||S.phone, null, 'tel')+
           cRij(I.mail,'E-mail contactpersoon', S.email, null, 'mail')+
@@ -7423,7 +7671,7 @@ button.hd-cgl:hover .w{text-decoration:underline}
         // Bij een VvE loopt het vaak via een beheerkantoor. Staat dat er niet,
         // dan valt deze groep vanzelf weg.
         (S.opdrachtgever
-          ? cGroep('Beheerder',
+          ? cGroep(ogVereniging()?'Beheerder':'Contactkantoor',
               cRij(I.huis,'Kantoor', S.opdrachtgever)+
               cRij(I.mail,'E-mail', S.beheerderEmail, null, 'mail')+
               cRij(I.tel,'Telefoon', S.beheerderTel, null, 'tel'),
@@ -7445,13 +7693,30 @@ button.hd-cgl:hover .w{text-decoration:underline}
                cRij(I.tel,'Telefoon',
                     S.verzTelefoon || (S.verzekeraar ? S.verzekeraar.telefoon : ''),
                     S.verzTelefoon ? 'dit dossier' : '', 'tel')+
-               cRij(I.huis,'Tussenpersoon', S.tussenpersoonRel ? S.tussenpersoonRel.naam : S.tussenpersoon)+
-               cRij(I.mail,'E-mail tussenpersoon',
-                    S.tussenpersoonRel ? S.tussenpersoonRel.email : '', null, 'mail')+
-               cRij(I.tel,'Telefoon tussenpersoon',
-                    S.tussenpersoonRel ? S.tussenpersoonRel.telefoon : '', null, 'tel'))
+               cRij(I.huis,'Adres', vzAdres(S.verzekeraar))+
+               (S.verzekeraar ? (S.verzekeraar.contacten||[]).map(function(c){
+                  return cRij(I.mail, c.label || 'Extra e-mail', c.email, null, 'mail');
+                }).join('') : '')+
+               cRij(I.info,'Reactietermijn',
+                    S.verzekeraar && S.verzekeraar.reactietermijn
+                      ? S.verzekeraar.reactietermijn + ' dagen' : ''))
               || '<div class="hd-cr"><span class="hd-crl hd-crlet">Nog geen verzekeraar gekoppeld</span></div>',
               'fwkVerzekeraar'))+
+
+        // Loopt het via een tussenpersoon, dan hoort die er net zo volledig bij
+        // als de verzekeraar zelf \u2014 anders moet je alsnog gaan zoeken.
+        (!eigen && (S.tussenpersoonRel || S.tussenpersoon)
+          ? cGroep('Tussenpersoon',
+              cRij(I.huis,'Kantoor', S.tussenpersoonRel ? S.tussenpersoonRel.naam : S.tussenpersoon)+
+              cRij(I.pen,'Contactpersoon', S.tussenpersoonRel ? S.tussenpersoonRel.contactpersoon : '')+
+              cRij(I.mail,'E-mail', S.tussenpersoonRel ? S.tussenpersoonRel.email : '', null, 'mail')+
+              cRij(I.tel,'Telefoon', S.tussenpersoonRel ? S.tussenpersoonRel.telefoon : '', null, 'tel')+
+              cRij(I.huis,'Adres', vzAdres(S.tussenpersoonRel))+
+              (S.tussenpersoonRel ? (S.tussenpersoonRel.contacten||[]).map(function(c){
+                 return cRij(I.mail, c.label || 'Extra e-mail', c.email, null, 'mail');
+               }).join('') : ''),
+              'fwkVerzekeraar')
+          : '')+
 
         // Waar de schade zit. Zijn het er meer, dan staan ze er allemaal onder.
         cGroep('Schadeadres'+(locaties.length>1?' \u00b7 '+locaties.length:''),
@@ -8844,7 +9109,7 @@ button.hd-cgl:hover .w{text-decoration:underline}
         '<button class="jbtn" onclick="fwkFSectie(\'klantnieuw\')">Nieuwe klant</button></div>'+
         '<div class="fwk-kbody">'+
         '<div class="hd-cgl">Uit dit dossier</div><div class="hd-chips">'+
-          [['klant', S.owner, S.opdrachtgeverType==='vve'?'VvE':'particulier'],
+          [['klant', S.owner, ogNaam().toLowerCase()],
            ['beheerder', S.opdrachtgever, 'beheerder'],
            ['verzekeraar', S.verzekeraar?S.verzekeraar.naam:'', 'verzekeraar']]
             .filter(function(o){ return o[1]; })
