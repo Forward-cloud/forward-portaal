@@ -391,6 +391,40 @@ router.post('/schades/:nummer/machtigingen', async (req, res) => {
   res.status(201).json({ machtiging: { ...m, handtekening: undefined, link: `${PORTAAL}/machtiging/${m.token}` } });
 });
 
+// Een proef: precies wat de klant straks te zien krijgt, zonder dat er iets
+// wordt verstuurd of vastgelegd. Zo kun je het stuk nalezen voor je het de
+// deur uit doet.
+router.get('/schades/:nummer/machtiging-proef', async (req, res) => {
+  const s = await prisma.schade.findUnique({
+    where: { nummer: req.params.nummer },
+    include: { verzekeraar: { select: { naam: true } } },
+  });
+  if (!s) return res.status(404).send('Dossier niet gevonden');
+
+  const naarWie = String(req.query.naar || (s.opdrachtgever ? 'beheerder' : 'klant'));
+  const naam = naarWie === 'beheerder' ? (s.opdrachtgever || s.owner) : s.owner;
+  const zakelijk = naarWie === 'beheerder' || !!s.opdrachtgever;
+
+  // Een machtiging die alleen in het geheugen bestaat.
+  const m = {
+    id: 'proef',
+    schadeId: s.id,
+    schade: { nummer: s.nummer, adres: s.adres, plaats: s.plaats, owner: s.owner },
+    token: 'proef',
+    tekst: machtigingTekst(s, zakelijk),
+    gegevens: gegevensBlok(s),
+    zakelijk,
+    naarNaam: naam,
+    naarEmail: naarWie === 'beheerder' ? s.beheerderEmail : s.email,
+    status: 'open',
+    verstuurdAt: new Date(),
+    openCount: 0,
+    herinneringen: 0,
+  };
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(pagina({ m, alleenLezen: true, proef: true }));
+});
+
 // Het stuk zelf, in elke stand. Is hij getekend, dan staat de handtekening
 // eronder; zo niet, dan zie je wat er is verstuurd en of hij is geopend.
 router.get('/machtigingen/:id/document', async (req, res) => {
@@ -399,6 +433,14 @@ router.get('/machtigingen/:id/document', async (req, res) => {
     include: { schade: { select: { nummer: true, adres: true, plaats: true, owner: true } } },
   });
   if (!m) return res.status(404).send('Niet gevonden');
+
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  if (req.query.download) {
+    // Ongetekend of getekend: dezelfde route, maar dan als bestand met een
+    // naam waaraan je meteen ziet wat je in handen hebt.
+    const naam = `machtiging-${m.schade.nummer}-${m.status === 'getekend' ? 'getekend' : 'ongetekend'}.html`;
+    res.setHeader('Content-Disposition', `attachment; filename="${naam}"`);
+  }
   res.send(pagina({ m, alleenLezen: true }));
 });
 
@@ -557,7 +599,7 @@ function artikelenBlok(m) {
   'melding, het dossier en \u2014 na akkoord \u2014 het herstel.</div>';
 }
 
-function pagina({ m, fout, alleenLezen }) {
+function pagina({ m, fout, alleenLezen, proef }) {
   const kop = `<!doctype html><html lang="nl"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Machtiging opstalschade \u2014 ${escH(BEDRIJF.naam)}</title>
@@ -656,18 +698,39 @@ function pagina({ m, fout, alleenLezen }) {
   }
 
   // Nog niet getekend. Vanuit het portaal alleen inzien; via de link tekenen.
+  // Het stuk is verder identiek aan wat de klant ziet \u2014 zelfde inleiding, zelfde
+  // artikelen, zelfde ondertekenblok, alleen niet in te vullen.
   if (alleenLezen) {
+    const melding = proef
+      ? `<div class="callout" style="margin-bottom:18px"><b>Proef \u2014 er is niets verstuurd.</b>
+          Dit is precies wat ${escH(m.naarNaam)} straks te zien krijgt. Sluit dit tabblad om terug te gaan.</div>`
+      : `<div class="callout" style="margin-bottom:18px">Nog niet getekend \u2014 verstuurd aan
+          ${escH(m.naarNaam)} op ${langeDatum(m.verstuurdAt)}${m.geopendAt
+            ? `, ${m.openCount} keer bekeken` : ', nog niet geopend'}${m.herinneringen
+            ? `, ${m.herinneringen} herinnering(en) verstuurd` : ''}.</div>`;
+
     return `${kop}${hoofd}<div class="pad">
       <div class="doc-eyebrow">Opstalschade \u00b7 volmacht &amp; opdrachtbevestiging</div>
       <h1>Machtiging tot behandeling van opstalschade</h1>
-      <div class="callout" style="margin-bottom:18px">Nog niet getekend \u2014 verstuurd aan
-        ${escH(m.naarNaam)} op ${langeDatum(m.verstuurdAt)}${m.geopendAt
-          ? `, ${m.openCount} keer bekeken` : ', nog niet geopend'}${m.herinneringen
-          ? `, ${m.herinneringen} herinnering(en) verstuurd` : ''}.</div>
+      ${melding}
+      <p class="lede">Met dit formulier machtigt ${m.zakelijk ? 'de opdrachtgever' : 'de eigenaar'}
+        ${escH(BEDRIJF.naam)} om de opstalschade te melden, het dossier op te stellen en in te dienen
+        bij de verzekeraar. Ondertekenen gebeurt digitaal via de persoonlijke link.</p>
       ${gegevens}
-      <div class="actions" style="margin-top:20px"><button class="btn ghost" onclick="window.print()">
-        <svg viewBox="0 0 24 24" fill="none"><path d="M6 9V3h12v6M6 18H4v-6h16v6h-2M8 14h8v7H8z"
-          stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>Opslaan als PDF / printen</button></div>
+      <div class="section"><h2 style="display:block">Ondertekening</h2>
+        <div class="sign-wrap">
+          <div class="sign-grid">
+            ${veld('Naam ondertekenaar', '')}
+            ${m.zakelijk ? veld('Functie / hoedanigheid', '') : ''}
+            ${veld('Plaats', '')}
+            ${veld('Datum', '')}
+            <div class="f sig-box"><label>Handtekening</label><div class="sig-pad"></div></div>
+          </div>
+          <div class="actions"><button class="btn ghost" onclick="window.print()">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M6 9V3h12v6M6 18H4v-6h16v6h-2M8 14h8v7H8z"
+              stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>Opslaan als PDF / printen</button></div>
+        </div>
+      </div>
     </div>${voet}`;
   }
 
@@ -825,4 +888,38 @@ function pagina({ m, fout, alleenLezen }) {
   <\/script>`;
 }
 
+/* ─────────── automatisch herinneren ───────────
+   De controle hierboven loopt mee zodra iemand het dossier opent. Daarnaast
+   kijken we elk uur zelfstandig, zodat een herinnering ook uitgaat als er
+   niemand naar het dossier kijkt. Let op: er wordt nu alleen vastgelegd dat
+   de herinnering nodig was; het echte mailen komt met Resend. */
+const HERINNER_UUR = Number(process.env.MACHTIGING_HERINNER_UUR || 1);
+
+async function herinnerRonde() {
+  try {
+    const open = await prisma.machtiging.findMany({
+      where: { status: { in: ['open', 'geopend'] }, herinneringen: { lt: 4 } },
+    });
+    for (const m of open) {
+      const vanaf = m.herinnerdAt || m.verstuurdAt;
+      const dagen = Math.floor((Date.now() - new Date(vanaf).getTime()) / 864e5);
+      if (dagen < (m.herinnerDagen || 3)) continue;
+      await prisma.machtiging.update({
+        where: { id: m.id },
+        data: { herinneringen: { increment: 1 }, herinnerdAt: new Date() },
+      });
+      await log(null, `${m.herinneringen + 1}e herinnering machtiging verstuurd`, m.schadeId,
+        `${m.naarNaam} \u00b7 automatisch na ${dagen} dagen`);
+    }
+  } catch (e) {
+    console.error('herinnerronde machtigingen mislukt:', e.message);
+  }
+}
+
+if (process.env.NODE_ENV !== 'test') {
+  const klok = setInterval(herinnerRonde, HERINNER_UUR * 3600 * 1000);
+  if (klok.unref) klok.unref();
+}
+
 module.exports = router;
+module.exports.herinnerRonde = herinnerRonde;
