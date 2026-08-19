@@ -31,16 +31,20 @@ app.use('/api', require('./routes/actiepunten.routes'));
 app.use('/api', require('./routes/facturen.routes'));
 app.use('/api', require('./routes/machtigingen.routes'));
 app.use('/api', require('./routes/offerte.routes'));
+app.use('/api/portal', require('./routes/portal.routes'));
+
+// De vaste bestanden staan hier bewust vóór de klantroutes hieronder.
+// De machtigingenrouter zet halverwege `router.use(requireAuth)`, en omdat die
+// op '/' hangt gaat elk verzoek daar langs — ook het verzoek om het inlogscherm.
+// Stond express.static erachter, dan kreeg iedereen die niet is ingelogd
+// {"error":"Niet ingelogd"} te zien in plaats van het portaal.
+app.use(express.static(path.join(__dirname, '..', 'public')));
 
 // De klant opent de offerte en kiest een afspraakmoment zonder in te loggen.
 app.use('/', require('./routes/offerte.routes'));
 app.use('/', require('./routes/afspraken.routes'));
 // De klant tekent de machtiging zonder in te loggen.
 app.use('/', require('./routes/machtigingen.routes'));
-
-app.use('/api/portal', require('./routes/portal.routes'));
-
-app.use(express.static(path.join(__dirname, '..', 'public')));
 
 app.use((err, req, res, next) => {
   if (err && err.type === 'entity.too.large') {
