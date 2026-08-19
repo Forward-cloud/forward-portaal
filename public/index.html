@@ -1084,6 +1084,8 @@ let USERS=[
 let currentUserId='u1';
 // De echt ingelogde medewerker overschrijft de demolijst zodra hij bekend is.
 window.__fwIk = null;
+// Blokkeren van een leverancier is een directiebevoegdheid.
+window.fwIsDirectie = function(){ return !!(window.__fwIk && window.__fwIk.role === 'DIRECTIE'); };
 let LOG=[];
 const PERM_LABELS={omzet:'Omzet & marge (KPI + grafiek)',beheer:'Gebruikersbeheer & instellingen'};
 const ROL_NL={DIRECTIE:'Directie',FINANCIEEL:'Financiële administratie',SCHADEBEHANDELAAR:'Schadebehandelaar',PLANNER:'Planner',OPLEIDING:'Opleiding'};
@@ -4066,7 +4068,29 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
 <script>
 /* ══ Relaties: verzekeraars, tussenpersonen, onderaannemers ══ */
 (function(){
-  var SOORT = { VERZEKERAAR:'Verzekeraar', TUSSENPERSOON:'Tussenpersoon', ONDERAANNEMER:'Onderaannemer' };
+  var SOORT = { VERZEKERAAR:'Verzekeraar', TUSSENPERSOON:'Tussenpersoon',
+                ONDERAANNEMER:'Onderaannemer', LEVERANCIER:'Leverancier' };
+  // Het meervoud is niet overal 'naam + s'.
+  var SOORT_MEER = { VERZEKERAAR:'Verzekeraars', TUSSENPERSOON:'Tussenpersonen',
+                     ONDERAANNEMER:'Onderaannemers', LEVERANCIER:'Leveranciers' };
+
+  // Twee gescheiden adresboeken. Op de pagina Verzekeraars hoort geen
+  // onderaannemer thuis en andersom \u2014 dat is verwarrend en je kiest er
+  // per ongeluk de verkeerde partij mee.
+  var BOEK = {
+    verz:  { soorten:['VERZEKERAAR','TUSSENPERSOON'], titel:'Verzekeraars',
+             uitleg:'Contactgegevens en reactietermijnen van verzekeraars en tussenpersonen.' },
+    onder: { soorten:['ONDERAANNEMER','LEVERANCIER'], titel:'Onderaannemers',
+             uitleg:'Wie voor je werkt, waar zij goed in zijn en hoe zij factureren.' }
+  };
+  var boekNu = 'verz';
+  function inBoek(s){ return BOEK[boekNu].soorten.indexOf(s) > -1; }
+
+  // Waar een onderaannemer goed in is. Zelfde lijst als bij de opdrachtbon.
+  var VAKLIJST = [['droging','Drogen en meten'],['loodgieter','Loodgieterswerk'],
+    ['dak','Dakwerk'],['stuc','Stucwerk'],['tegel','Tegelwerk'],['schilder','Schilderwerk'],
+    ['vloer','Vloeren'],['timmer','Timmerwerk'],['elektra','Elektra'],
+    ['schoonmaak','Schoonmaak'],['overig','Overig']];
   var lijst = [], filter = 'VERZEKERAAR';
 
   function $$(id){ return document.getElementById(id); }
@@ -4100,58 +4124,241 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
   };
 
   window.fwrBewerk = function(id){
-    var r = lijst.find(function(x){ return x.id === id; }) || { soort: filter, reactietermijn: 7, factuurwijze: 'per_klus', actief: true };
-    var isOnder = (r.soort || filter) === 'ONDERAANNEMER';
+    var r = lijst.find(function(x){ return x.id === id; })
+      || { soort: filter, reactietermijn: 7, factuurwijze: 'per_klus', actief: true, vakken: [] };
+    var soorten = BOEK[boekNu].soorten;
 
-    $$('fwmTitel').textContent = id ? r.naam : 'Nieuwe ' + SOORT[filter].toLowerCase();
+    $$('fwmTitel').textContent = id ? r.naam
+      : 'Nieuwe ' + SOORT[soorten.indexOf(filter) > -1 ? filter : soorten[0]].toLowerCase();
     $$('fwmSub').textContent = '';
-    $$('fwmBody').innerHTML =
-      '<div id="fwmMelding" style="display:none"></div>' +
-      '<div class="fwr-form">' +
-        '<div><label>Naam</label><input type="text" id="fwrNaam" value="' + esc(r.naam || '') + '"></div>' +
-        '<div><label>Soort</label><select id="fwrSoort">' +
-          Object.keys(SOORT).map(function(k){
-            return '<option value="' + k + '"' + ((r.soort || filter) === k ? ' selected' : '') + '>' + SOORT[k] + '</option>';
-          }).join('') + '</select></div>' +
-        '<div class="fwr-2">' +
-          '<div><label>E-mail schademeldingen</label><input type="email" id="fwrMail" value="' + esc(r.email || '') + '"></div>' +
-          '<div><label>Telefoon</label><input type="text" id="fwrTel" value="' + esc(r.telefoon || '') + '"></div>' +
-        '</div>' +
-        '<div><label>Vaste contactpersoon</label><input type="text" id="fwrPers" value="' + esc(r.contactpersoon || '') + '"></div>' +
-        '<div><label>Extra e-mailadressen</label><div id="fwrContacten"></div>' +
-          '<button type="button" class="btn" onclick="fwrAdres()" style="margin-top:6px;font-size:12.5px;padding:7px 12px">' +
-          'Adres toevoegen</button>' +
-          '<div style="font-size:11.5px;color:var(--muted);margin-top:4px">' +
-          'Bijvoorbeeld facturatie, een schadebehandelaar of een regiokantoor.</div></div>' +
-        '<div><label>Adres</label><input type="text" id="fwrAdres" value="' + esc(r.adres || '') + '"></div>' +
-        '<div class="fwr-2">' +
-          '<div><label>Postcode</label><input type="text" id="fwrPc" value="' + esc(r.postcode || '') + '"></div>' +
-          '<div><label>Plaats</label><input type="text" id="fwrPlaats" value="' + esc(r.plaats || '') + '"></div>' +
-        '</div>' +
-        '<div><label>Website of schadeportaal</label><input type="text" id="fwrWeb" value="' + esc(r.website || '') + '"></div>' +
-        '<div class="fwr-2">' +
-          '<div><label>Reactietermijn (werkdagen)</label><input type="text" id="fwrTermijn" value="' + (r.reactietermijn || 7) + '"></div>' +
-          '<div id="fwrWijzeWrap"' + (isOnder ? '' : ' style="display:none"') + '><label>Factureert</label>' +
-            '<select id="fwrWijze">' +
-              '<option value="per_klus"' + (r.factuurwijze !== 'verzamel' ? ' selected' : '') + '>Per klus</option>' +
-              '<option value="verzamel"' + (r.factuurwijze === 'verzamel' ? ' selected' : '') + '>Verzamelfactuur</option>' +
-            '</select></div>' +
-        '</div>' +
-        '<div><label>Interne notitie</label><textarea id="fwrNotitie">' + esc(r.notitie || '') + '</textarea></div>' +
-        (id ? '<label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text)">' +
-          '<input type="checkbox" id="fwrActief"' + (r.actief !== false ? ' checked' : '') +
-          ' style="width:16px;height:16px;accent-color:var(--teal)">Actief</label>' : '') +
-      '</div>';
-
-    tekenContacten(r.contacten || []);
-
-    $$('fwrSoort').onchange = function(){
-      $$('fwrWijzeWrap').style.display = this.value === 'ONDERAANNEMER' ? '' : 'none';
-    };
+    $$('fwmBody').innerHTML = '<div id="fwmMelding" style="display:none"></div><div id="fwrVorm"></div>';
+    tekenVorm(r, id);
 
     $$('fwmOk').textContent = id ? 'Opslaan' : 'Toevoegen';
     $$('fwmOk').onclick = function(){ bewaar(id); };
     $$('fwmWrap').classList.add('on');
+  };
+
+  // De velden hangen af van de soort. Een verzekeraar heeft een reactietermijn,
+  // een onderaannemer een vakgebied en een factuurwijze.
+  function tekenVorm(r, id){
+    var soorten = BOEK[boekNu].soorten;
+    var soort = soorten.indexOf(r.soort) > -1 ? r.soort : soorten[0];
+    var werkt = soort === 'ONDERAANNEMER' || soort === 'LEVERANCIER';
+    var vakken = r.vakken || [];
+
+    $$('fwrVorm').innerHTML =
+      '<div class="fwr-form">' +
+        '<div><label>Soort</label><select id="fwrSoort" onchange="fwrSoortGewijzigd()">' +
+          soorten.map(function(k){
+            return '<option value="' + k + '"' + (soort === k ? ' selected' : '') + '>' + SOORT[k] + '</option>';
+          }).join('') + '</select></div>' +
+
+        '<div><label>' + (werkt ? 'Bedrijfsnaam' : 'Naam van de maatschappij') + '</label>' +
+          '<input type="text" id="fwrNaam" value="' + esc(r.naam || '') + '"></div>' +
+
+        (werkt
+          ? '<div><label>KvK-nummer</label>' +
+              '<div style="display:flex;gap:7px">' +
+                '<input type="text" id="fwrKvk" value="' + esc(r.kvk || '') + '" placeholder="8 cijfers" style="flex:1">' +
+                '<button type="button" class="btn" onclick="fwrKvkZoek()" ' +
+                  'style="font-size:12.5px;padding:8px 13px;min-height:auto;flex:none">Ophalen</button>' +
+              '</div>' +
+              '<div id="fwrKvkMelding" style="font-size:11.5px;color:var(--muted);margin-top:4px"></div></div>'
+          : '') +
+
+        '<div class="fwr-2">' +
+          '<div><label>' + (werkt ? 'E-mail voor opdrachten' : 'E-mail schademeldingen') + '</label>' +
+            '<input type="email" id="fwrMail" value="' + esc(r.email || '') + '"></div>' +
+          '<div><label>Telefoon</label><input type="text" id="fwrTel" value="' + esc(r.telefoon || '') + '"></div>' +
+        '</div>' +
+
+        '<div><label>Vaste contactpersoon</label>' +
+          '<input type="text" id="fwrPers" value="' + esc(r.contactpersoon || '') + '"></div>' +
+
+        '<div><label>Extra e-mailadressen</label><div id="fwrContacten"></div>' +
+          '<button type="button" class="btn" onclick="fwrAdres()" style="margin-top:6px;font-size:12.5px;padding:7px 12px">' +
+          'Adres toevoegen</button>' +
+          '<div style="font-size:11.5px;color:var(--muted);margin-top:4px">' +
+          (werkt ? 'Bijvoorbeeld de planning, de administratie of een vaste uitvoerder.'
+                 : 'Bijvoorbeeld facturatie, een schadebehandelaar of een regiokantoor.') + '</div></div>' +
+
+        '<div><label>Bezoekadres</label><input type="text" id="fwrAdres" value="' + esc(r.adres || '') + '"></div>' +
+        '<div class="fwr-2">' +
+          '<div><label>Postcode</label><input type="text" id="fwrPc" value="' + esc(r.postcode || '') + '"></div>' +
+          '<div><label>Plaats</label><input type="text" id="fwrPlaats" value="' + esc(r.plaats || '') + '"></div>' +
+        '</div>' +
+        '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">' +
+          '<button type="button" class="btn" onclick="fwrAdresNakijken(\'\')" ' +
+            'style="font-size:12.5px;padding:8px 13px;min-height:auto">Adres nakijken</button>' +
+          '<span class="fwq-melding" id="fwrAdresMelding"></span></div>' +
+
+        '<div><label>Correspondentieadres <span style="color:var(--muted-2)">alleen als post ergens anders heen gaat</span></label>' +
+          '<input type="text" id="fwrPostAdres" value="' + esc(r.postAdres || '') + '"></div>' +
+        '<div class="fwr-2">' +
+          '<div><label>Postcode</label><input type="text" id="fwrPostPc" value="' + esc(r.postPostcode || '') + '"></div>' +
+          '<div><label>Plaats</label><input type="text" id="fwrPostPlaats" value="' + esc(r.postPlaats || '') + '"></div>' +
+        '</div>' +
+        '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">' +
+          '<button type="button" class="btn" onclick="fwrAdresNakijken(\'Post\')" ' +
+            'style="font-size:12.5px;padding:8px 13px;min-height:auto">Adres nakijken</button>' +
+          '<span class="fwq-melding" id="fwrPostAdresMelding"></span></div>' +
+
+        (werkt
+          ? '<div><label>Waar zijn ze goed in?</label><div class="hd-chips" id="fwrVakken">' +
+              VAKLIJST.map(function(v){
+                return '<button type="button" class="hd-chip' + (vakken.indexOf(v[0]) > -1 ? ' aan' : '') + '" ' +
+                  'data-vak="' + v[0] + '" onclick="fwrVak(this)">' + v[1] + '</button>';
+              }).join('') + '</div>' +
+              '<div style="font-size:11.5px;color:var(--muted);margin-top:5px">' +
+              'Bepaalt bij welk type klus deze partij verschijnt.</div></div>'
+          : '') +
+
+        '<div><label>Website of schadeportaal</label>' +
+          '<input type="text" id="fwrWeb" value="' + esc(r.website || '') + '"></div>' +
+
+        '<div class="fwr-2">' +
+          (werkt
+            ? '<div><label>Factureert</label><select id="fwrWijze">' +
+                '<option value="per_klus"' + (r.factuurwijze !== 'verzamel' ? ' selected' : '') + '>Per klus</option>' +
+                '<option value="verzamel"' + (r.factuurwijze === 'verzamel' ? ' selected' : '') + '>Verzamelfactuur</option>' +
+              '</select></div>' +
+              '<div><label>Btw</label><select id="fwrBtw">' +
+                '<option value="verlegd"' + (r.btwVerlegd !== false ? ' selected' : '') + '>Verlegd naar ons</option>' +
+                '<option value="excl"' + (r.btwVerlegd === false ? ' selected' : '') + '>Brengt btw in rekening</option>' +
+              '</select></div>'
+            : '<div><label>Reactietermijn (werkdagen)</label>' +
+                '<input type="text" id="fwrTermijn" value="' + (r.reactietermijn || 7) + '"></div>' +
+              '<div><label>Btw-nummer</label>' +
+                '<input type="text" id="fwrBtwNr" value="' + esc(r.btwNummer || '') + '"></div>') +
+        '</div>' +
+
+        '<div><label>Interne notitie</label><textarea id="fwrNotitie">' + esc(r.notitie || '') + '</textarea>' +
+          '<div style="font-size:11.5px;color:var(--muted);margin-top:4px">' +
+          'Alleen voor ons. Staat nooit op een bon of brief.</div></div>' +
+
+        (id ? '<label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text)">' +
+          '<input type="checkbox" id="fwrActief"' + (r.actief !== false ? ' checked' : '') +
+          ' style="width:16px;height:16px;accent-color:var(--teal)">Actief in het adresboek</label>' : '') +
+
+        // Blokkeren is iets anders dan niet-actief: de partij blijft zichtbaar
+        // en in de geschiedenis staan, maar krijgt geen opdrachten meer.
+        (id && werkt && window.fwIsDirectie && window.fwIsDirectie()
+          ? '<div class="fwn-blok k3" style="margin-top:6px">' +
+              '<div class="fwn-kop"><span class="n">!</span>Opdrachten' +
+                '<span class="r">alleen directie</span></div>' +
+              (r.geblokkeerd
+                ? '<div style="font-size:12.5px;color:#8A5A0B;line-height:1.5">' +
+                    '<b>Geblokkeerd voor nieuwe opdrachten.</b><br>' +
+                    esc(r.blokkadeReden || '') +
+                    (r.geblokkeerdDoor ? '<br>door ' + esc(r.geblokkeerdDoor) : '') + '</div>' +
+                  '<button type="button" class="btn" onclick="fwrBlokkade(\'' + r.id + '\',false)" ' +
+                    'style="margin-top:9px;font-size:12.5px;padding:8px 13px;min-height:auto">Blokkade opheffen</button>'
+                : '<div style="font-size:12.5px;color:var(--muted);line-height:1.5">' +
+                    'Deze partij kan opdrachten en prijsaanvragen krijgen.</div>' +
+                  '<button type="button" class="btn" onclick="fwrBlokkade(\'' + r.id + '\',true)" ' +
+                    'style="margin-top:9px;font-size:12.5px;padding:8px 13px;min-height:auto">' +
+                    'Blokkeren voor nieuwe opdrachten</button>')
+            + '</div>'
+          : '') +
+      '</div>';
+
+    tekenContacten(r.contacten || []);
+    $$('fwrVorm').dataset.id = id || '';
+  }
+
+  // Van soort wisselen tekent het formulier opnieuw, met behoud van wat er staat.
+  window.fwrSoortGewijzigd = function(){
+    var id = $$('fwrVorm').dataset.id;
+    var r = leesVorm();
+    r.soort = $$('fwrSoort').value;
+    if (id) {
+      var oud = lijst.find(function(x){ return x.id === id; }) || {};
+      r.id = id; r.geblokkeerd = oud.geblokkeerd; r.blokkadeReden = oud.blokkadeReden;
+      r.geblokkeerdDoor = oud.geblokkeerdDoor;
+    }
+    tekenVorm(r, id || null);
+  };
+
+  window.fwrVak = function(knop){ knop.classList.toggle('aan'); };
+
+  // Leeg = het bezoekadres, 'Post' = het correspondentieadres.
+  window.fwrAdresNakijken = function(soort){
+    window.fwAdresNakijken({
+      adres:    'fwr' + (soort ? 'PostAdres' : 'Adres'),
+      postcode: 'fwr' + (soort ? 'PostPc' : 'Pc'),
+      plaats:   'fwr' + (soort ? 'PostPlaats' : 'Plaats'),
+      melding:  'fwr' + (soort ? 'PostAdresMelding' : 'AdresMelding')
+    });
+  };
+
+  function leesVakken(){
+    return Array.prototype.slice.call(document.querySelectorAll('#fwrVakken .hd-chip.aan'))
+      .map(function(b){ return b.dataset.vak; });
+  }
+
+  function waarde(id){ var e = $$(id); return e ? e.value : ''; }
+
+  function leesVorm(){
+    return {
+      naam: waarde('fwrNaam'), soort: waarde('fwrSoort'), email: waarde('fwrMail'),
+      telefoon: waarde('fwrTel'), contactpersoon: waarde('fwrPers'),
+      adres: waarde('fwrAdres'), postcode: waarde('fwrPc'), plaats: waarde('fwrPlaats'),
+      postAdres: waarde('fwrPostAdres'), postPostcode: waarde('fwrPostPc'),
+      postPlaats: waarde('fwrPostPlaats'), website: waarde('fwrWeb'),
+      kvk: waarde('fwrKvk'), btwNummer: waarde('fwrBtwNr'), notitie: waarde('fwrNotitie'),
+      reactietermijn: Number(String(waarde('fwrTermijn')).replace(/[^0-9]/g,'')) || 7,
+      factuurwijze: waarde('fwrWijze') || 'per_klus',
+      btwVerlegd: $$('fwrBtw') ? $$('fwrBtw').value === 'verlegd' : true,
+      vakken: $$('fwrVakken') ? leesVakken() : [],
+      contacten: leesContacten(),
+      actief: $$('fwrActief') ? $$('fwrActief').checked : true
+    };
+  }
+
+  // Gegevens ophalen bij de KvK. Staat de sleutel er niet, dan zegt de server
+  // dat en vul je het met de hand in.
+  window.fwrKvkZoek = function(){
+    var nr = String(waarde('fwrKvk')).replace(/[^0-9]/g, '');
+    var m = $$('fwrKvkMelding');
+    if (nr.length !== 8) { m.style.color = 'var(--red)'; m.textContent = 'Een KvK-nummer heeft acht cijfers.'; return; }
+    m.style.color = 'var(--muted)'; m.textContent = 'Bezig met ophalen\u2026';
+    window.fwApi('/api/kvk/' + nr).then(function(d){
+      function zet(id, v){ var e = $$(id); if (e && v) e.value = v; }
+      zet('fwrNaam', d.naam); zet('fwrAdres', d.adres); zet('fwrPc', d.postcode);
+      zet('fwrPlaats', d.plaats); zet('fwrPostAdres', d.postAdres);
+      zet('fwrPostPc', d.postPostcode); zet('fwrPostPlaats', d.postPlaats);
+      zet('fwrWeb', d.website);
+      m.style.color = 'var(--green)';
+      m.textContent = 'Gegevens opgehaald bij de KvK. Loop ze na en vul aan.';
+    }).catch(function(e){
+      m.style.color = '#8A5A0B';
+      m.textContent = e.message;
+    });
+  };
+
+  window.fwrBlokkade = function(id, aan){
+    var doe = function(reden){
+      window.fwApi('/api/relaties/' + id + '/blokkade',
+        { method:'POST', body: JSON.stringify({ geblokkeerd: aan, reden: reden || '' }) })
+        .then(function(){
+          window.fwmSluit();
+          melden(aan ? 'Geblokkeerd' : 'Blokkade opgeheven',
+                 aan ? 'Deze partij krijgt geen nieuwe opdrachten meer.'
+                     : 'Deze partij kan weer opdrachten krijgen.');
+          window.fwrLaad();
+        }).catch(function(e){ melden('Niet gelukt', e.message, 'err'); });
+    };
+    if (!aan) return doe();
+    window.fwVraag({
+      titel:'Blokkeren voor nieuwe opdrachten',
+      uitleg:'De partij blijft in het adresboek staan en in de dossiers waar hij al aan werkt. '+
+             'Alleen nieuwe opdrachten en prijsaanvragen worden tegengehouden.',
+      velden:[{naam:'reden',label:'Waarom?',type:'tekst',
+        plaats:'bijvoorbeeld: levert al twee keer te laat en reageert niet op herinneringen',
+        verplicht:'Leg vast waarom, zodat een collega het later begrijpt.'}],
+      ok:'Blokkeren', gevaar:true
+    }).then(function(r){ if (r) doe(r.reden); });
   };
 
   function tekenContacten(lijst){
@@ -4192,17 +4399,7 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
   };
 
   function bewaar(id){
-    var body = {
-      naam: $$('fwrNaam').value, soort: $$('fwrSoort').value,
-      email: $$('fwrMail').value, telefoon: $$('fwrTel').value,
-      contactpersoon: $$('fwrPers').value, adres: $$('fwrAdres').value,
-      postcode: $$('fwrPc').value, plaats: $$('fwrPlaats').value,
-      website: $$('fwrWeb').value, notitie: $$('fwrNotitie').value,
-      reactietermijn: Number(String($$('fwrTermijn').value).replace(/[^0-9]/g,'')) || 7,
-      factuurwijze: $$('fwrWijze') ? $$('fwrWijze').value : 'per_klus',
-      contacten: leesContacten()
-    };
-    if ($$('fwrActief')) body.actief = $$('fwrActief').checked;
+    var body = leesVorm();
     if (!body.naam.trim()) {
       var m = $$('fwmMelding'); m.className = 'fwm-err'; m.textContent = 'Vul een naam in'; m.style.display = '';
       return;
@@ -4228,15 +4425,27 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
       '<div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">' +
         '<div style="min-width:0"><h4>' + esc(r.naam) + '</h4>' +
           '<div class="sub">' + SOORT[r.soort] + (r.actief === false ? ' \u00b7 niet actief' : '') + '</div></div>' +
-        (wijze ? '<span class="fwr-vlag" style="background:var(--teal-soft);color:var(--teal-ink)">' + wijze + '</span>' : '') +
+        (r.geblokkeerd
+          ? '<span class="fwr-vlag" style="background:var(--red-soft);color:var(--red)">geblokkeerd</span>'
+          : wijze ? '<span class="fwr-vlag" style="background:var(--teal-soft);color:var(--teal-ink)">' + wijze + '</span>' : '') +
       '</div>' +
+      (r.geblokkeerd
+        ? '<div class="rij" style="color:var(--red)">Krijgt geen nieuwe opdrachten' +
+          (r.blokkadeReden ? ' \u2014 ' + esc(r.blokkadeReden) : '') + '</div>'
+        : '') +
       (r.contactpersoon ? '<div class="rij">' + IC_PERS + esc(r.contactpersoon) + '</div>' : '') +
       (r.email ? '<div class="rij">' + IC_MAIL + '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(r.email) + '</span></div>' : '') +
       (r.telefoon ? '<div class="rij">' + IC_TEL + esc(r.telefoon) + '</div>' : '') +
       ((r.contacten && r.contacten.length)
         ? '<div class="rij">' + IC_MAIL + '+ ' + r.contacten.length + ' ander adres' +
           (r.contacten.length > 1 ? 'sen' : '') + '</div>' : '') +
-      (r.soort !== 'ONDERAANNEMER' ? '<div class="rij">' + IC_KLOK + 'reageert binnen ' + (r.reactietermijn || 7) + ' werkdagen</div>' : '') +
+      ((r.soort === 'ONDERAANNEMER' || r.soort === 'LEVERANCIER')
+        ? ((r.vakken && r.vakken.length)
+            ? '<div class="rij">' + r.vakken.map(function(v){
+                var t = VAKLIJST.filter(function(x){ return x[0] === v; })[0];
+                return t ? t[1] : v; }).join(', ') + '</div>'
+            : '<div class="rij" style="color:var(--amber)">Nog geen vakgebied \u2014 verschijnt niet bij een opdrachtbon</div>')
+        : '<div class="rij">' + IC_KLOK + 'reageert binnen ' + (r.reactietermijn || 7) + ' werkdagen</div>') +
       (!r.email && !r.telefoon ? '<div class="rij" style="color:var(--amber)">Nog geen contactgegevens</div>' : '') +
     '</div>';
   }
@@ -4246,32 +4455,53 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
     if (!doel) return;
     doel.innerHTML = lijst.length
       ? lijst.map(kaart).join('')
-      : '<div class="empty" style="padding:30px 12px">Nog geen ' + SOORT[filter].toLowerCase() + 's. Voeg de eerste toe.</div>';
+      : '<div class="empty" style="padding:30px 12px">Nog geen ' +
+        SOORT_MEER[filter].toLowerCase() + '. Voeg de eerste toe.</div>';
   }
 
-  function scherm(viewId, soort, titel, uitleg){
+  // Elk adresboek toont alleen zijn eigen soorten.
+  function scherm(viewId, boek){
     var view = $$(viewId);
     if (!view || view.dataset.fw) return;
     view.dataset.fw = '1';
+    var b = BOEK[boek];
     view.innerHTML =
-      '<div class="page-head"><div class="eyebrow">Relaties</div><h1>' + titel + '</h1><p>' + uitleg + '</p></div>' +
-      '<div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap" class="filters">' +
-        Object.keys(SOORT).map(function(k){
-          return '<button class="chip' + (k === soort ? ' active' : '') + '" onclick="fwrFilter(\'' + k + '\',this)">' +
-            SOORT[k] + 's</button>';
+      '<div class="page-head"><div class="eyebrow">Relaties</div><h1>' + b.titel + '</h1><p>' + b.uitleg + '</p></div>' +
+      '<div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap" class="filters" id="fwrTabs' + boek + '">' +
+        b.soorten.map(function(k, i){
+          return '<button class="chip' + (i === 0 ? ' active' : '') + '" onclick="fwrFilter(\'' + k + '\',this)">' +
+            SOORT_MEER[k] + '</button>';
         }).join('') +
       '</div>' +
-      '<div style="margin-bottom:14px"><button class="btn primary" onclick="fwrBewerk()">Relatie toevoegen</button></div>' +
+      '<div style="margin-bottom:14px"><button class="btn primary" onclick="fwrBewerk()">' +
+        (boek === 'verz' ? 'Verzekeraar toevoegen' : 'Onderaannemer toevoegen') + '</button></div>' +
       '<div class="fwr-grid" id="fwrLijst"></div>';
-    filter = soort;
+    boekNu = boek;
+    filter = b.soorten[0];
+    window.fwrLaad();
+  }
+
+  // Wisselen tussen de twee pagina's: onthoud welk boek er open staat.
+  function volgPagina(){
+    var v = $$('view-verz'), o = $$('view-onder');
+    var open = (v && v.classList.contains('active')) ? 'verz'
+             : (o && o.classList.contains('active')) ? 'onder' : null;
+    if (!open || open === boekNu) return;
+    boekNu = open;
+    filter = BOEK[open].soorten[0];
+    var tabs = $$('fwrTabs' + open);
+    if (tabs) {
+      tabs.querySelectorAll('.chip').forEach(function(c, i){ c.classList.toggle('active', i === 0); });
+    }
     window.fwrLaad();
   }
 
   setInterval(function(){
     var app = $$('internApp');
     if (!app || app.style.display === 'none') return;
-    scherm('view-verz', 'VERZEKERAAR', 'Verzekeraars', 'Contactgegevens en reactietermijnen van verzekeraars en tussenpersonen.');
-    scherm('view-onder', 'ONDERAANNEMER', 'Onderaannemers', 'Wie voor je werkt en hoe zij factureren.');
+    scherm('view-verz', 'verz');
+    scherm('view-onder', 'onder');
+    volgPagina();
   }, 700);
 })();
 </script>
@@ -4304,6 +4534,11 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
     if (o) o.placeholder = s==='vve' ? 'VvE Voorbeeldstraat 1 t/m 20'
                         : s==='zakelijk' ? 'Voorbeeld Vastgoed B.V.' : 'Fam. de Vries';
     if (b) b.style.display = s==='particulier' ? 'none' : '';
+  };
+
+  window.fwnAdresNakijken = function(){
+    window.fwAdresNakijken({adres:'fwnAdres', postcode:'fwnPostcode',
+      plaats:'fwnPlaats', melding:'fwnAdresMelding'});
   };
 
   // Verzekeraars en tussenpersonen uit het relatiebestand.
@@ -4370,6 +4605,10 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
           '<div><label for="fwnPostcode">Postcode</label><input type="text" id="fwnPostcode"></div>' +
           '<div><label for="fwnPlaats">Plaats</label><input type="text" id="fwnPlaats"></div>' +
         '</div>' +
+        '<div style="display:flex;align-items:center;gap:10px;margin-top:8px;flex-wrap:wrap">' +
+          '<button type="button" class="btn" onclick="fwnAdresNakijken()" ' +
+            'style="font-size:12.5px;padding:8px 13px;min-height:auto">Adres nakijken</button>' +
+          '<span class="fwq-melding" id="fwnAdresMelding"></span></div>' +
         '<label for="fwnBewoner" style="margin-top:11px">Naam bewoner</label>' +
           '<input type="text" id="fwnBewoner" placeholder="leeg = zelfde als de opdrachtgever">' +
         '<div class="fwn-rij" style="margin-top:9px">' +
@@ -6873,7 +7112,8 @@ button.hd-cgl:hover .w{text-decoration:underline}
          naam:'adres',label:'Straat en huisnummer',waarde:l.adres||'',
          verplicht:'Vul het adres in.'},
         {groep:'Het adres', naam:'postcode',label:'Postcode',waarde:l.postcode||''},
-        {groep:'Het adres', naam:'plaats',label:'Plaats',waarde:l.plaats||''},
+        {groep:'Het adres', naam:'plaats',label:'Plaats',waarde:l.plaats||'',
+         knop:{label:'Adres nakijken', fn:'fwkAdresNakijken'}},
         {groep:'Het adres', naam:'aanduiding',label:'Aanduiding',waarde:l.aanduiding||'',
          plaats:'bijvoorbeeld begane grond of gemeenschappelijke hal'},
 
@@ -6895,6 +7135,12 @@ button.hd-cgl:hover .w{text-decoration:underline}
         telefoon:r.tel||null, email:r.mail||null})})
         .then(ververs).catch(function(e){melden('Niet gelukt',e.message,'err')});
     });
+  };
+
+  // De veldnamen in het vraagvenster krijgen het voorvoegsel fwq_.
+  window.fwkAdresNakijken = function(){
+    window.fwAdresNakijken({adres:'fwq_adres', postcode:'fwq_postcode',
+      plaats:'fwq_plaats', melding:'fwqM_plaats'});
   };
 
   window.fwkNotitie = function(){
@@ -8217,6 +8463,9 @@ button.hd-cgl:hover .w{text-decoration:underline}
       uitleg:'Dit adres hoort bij dezelfde schade en dezelfde claim, maar krijgt een eigen planning.',
       velden:[
         {naam:'adres',label:'Adres',plaats:'Straatnaam en huisnummer',verplicht:'Vul een adres in.'},
+        {naam:'postcode',label:'Postcode',plaats:'Leeg laten mag'},
+        {naam:'plaats',label:'Plaats',plaats:'Leeg laten mag',
+         knop:{label:'Adres nakijken', fn:'fwkAdresNakijken'}},
         {naam:'bewoner',label:'Naam bewoner',plaats:'Leeg laten mag'},
         {naam:'telefoon',label:'Telefoonnummer',plaats:'Leeg laten mag'},
         {naam:'soort',label:'Wie woont er?',type:'keuze',waarde:'eigenaar',
@@ -8227,7 +8476,8 @@ button.hd-cgl:hover .w{text-decoration:underline}
     }).then(function(r){
       if (!r) return;
       api('/api/schades/'+encodeURIComponent(S.nr)+'/locaties',
-        {method:'POST', body:JSON.stringify({adres:r.adres, bewoner:r.bewoner||null,
+        {method:'POST', body:JSON.stringify({adres:r.adres, postcode:r.postcode||null,
+          plaats:r.plaats||null, bewoner:r.bewoner||null,
           telefoon:r.telefoon||null, bewonerSoort:r.soort})})
         .then(function(){ melden('Toegevoegd', r.adres); return ververs(); })
         .catch(function(e){melden('Niet gelukt',e.message,'err')});
@@ -9582,6 +9832,11 @@ body.fwq-open{overflow:hidden}
 .fwq-body textarea{min-height:96px;resize:vertical;line-height:1.5}
 .fwq-body input:focus,.fwq-body textarea:focus,.fwq-body select:focus{
   outline:none;border-color:var(--teal);box-shadow:0 0 0 3px rgba(0,155,168,.12)}
+/* Uitkomst van het adres nakijken: groen als het klopt, amber bij twijfel. */
+.fwq-melding{font-size:11.5px;line-height:1.45;margin-top:5px}
+.fwq-melding.ok{color:#12704A}
+.fwq-melding.let{color:#8A5A0B}
+.fwq-melding.err{color:var(--red)}
 .fwq-fout{background:var(--red-soft);color:var(--red);font-size:12.5px;padding:10px 12px;
   border-radius:10px;margin-bottom:12px}
 .fwq-foot{padding:14px 20px;border-top:1px solid var(--line);display:flex;gap:8px;justify-content:flex-end}
@@ -9748,6 +10003,13 @@ body.fwq-open{overflow:hidden}
           h += '<input type="' + (v.type === 'datum' ? 'date' : 'text') + '" ' + attr +
             ' value="' + esc(v.waarde || '') + '" placeholder="' + esc(v.plaats || '') + '">';
         }
+        // Een veld kan een eigen knop hebben, bijvoorbeeld om het adres na te
+        // kijken bij de landelijke registratie.
+        if (v.knop) {
+          h += '<div class="fwq-snel"><button type="button" onclick="' + v.knop.fn + '()">' +
+            esc(v.knop.label) + '</button></div>' +
+            '<div class="fwq-melding" id="fwqM_' + v.naam + '"></div>';
+        }
         if (v.snel && v.snel.length) {
           h += '<div class="fwq-snel">' + v.snel.map(function(t){
             return '<button type="button" onclick="fwqSnel(\'' + v.naam + '\',\'' + esc(t).replace(/'/g,'') + '\')">' + esc(t) + '</button>';
@@ -9770,6 +10032,59 @@ body.fwq-open{overflow:hidden}
         var e = $$('fwqBody').querySelector('[data-veld]');
         if (e) { e.focus(); if (e.select) e.select(); }
       }, 60);
+    });
+  };
+
+  /* ── adres nakijken bij de landelijke registratie ──
+     Werkt met vier veld-id's: het straatveld, postcode, plaats en het veld
+     waaronder de melding komt. Vult aan wat klopt, en zegt het als het niet
+     gevonden wordt \u2014 zonder het opslaan te blokkeren, want een nieuwbouw-
+     adres staat er soms nog niet in. */
+  window.fwAdresNakijken = function(ids){
+    function el(id){ return id ? document.getElementById(id) : null; }
+    var vAdres = el(ids.adres), vPc = el(ids.postcode), vPlaats = el(ids.plaats);
+    var doel = el(ids.melding);
+    function zeg(soort, tekst){
+      if (!doel) return;
+      doel.className = 'fwq-melding ' + soort;
+      doel.textContent = tekst;
+    }
+
+    var pc = vPc ? String(vPc.value).toUpperCase().replace(/[^0-9A-Z]/g,'') : '';
+    var adres = vAdres ? String(vAdres.value).trim() : '';
+    // Uit 'Weena 100' halen we het huisnummer; de rest is de straat.
+    var nr = (adres.match(/(\d+\s*[A-Za-z]?(?:[-\/]\d+[A-Za-z]?)?)\s*$/) || [])[1] || '';
+
+    var vraag;
+    if (pc.length >= 6 && nr) vraag = 'postcode=' + encodeURIComponent(pc) + '&huisnummer=' + encodeURIComponent(nr.replace(/\s/g,''));
+    else if (adres) vraag = 'q=' + encodeURIComponent(adres + ' ' + (vPlaats ? vPlaats.value : ''));
+    else { zeg('let','Vul eerst een adres in.'); return; }
+
+    zeg('', 'Bezig met nakijken\u2026');
+    window.fwApi('/api/adres?' + vraag).then(function(d){
+      if (!d.gevonden) { zeg('let', d.boodschap || 'Dit adres staat niet in de registratie.'); return; }
+      var a = d.adres;
+      var afwijkend = [];
+      if (vAdres && a.adres && vAdres.value.trim().toLowerCase() !== a.adres.toLowerCase()) {
+        afwijkend.push('adres'); vAdres.value = a.adres;
+      }
+      if (vPc && a.postcode) {
+        // Vergelijk zonder spaties en hoofdletters, maar schrijf hem daarna wel
+        // netjes terug zoals de registratie hem kent: 3012 CM.
+        var was = vPc.value.trim().toUpperCase().replace(/\s/g,'');
+        var wordt = a.postcode.toUpperCase().replace(/\s/g,'');
+        if (was !== wordt) afwijkend.push('postcode');
+        vPc.value = a.postcode;
+      }
+      if (vPlaats && a.plaats && vPlaats.value.trim().toLowerCase() !== a.plaats.toLowerCase()) {
+        afwijkend.push('plaats'); vPlaats.value = a.plaats;
+      } else if (vPlaats && !vPlaats.value.trim() && a.plaats) { vPlaats.value = a.plaats; afwijkend.push('plaats'); }
+
+      if (afwijkend.length) zeg('let', 'Aangepast naar ' + a.volledig + ' \u2014 ' +
+        afwijkend.join(' en ') + ' week af van de registratie.');
+      else zeg('ok', 'Klopt: ' + a.volledig);
+    }).catch(function(e){
+      zeg('err', e.message || 'Kon het adres nu niet nakijken. Je kunt gewoon doorgaan.');
     });
   };
 
