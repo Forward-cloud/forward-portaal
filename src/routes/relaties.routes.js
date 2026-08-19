@@ -39,6 +39,15 @@ function schoon(b) {
     d.reactietermijn = Number.isFinite(n) && n > 0 ? Math.round(n) : 7;
   }
   if (b.actief !== undefined) d.actief = !!b.actief;
+  // Waar deze leverancier voor gebeld wordt. Zonder vakgebied verschijnt hij
+  // niet bij het maken van een opdrachtbon of prijsaanvraag.
+  if (b.vakken !== undefined) {
+    d.vakken = (Array.isArray(b.vakken) ? b.vakken : [])
+      .map((v) => String(v || '').trim())
+      .filter(Boolean)
+      .slice(0, 20);
+  }
+  if (b.btwVerlegd !== undefined) d.btwVerlegd = !!b.btwVerlegd;
   return { data: d };
 }
 

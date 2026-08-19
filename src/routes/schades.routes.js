@@ -252,7 +252,8 @@ router.patch('/:nummer', async (req, res) => {
    'opdrachtnummer', 'opdrachtgever', 'verzSchadenummer', 'verzEmail',
    'tussenpersoon', 'polisnummer', 'oorzaak', 'beheerderEmail', 'polisvorm',
    'telefoon', 'postcode', 'beheerderTel', 'bewonerSoort', 'contactpersoon',
-   'afwijzingReden', 'naAfwijzing', 'betalerNaAfwijzing', 'weigerReden'].forEach((k) => {
+   'afwijzingReden', 'naAfwijzing', 'betalerNaAfwijzing', 'weigerReden',
+   'notitie'].forEach((k) => {
     if (b[k] !== undefined) data[k] = b[k] || null;
   });
 
