@@ -110,6 +110,9 @@ model Schade {
   // machtiging, de facturatie en wie er tekent.
   opdrachtgeverType String? // vve | particulier
   contactpersoon  String? // wie op brieven en bonnen staat
+  // Vrije aantekening bij het dossier: sleutel bij de buren, hond in huis,
+  // bewoner slecht ter been. Staat op de contactkaart, niet op de bon.
+  notitie         String?
 
   // Verzekeraar
   verzekeraarId String?
