@@ -415,6 +415,10 @@
   .jbtn{font-size:12px;font-weight:600;color:var(--teal-ink);border:1px solid var(--line);border-radius:9px;padding:6px 11px;background:#fff;
     display:inline-flex;align-items:center;gap:5px;line-height:1.3}
   .jbtn:hover{border-color:var(--teal)}
+  /* Vraagt iets om aandacht — een herinnering die over de termijn is —
+     dan kleurt de knop amber in plaats van teal. */
+  .jbtn.let{color:#8A5A0B;border-color:rgba(199,126,0,.45);background:#FDF3E0}
+  .jbtn.let:hover{border-color:#C77E00}
   /* Zonder maat vult een icoon de hele knop. Hier staat de maat, en meteen
      een lichtere lijn dan de iconen zelf meebrengen. */
   .jbtn svg{width:12px;height:12px;flex:none}
@@ -5424,6 +5428,23 @@ button.hd-cgl{border:none;background:none;padding:0;width:100%;font-family:inher
 button.hd-cgl .w{margin-left:auto;font-size:10.5px;font-weight:600;color:var(--teal);
   text-transform:none;letter-spacing:0}
 button.hd-cgl:hover .w{text-decoration:underline}
+/* Bijzonderheden vallen op: wat hier staat moet je gelezen hebben voordat je
+   het adres op gaat. Amber, met een streep ernaast. */
+.hd-bijz{background:#FDF3E0;border:1px solid rgba(199,126,0,.30);border-left:3px solid #C77E00;
+  border-radius:0 12px 12px 0;padding:11px 14px;margin:11px 0 0}
+.hd-bijz .k{display:flex;align-items:center;gap:8px;font-size:10.5px;font-weight:700;
+  letter-spacing:.05em;text-transform:uppercase;color:#8A5A0B;margin-bottom:6px}
+.hd-bijz .k svg{width:14px;height:14px;flex:none}
+.hd-bijz .k .w{margin-left:auto;text-transform:none;letter-spacing:0;font-size:10.5px}
+.hd-bijz .t{font-size:13px;line-height:1.55;color:var(--text);white-space:pre-wrap}
+.hd-bijz.leeg{background:var(--canvas);border-color:var(--line);border-left-color:var(--line-2)}
+.hd-bijz.leeg .k{color:var(--muted-2)}
+.hd-bijz.leeg .t{color:var(--muted-2)}
+/* Extra adressen onder het hoofdadres. */
+.hd-adr{border-top:1px dashed var(--line);margin-top:9px;padding-top:9px}
+.hd-adr-k{display:flex;align-items:center;gap:8px;font-size:11.5px;font-weight:600;color:var(--navy)}
+.hd-adr-k .p{font-size:10.5px;font-weight:600;color:var(--muted-2);background:var(--canvas);
+  border-radius:20px;padding:2px 8px}
 /* Overgenomen uit haltes-voorbeeld.html \u2014 chips, documentregels,
    invulroosters en het verloopblok. */
 .hd-apblok{border-top:1px solid rgba(199,126,0,.22);background:#FDF3E0;padding:14px 18px 16px}
@@ -6015,6 +6036,9 @@ button.hd-cgl:hover .w{text-decoration:underline}
   var ROLLEN = {directie:'Directie', schadebehandelaar:'Schadebehandelaar',
     planner:'Planner', financieel:'Financi\u00eble administratie', medewerker:'Medewerker'};
   function rolNaam(r){ return ROLLEN[r] || r || ''; }
+  // Zoals in het voorbeeld: hoort halte 4 bij de route, dan is er een rapport
+  // en hoort de expertiseomzet erbij \u2014 ook als die nog op nul staat.
+  function heeftRapport(){ return (S.haltes||[]).indexOf(4) > -1; }
   function behandelaarNaam(){
     if (S.behandelaar && S.behandelaar.naam) return S.behandelaar.naam;
     return S.contactpersoon || (window.__fwIk ? window.__fwIk.naam : '\u2014');
@@ -6416,19 +6440,38 @@ button.hd-cgl:hover .w{text-decoration:underline}
   window.fwkVerzekeraar = function(){
     var alleVerz = verzs.filter(function(r){ return r.soort==='VERZEKERAAR'; });
     var alleTus  = verzs.filter(function(r){ return r.soort==='TUSSENPERSOON'; });
+    var verzNu   = S.verzekeraar || null;
     window.fwVraag({
       titel:'Verzekeraar van dit dossier',
       uitleg:'Kies wie de schade behandelt. Staat de partij er nog niet bij, typ dan de naam \u2014 '+
              'die maken wij meteen aan.',
       velden:[
-        {naam:'verz',label:'Verzekeraar',type:'keuze',waarde:S.verzekeraarId||'',
+        {groep:'Welke maatschappij', groepNoot:'uit het relatiebestand',
+         naam:'verz',label:'Verzekeraar',type:'keuze',waarde:S.verzekeraarId||'',
          opties:[['','Geen']].concat(alleVerz.map(function(r){ return [r.id, r.naam]; }))},
-        {naam:'nieuwV',label:'Of typ een nieuwe verzekeraar',plaats:'Leeg laten als je hierboven koos'},
-        {naam:'tus',label:'Tussenpersoon',type:'keuze',waarde:S.tussenpersoonId||'',
+        {groep:'Welke maatschappij',
+         naam:'nieuwV',label:'Of typ een nieuwe verzekeraar',plaats:'Leeg laten als je hierboven koos'},
+        {groep:'Welke maatschappij',
+         naam:'tus',label:'Tussenpersoon',type:'keuze',waarde:S.tussenpersoonId||'',
          opties:[['','Geen']].concat(alleTus.map(function(r){ return [r.id, r.naam]; }))},
-        {naam:'polis',label:'Polisnummer',waarde:S.polisnummer||''},
-        {naam:'schadenr',label:'Hun schadenummer',waarde:S.verzSchadenummer||'',
-         plaats:'Krijg je pas na de melding'}
+
+        {groep:'Deze polis', groepNoot:'per dossier',
+         naam:'polis',label:'Polisnummer',waarde:S.polisnummer||''},
+        {groep:'Deze polis',
+         naam:'schadenr',label:'Hun schadenummer',waarde:S.verzSchadenummer||'',
+         plaats:'Krijg je pas na de melding'},
+
+        // Wat hier leeg blijft, komt uit het relatiebestand. Vul je het wel in,
+        // dan geldt dat alleen voor dit dossier.
+        {groep:'Afwijkend voor dit dossier', groepNoot:'leeg = uit het relatiebestand',
+         naam:'vcontact',label:'Contactpersoon',waarde:S.verzContactpersoon||'',
+         plaats: verzNu && verzNu.contactpersoon ? verzNu.contactpersoon : 'niet bekend'},
+        {groep:'Afwijkend voor dit dossier',
+         naam:'vmail',label:'Schademelding naar',waarde:S.verzEmail||'',
+         plaats: verzNu && verzNu.email ? verzNu.email : 'niet bekend'},
+        {groep:'Afwijkend voor dit dossier',
+         naam:'vtel',label:'Telefoon',waarde:S.verzTelefoon||'',
+         plaats: verzNu && verzNu.telefoon ? verzNu.telefoon : 'niet bekend'}
       ],
       ok:'Opslaan'
     }).then(function(r){
@@ -6443,6 +6486,8 @@ button.hd-cgl:hover .w{text-decoration:underline}
       klaar.then(function(id){
         return patch({ verzekeraarId:id||null, tussenpersoonId:r.tus||null,
           polisnummer:r.polis||null, verzSchadenummer:r.schadenr||null,
+          // Leeg laten betekent: gebruik wat er in het relatiebestand staat.
+          verzContactpersoon:r.vcontact||null, verzEmail:r.vmail||null, verzTelefoon:r.vtel||null,
           ins: (alleVerz.find(function(x){return x.id===id})||{}).naam || (r.nieuwV||'').trim() || null });
       }).then(function(){ verzs=[]; return ververs(); })
         .then(function(){ melden('Bijgewerkt','De verzekeraar is opgeslagen.'); })
@@ -6486,44 +6531,103 @@ button.hd-cgl:hover .w{text-decoration:underline}
     });
   };
   window.fwkOpdrachtgever = function(){
+    var vve = S.opdrachtgeverType === 'vve' || !!S.opdrachtgever;
     window.fwVraag({
       titel:'Opdrachtgever',
-      uitleg:'De partij die ons de opdracht geeft. Bij een VvE is dat de vereniging, '+
-             'bij een particulier de eigenaar zelf.',
+      uitleg: vve
+        ? 'De vereniging geeft de opdracht. Facturen gaan naar het factuuradres; '+
+          'gewone post naar de contactpersoon.'
+        : 'De eigenaar geeft zelf de opdracht. Laat u de onderste velden leeg, dan '+
+          'gebruiken wij overal het e-mailadres hierboven.',
       velden:[
-        {naam:'naam',label:'Naam',waarde:S.owner||'',verplicht:'Vul een naam in.'},
-        {naam:'soort',label:'Wat voor opdrachtgever?',type:'keuze',
-         waarde:S.opdrachtgeverType||'vve',
+        {groep:'Wie is de opdrachtgever', groepNoot:'verplicht',
+         naam:'soort',label:'Wat voor opdrachtgever?',type:'keuze',
+         waarde:S.opdrachtgeverType||(vve?'vve':'particulier'),
          opties:[['vve','Vereniging van eigenaars'],['particulier','Particulier']]},
-        {naam:'tel',label:'Telefoon',waarde:S.telefoon||''},
-        {naam:'mail',label:'E-mail',waarde:S.email||''}
+        {groep:'Wie is de opdrachtgever',
+         naam:'naam',label: vve?'Naam vereniging':'Naam eigenaar',
+         waarde:S.owner||'',verplicht:'Vul een naam in.'},
+        {groep:'Wie is de opdrachtgever',
+         naam:'contact',label:'Contactpersoon',waarde:S.contactpersoon||'',
+         plaats:'wie wij bellen en wie op de brieven staat'},
+
+        {groep:'Bereikbaarheid', groepNoot:'telefoon mag leeg',
+         naam:'tel',label:'Telefoon',waarde:S.telefoon||''},
+        {groep:'Bereikbaarheid',
+         naam:'mail',label:'E-mail contactpersoon',waarde:S.email||''},
+        {groep:'Bereikbaarheid',
+         naam:'algemeen',label:'Algemeen e-mailadres',waarde:S.algemeenEmail||'',
+         plaats: vve?'bijvoorbeeld info@vve-naam.nl':'alleen als er een tweede adres is'},
+
+        {groep:'Facturen', groepNoot:'leeg = zelfde als hierboven',
+         naam:'factuur',label:'Facturen naar',waarde:S.factuurEmail||'',
+         plaats: vve?'bijvoorbeeld administratie@beheerder.nl':''},
+        {groep:'Facturen',
+         naam:'opdrachtnr',label:'Ons opdrachtnummer bij de opdrachtgever',
+         waarde:S.opdrachtnummer||'', plaats:'komt op de factuur als uw kenmerk'}
       ],
       ok:'Opslaan'
     }).then(function(r){
       if (!r) return;
-      patch({owner:r.naam, opdrachtgeverType:r.soort, telefoon:r.tel||null, email:r.mail||null})
+      patch({owner:r.naam, opdrachtgeverType:r.soort, contactpersoon:r.contact||null,
+             telefoon:r.tel||null, email:r.mail||null, algemeenEmail:r.algemeen||null,
+             factuurEmail:r.factuur||null, opdrachtnummer:r.opdrachtnr||null})
         .then(ververs).catch(function(e){melden('Niet gelukt',e.message,'err')});
     });
   };
 
-  window.fwkBewoner = function(){
-    var l = locaties.filter(function(x){ return x.hoofd; })[0] || locaties[0];
-    if (!l) { melden('Geen adres','Voeg eerst een adres toe bij het tabblad Adressen.','info'); return; }
+  window.fwkBeheerder = function(){
     window.fwVraag({
-      titel:'Op het adres',
-      uitleg:esc(l.adres||'')+' \u2014 wie woont er en hoe is die bereikbaar?',
+      titel:'Beheerder',
+      uitleg:'Het kantoor dat de vereniging beheert. Laat u dit leeg, dan loopt alles '+
+             'rechtstreeks via de opdrachtgever.',
       velden:[
-        {naam:'bewoner',label:'Bewoner',waarde:l.bewoner||''},
-        {naam:'soort',label:'Eigenaar of huurder?',type:'keuze',waarde:l.bewonerSoort||'eigenaar',
-         opties:[['eigenaar','Eigenaar en bewoner'],['huurder','Huurder'],['leeg','Staat leeg']]},
-        {naam:'tel',label:'Telefoon bewoner',waarde:l.telefoon||''},
-        {naam:'mail',label:'E-mail bewoner',waarde:l.email||''}
+        {naam:'kantoor',label:'Naam van het kantoor',waarde:S.opdrachtgever||''},
+        {naam:'mail',label:'E-mail',waarde:S.beheerderEmail||''},
+        {naam:'tel',label:'Telefoon',waarde:S.beheerderTel||''}
       ],
       ok:'Opslaan'
     }).then(function(r){
       if (!r) return;
-      api('/api/locaties/'+l.id,{method:'PATCH',body:JSON.stringify({bewoner:r.bewoner||null,
-        bewonerSoort:r.soort, telefoon:r.tel||null, email:r.mail||null})})
+      patch({opdrachtgever:r.kantoor||null, beheerderEmail:r.mail||null, beheerderTel:r.tel||null})
+        .then(ververs).catch(function(e){melden('Niet gelukt',e.message,'err')});
+    });
+  };
+
+  // Adres toevoegen of wijzigen. Zonder id gaat het over het hoofdadres.
+  window.fwkBewoner = function(locId){
+    var l = locId
+      ? locaties.filter(function(x){ return x.id===locId; })[0]
+      : (locaties.filter(function(x){ return x.hoofd; })[0] || locaties[0]);
+    if (!l) { return window.fwkLocErbij(); }
+    window.fwVraag({
+      titel:'Schadeadres',
+      uitleg:(l.adres||'')+' \u2014 waar de schade zit en wie daar de deur opendoet.',
+      velden:[
+        {groep:'Het adres', groepNoot:'verplicht',
+         naam:'adres',label:'Straat en huisnummer',waarde:l.adres||'',
+         verplicht:'Vul het adres in.'},
+        {groep:'Het adres', naam:'postcode',label:'Postcode',waarde:l.postcode||''},
+        {groep:'Het adres', naam:'plaats',label:'Plaats',waarde:l.plaats||''},
+        {groep:'Het adres', naam:'aanduiding',label:'Aanduiding',waarde:l.aanduiding||'',
+         plaats:'bijvoorbeeld begane grond of gemeenschappelijke hal'},
+
+        {groep:'Wie doet de deur open', groepNoot:'wij bellen deze persoon',
+         naam:'bewoner',label:'Naam',waarde:l.bewoner||''},
+        {groep:'Wie doet de deur open',
+         naam:'soort',label:'Eigenaar of huurder?',type:'keuze',waarde:l.bewonerSoort||'eigenaar',
+         opties:[['eigenaar','Eigenaar en bewoner'],['huurder','Huurder'],
+                 ['gemeenschappelijk','Gemeenschappelijke ruimte'],['leeg','Staat leeg']]},
+        {groep:'Wie doet de deur open', naam:'tel',label:'Telefoon',waarde:l.telefoon||''},
+        {groep:'Wie doet de deur open', naam:'mail',label:'E-mail',waarde:l.email||''}
+      ],
+      ok:'Opslaan'
+    }).then(function(r){
+      if (!r) return;
+      api('/api/locaties/'+l.id,{method:'PATCH',body:JSON.stringify({
+        adres:r.adres, postcode:r.postcode||null, plaats:r.plaats||null,
+        aanduiding:r.aanduiding||null, bewoner:r.bewoner||null, bewonerSoort:r.soort,
+        telefoon:r.tel||null, email:r.mail||null})})
         .then(ververs).catch(function(e){melden('Niet gelukt',e.message,'err')});
     });
   };
@@ -7231,6 +7335,14 @@ button.hd-cgl:hover .w{text-decoration:underline}
       '</div></div>';
 
     var mach = (machtigingen||[])[0];
+    if (!klant && (!mach || mach.status === 'ingetrokken') && h.indexOf(5)>-1 && stap<=5) {
+      // Nog niets verstuurd: laat zien wat er straks uitgaat.
+      x += '<div class="fwk-blok">'+svg(I.pen)+
+        '<span><b>Nog geen machtiging verstuurd.</b> Lees eerst na wat de klant te tekenen krijgt.</span>'+
+        '<a class="jbtn" href="/api/schades/'+encodeURIComponent(S.nr)+
+          '/machtiging-proef" target="_blank" rel="noopener">Proef bekijken</a>'+
+        '<button class="jbtn" onclick="fwkMachtiging()">Versturen</button></div>';
+    }
     if (mach && mach.status !== 'ingetrokken') {
       var getekend = mach.status === 'getekend';
       x += '<div class="fwk-blok'+(getekend?'':' amber')+'"'+
@@ -7296,52 +7408,86 @@ button.hd-cgl:hover .w{text-decoration:underline}
 
     x += '<div class="fwk-duo">'+
       '<div class="fwk-kaart"><div class="fwk-kkop"><h4>Contact</h4>'+
-        (klant?'':'<button class="jbtn" onclick="fwkNotitie()">Bijzonderheden</button>')+
         '</div><div class="fwk-kbody">'+
 
         cGroep(vve ? 'Opdrachtgever \u00b7 VvE' : 'Opdrachtgever \u00b7 particulier',
-          cRij(I.huis,'Naam', S.owner)+
+          cRij(I.huis, vve?'Naam vereniging':'Naam', S.owner)+
+          cRij(I.pen,'Contactpersoon', S.contactpersoon)+
           cRij(I.tel,'Telefoon', S.telefoon||S.phone, null, 'tel')+
-          cRij(I.mail,'E-mail', S.email, null, 'mail'),
+          cRij(I.mail,'E-mail contactpersoon', S.email, null, 'mail')+
+          cRij(I.mail,'Algemeen e-mailadres', S.algemeenEmail, null, 'mail')+
+          cRij(I.euro,'Facturen naar', S.factuurEmail, null, 'mail')+
+          cRij(I.info,'Ons opdrachtnummer', S.opdrachtnummer),
           'fwkOpdrachtgever')+
 
-        cGroep('Beheerder',
-          cRij(I.huis,'Kantoor', S.opdrachtgever)+
-          cRij(I.pen,'Contactpersoon', S.contactpersoon)+
-          cRij(I.mail,'E-mail', S.beheerderEmail, null, 'mail')+
-          cRij(I.info,'Ons opdrachtnummer', S.opdrachtnummer),
-          'fwkContact')+
+        // Bij een VvE loopt het vaak via een beheerkantoor. Staat dat er niet,
+        // dan valt deze groep vanzelf weg.
+        (S.opdrachtgever
+          ? cGroep('Beheerder',
+              cRij(I.huis,'Kantoor', S.opdrachtgever)+
+              cRij(I.mail,'E-mail', S.beheerderEmail, null, 'mail')+
+              cRij(I.tel,'Telefoon', S.beheerderTel, null, 'tel'),
+              'fwkBeheerder')
+          : '')+
 
         (eigen
           ? cGroep('Verzekering', cRij(I.info,'Dekking','Eigen risico, geen verzekeraar'))
           : cGroep('Verzekeraar',
               (cRij(I.schild,'Maatschappij', S.verzekeraar ? S.verzekeraar.naam : (S.ins||''))+
+               cRij(I.pen,'Contactpersoon',
+                    S.verzContactpersoon || (S.verzekeraar ? S.verzekeraar.contactpersoon : ''),
+                    S.verzContactpersoon ? 'dit dossier' : '')+
                cRij(I.info,'Polisnummer', S.polisnummer)+
                cRij(I.info,'Schadenummer verzekeraar', S.verzSchadenummer)+
-               cRij(I.tel,'Telefoon', S.verzekeraar ? S.verzekeraar.telefoon : '', null, 'tel')+
-               cRij(I.mail,'E-mail', S.verzekeraar ? S.verzekeraar.email : '', null, 'mail')+
-               cRij(I.huis,'Tussenpersoon', S.tussenpersoonRel ? S.tussenpersoonRel.naam : S.tussenpersoon))
+               cRij(I.mail,'Schademelding naar',
+                    S.verzEmail || (S.verzekeraar ? S.verzekeraar.email : ''),
+                    S.verzEmail ? 'dit dossier' : '', 'mail')+
+               cRij(I.tel,'Telefoon',
+                    S.verzTelefoon || (S.verzekeraar ? S.verzekeraar.telefoon : ''),
+                    S.verzTelefoon ? 'dit dossier' : '', 'tel')+
+               cRij(I.huis,'Tussenpersoon', S.tussenpersoonRel ? S.tussenpersoonRel.naam : S.tussenpersoon)+
+               cRij(I.mail,'E-mail tussenpersoon',
+                    S.tussenpersoonRel ? S.tussenpersoonRel.email : '', null, 'mail')+
+               cRij(I.tel,'Telefoon tussenpersoon',
+                    S.tussenpersoonRel ? S.tussenpersoonRel.telefoon : '', null, 'tel'))
               || '<div class="hd-cr"><span class="hd-crl hd-crlet">Nog geen verzekeraar gekoppeld</span></div>',
               'fwkVerzekeraar'))+
 
-        cGroep('Op het adres',
-          cRij(I.huis,'Adres',
-            [hoofdLoc.adres || S.adres, hoofdLoc.plaats || S.plaats].filter(Boolean).join(', '))+
-          cRij(I.pen,'Bewoner', hoofdLoc.bewoner,
-            hoofdLoc.bewonerSoort || (S.bewonerSoort==='huurder'?'huurder':'eigenaar'))+
-          cRij(I.tel,'Telefoon bewoner', hoofdLoc.telefoon, null, 'tel')+
-          (locaties.length>1
-            ? cRij(I.doos,'Meer adressen', (locaties.length-1)+' \u00b7 zie het tabblad Adressen')
-            : ''),
+        // Waar de schade zit. Zijn het er meer, dan staan ze er allemaal onder.
+        cGroep('Schadeadres'+(locaties.length>1?' \u00b7 '+locaties.length:''),
+          (hoofdLoc.adres || S.adres
+            ? cRij(I.huis,'Adres',
+                [hoofdLoc.adres || S.adres, hoofdLoc.plaats || S.plaats].filter(Boolean).join(', '),
+                hoofdLoc.aanduiding || '')+
+              cRij(I.pen,'Naam', hoofdLoc.bewoner,
+                hoofdLoc.bewonerSoort || (S.bewonerSoort==='huurder'?'huurder':'eigenaar'))+
+              cRij(I.tel,'Telefoon', hoofdLoc.telefoon, null, 'tel')+
+              cRij(I.mail,'E-mail', hoofdLoc.email, null, 'mail')
+            : '<div class="hd-cr"><span class="hd-crl hd-crlet">Nog geen adres</span></div>')+
+          locaties.filter(function(l){ return l.id !== hoofdLoc.id; }).map(function(l){
+            return '<div class="hd-adr"><div class="hd-adr-k">'+
+              esc([l.adres, l.plaats].filter(Boolean).join(', '))+
+              (l.aanduiding?'<span class="p">'+esc(l.aanduiding)+'</span>':'')+
+              (klant?'':'<button class="jbtn" style="margin-left:auto" '+
+                'onclick="fwkBewoner(\''+l.id+'\')">wijzigen</button>')+'</div>'+
+              cRij(I.pen,'Naam', l.bewoner, l.bewonerSoort||'')+
+              cRij(I.tel,'Telefoon', l.telefoon, null, 'tel')+
+              cRij(I.mail,'E-mail', l.email, null, 'mail')+
+            '</div>';
+          }).join('')+
+          (klant?'':'<div class="hd-cr" style="padding-top:9px">'+
+            '<button class="jbtn" onclick="fwkLocErbij()">'+svg(I.plus)+'Adres toevoegen</button></div>'),
           'fwkBewoner')+
 
-        (klant?'':'<div class="hd-cg">'+
-          '<button class="hd-cgl" onclick="fwkNotitie()">Bijzonderheden'+
-            '<span class="w">wijzigen</span></button>'+
-          '<div class="hd-nott'+(S.notitie?'':' leeg')+'">'+
-            esc(S.notitie||'Nog niets vastgelegd.')+'</div></div>')+
+        // Bijzonderheden springen eruit: dit moet je weten voor je op pad gaat.
+        (klant?'':'<div class="hd-bijz'+(S.notitie?'':' leeg')+'">'+
+          '<div class="k">'+svg(I.info)+'Bijzonderheden'+
+            '<button class="jbtn" onclick="fwkNotitie()">'+(S.notitie?'wijzigen':'invullen')+'</button></div>'+
+          '<div class="t">'+esc(S.notitie||'Nog niets vastgelegd \u2014 sleutel, huisdier, '+
+            'bereikbaarheid, alles wat de vakman moet weten.')+'</div></div>')+
 
-        '<div class="hd-cg"><div class="hd-cgl">Behandelaar</div>'+
+        '<div class="hd-cg" style="border-top:1px solid var(--line-2);margin-top:11px;padding-top:11px">'+
+          '<div class="hd-cgl">Behandelaar</div>'+
           '<div class="hd-cr">'+svg(I.pen)+'<span class="hd-crl">Op brieven en bonnen</span>'+
           '<span class="hd-crv">'+esc(behandelaarNaam())+
             (S.behandelaar && S.behandelaar.role
@@ -7356,6 +7502,7 @@ button.hd-cgl:hover .w{text-decoration:underline}
       var marge = om-ik2-ut, pct = om>0?Math.round(marge/om*100):0;
       var goed = marge > 0, basis = Math.max(om, ik2+ut, 1);
 
+      var rapport = heeftRapport();
       x += '<div class="fwk-kaart"><div class="fwk-kkop"><h4>Financieel</h4>'+
         '<div class="r">alleen directie</div></div>'+
         '<div class="fwk-kbody">'+
@@ -7374,7 +7521,7 @@ button.hd-cgl:hover .w{text-decoration:underline}
           '<b class="min">'+eur(ut)+'</b></div>'+
         '<div class="hd-mr eind"><span class="t"></span><span class="l">Blijft over</span>'+
           '<b class="'+(goed?'plus':'min')+'">'+(marge<0?'\u2212':'')+eur(Math.abs(marge))+'</b></div>'+
-        (exp
+        (rapport
           ? '<div class="hd-exp"><div><div class="hd-expl">Omzet expertise</div>'+
             '<div class="hd-exps">schaderapport \u00b7 buiten de marge gehouden</div></div>'+
             '<b>'+eur(exp)+'</b></div>'+
@@ -7390,7 +7537,7 @@ button.hd-cgl:hover .w{text-decoration:underline}
         '<div class="hd-mstat '+(S.gefactureerd?'ok':'wacht')+'">'+svg(S.gefactureerd?I.vink:I.klok)+
           '<span>'+(S.gefactureerd
             ? 'Gefactureerd'+(S.gefactureerdAt?' op '+dag(S.gefactureerdAt):'')
-            : 'Nog niet gefactureerd \u00b7 '+eur(om + exp)+' openstaand')+'</span></div>'+
+            : 'Nog niet gefactureerd \u00b7 '+eur(om + (rapport?exp:0))+' openstaand')+'</span></div>'+
       '</div></div>';
     }
     x += '</div>';
@@ -7564,7 +7711,8 @@ button.hd-cgl:hover .w{text-decoration:underline}
     return window.fwVraag({
       titel:'Machtiging versturen',
       uitleg:'De klant krijgt een link, leest wat hij tekent, en zet er zijn naam onder. '+
-        'Zodra hij tekent staat het hier als binnen.',
+        'Zodra hij tekent staat het hier als binnen. Wilt u het stuk eerst nalezen, '+
+        'gebruik dan Proef bekijken in de kaart.',
       velden:[
         {naam:'naar',label:'Naar wie',type:'keuze',waarde:S.opdrachtgever?'beheerder':'klant',
          opties:[['klant', S.owner + ' \u2014 eigenaar']].concat(
@@ -7860,16 +8008,30 @@ button.hd-cgl:hover .w{text-decoration:underline}
               (m.openCount
                 ? ' \u00b7 '+m.openCount+' keer bekeken, voor het laatst '+dag(m.geopendAt)
                 : ' \u00b7 nog niet geopend')+
-              (m.herinneringen?' \u00b7 '+m.herinneringen+' herinnering(en)':'')+
-              ' \u00b7 '+m.dagenStil+' '+(m.dagenStil===1?'dag':'dagen')+' stil')+
-        '</div></div>'+
+              (m.herinneringen
+                ? ' \u00b7 '+m.herinneringen+' herinnering'+(m.herinneringen===1?'':'en')+' verstuurd'
+                : '')+
+              ' \u00b7 '+m.dagenStil+' '+(m.dagenStil===1?'dag':'dagen')+' stil'+
+              (m.herinneringen >= 4
+                ? ' \u00b7 vier automatische herinneringen gehad, daarna gaat het handmatig'
+                : ' \u00b7 volgende gaat vanzelf na '+
+                  Math.max(0, (m.herinnerDagen||3) - m.dagenStil)+' dagen'))+
+        '</div>'+
+        (getekend && m.heeftKrabbel
+          ? '<div class="fwk-dsub">met handtekening \u00b7 '+
+            (m.tekenWijze==='getekend'?'zelf gezet':'naam getypt')+'</div>' : '')+
+      '</div>'+
       '<span class="fwk-pil '+(getekend?'groen':(m.status==='geopend'?'teal':'amber'))+'">'+
         (getekend?'Getekend':(m.status==='geopend'?'Geopend':'Wacht'))+'</span>'+
       (klant?'':
-        '<a class="jbtn" href="'+stuk+'" target="_blank" rel="noopener">Bekijken</a>'+
-        '<a class="jbtn" href="'+stuk+'?download=ja" download="machtiging-'+esc(S.nr)+'.html">Downloaden</a>'+
+        '<a class="jbtn" href="'+stuk+'" target="_blank" rel="noopener">'+svg(I.oog)+'Bekijken</a>'+
+        // De naam van het bestand komt van de server en zegt of hij getekend is.
+        '<a class="jbtn" href="'+stuk+'?download=ja">'+svg(I.pijl)+'Downloaden</a>'+
         (getekend?'':
-          '<button class="jbtn" onclick="fwkMachtHerinner(\''+m.id+'\')">Herinneren</button>'+
+          '<button class="jbtn'+(m.dagenStil >= (m.herinnerDagen||3) ? ' let' : '')+
+            '" onclick="fwkMachtHerinner(\''+m.id+'\')" '+
+            'title="Nu zelf een herinnering sturen, los van de automatische">'+
+            ((m.herinneringen||0)+1)+'e herinnering nu</button>'+
           '<button class="jbtn" onclick="fwkMachtLink(\''+esc(m.link)+'\')">Link kopi\u00ebren</button>'+
           '<button class="jbtn" onclick="fwkMachtIntrekken(\''+m.id+'\')">Intrekken</button>'))+
     '</div>';
@@ -8448,7 +8610,7 @@ button.hd-cgl:hover .w{text-decoration:underline}
           'Hoort dit bedrag bij de expertise, zet de offertesom dan op 0.</div>'
         : '')+
       '<div class="fwk-gtot"><span class="l">Netto marge herstel</span><span class="v">'+eur(marge)+'</span></div>'+
-      (exp
+      (heeftRapport()
         ? '<div class="hd-exp groot"><div class="hd-expico">'+svg(I.pen)+'</div>'+
           '<div style="flex:1"><div class="hd-expl">Omzet expertise</div>'+
           '<div class="hd-exps">Opname en schaderapport \u00b7 apart gefactureerd, buiten de marge gehouden</div></div>'+
@@ -8465,7 +8627,7 @@ button.hd-cgl:hover .w{text-decoration:underline}
         'letter-spacing:.05em;text-transform:uppercase;margin-bottom:10px">Bedragen aanpassen</div>'+
         '<div class="fwk-geld">'+
           '<label>Offertesom herstel<input type="text" id="fwkOmzet" value="'+om+'"></label>'+
-          (exp||S.preset==='expertise'
+          (heeftRapport()
             ? '<label>Omzet expertise<input type="text" id="fwkExp" value="'+exp+'"></label>' : '')+
           '<label>Inkoop materiaal<input type="text" id="fwkInkoop" value="'+ink+'"></label>'+
           '<label>Onderaanneming<input type="text" id="fwkUitb" value="'+uit+'"></label></div>'+
