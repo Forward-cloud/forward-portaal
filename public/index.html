@@ -599,6 +599,7 @@
     <div class="fwq-kop"><h3 id="fwqTitel"></h3><p id="fwqSub"></p></div>
     <div class="fwq-body" id="fwqBody"></div>
     <div class="fwq-foot">
+      <button class="btn lijn" id="fwqExtra" style="display:none;margin-right:auto"></button>
       <button class="btn" onclick="fwqSluit()" id="fwqNee">Annuleren</button>
       <button class="btn primary" onclick="fwqOk()" id="fwqJa">Opslaan</button>
     </div>
@@ -3589,22 +3590,42 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
 /* ── Wachtwoord & medewerkers ── */
 .fwm-wrap{position:fixed;inset:0;z-index:420;background:rgba(13,20,38,.55);
   -webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);display:none;
-  align-items:center;justify-content:center;padding:22px}
+  align-items:center;justify-content:center;padding:22px;overflow-y:auto}
 .fwm-wrap.on{display:flex}
-.fwm{background:var(--surface);border-radius:16px;width:100%;max-width:440px;overflow:hidden;
+/* Het venster wordt nooit hoger dan het scherm. Past de inhoud er niet in,
+   dan scrollt het middenstuk \u2014 kop en knoppen blijven staan. */
+.fwm{background:var(--surface);border-radius:16px;width:100%;max-width:440px;
+  max-height:calc(100dvh - 44px);display:flex;flex-direction:column;
   box-shadow:0 24px 70px rgba(9,14,26,.35)}
-.fwm-head{padding:16px 20px;border-bottom:1px solid var(--line)}
+/* Een formulier met veel velden past niet in een smalle kolom. Breed openen
+   scheelt scrollen: de velden staan dan naast elkaar in plaats van eronder. */
+.fwm.breed{max-width:940px}
+.fwm.breed .fwr-form{grid-template-columns:1fr 1fr;gap:11px 18px;align-items:start}
+/* Blokken die de volle breedte nodig hebben: de categorieën, de notitie en
+   alles wat zelf al uit meer kolommen bestaat. */
+.fwm.breed .fwr-form > .vol,
+.fwm.breed .fwr-form > .fwr-2{grid-column:1 / -1}
+@media (max-width:900px){
+  .fwm.breed{max-width:440px}
+  .fwm.breed .fwr-form{grid-template-columns:1fr}
+}
+.fwm-head{padding:16px 20px;border-bottom:1px solid var(--line);flex:none;
+  border-radius:16px 16px 0 0}
 .fwm-head h3{margin:0;font-size:16px;font-weight:600}
 .fwm-head p{margin:3px 0 0;font-size:12.5px;color:var(--muted)}
-.fwm-body{padding:18px 20px;display:grid;gap:12px}
+.fwm-body{padding:18px 20px;display:grid;gap:12px;overflow-y:auto;flex:1 1 auto;min-height:0}
+body.fwm-open{overflow:hidden}
 .fwm-body label{font-size:12px;color:var(--muted);display:block;margin-bottom:4px}
 .fwm-body input,.fwm-body select{width:100%;padding:10px 12px;border:1px solid var(--line);
   border-radius:10px;font-family:inherit;font-size:14px;background:var(--surface);color:var(--text)}
-.fwm-foot{padding:14px 20px;border-top:1px solid var(--line);display:flex;gap:8px;justify-content:flex-end}
+.fwm-foot{padding:14px 20px;border-top:1px solid var(--line);display:flex;gap:8px;
+  justify-content:flex-end;flex:none;background:var(--surface);border-radius:0 0 16px 16px}
 .fwm-err{background:var(--red-soft);color:var(--red);font-size:12.5px;padding:10px 12px;border-radius:10px}
 .fwm-ok{background:var(--teal-soft);color:var(--teal-ink);font-size:12.5px;padding:10px 12px;border-radius:10px}
 .fwm-code{font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:600;letter-spacing:.04em}
-@media (max-width:960px){ .fwm-wrap{padding:0} .fwm{max-width:none;min-height:100dvh;border-radius:0} }
+@media (max-width:960px){ .fwm-wrap{padding:0}
+  .fwm{max-width:none;height:100dvh;max-height:100dvh;border-radius:0}
+  .fwm-head,.fwm-foot{border-radius:0} }
 </style>
 
 <script>
@@ -3626,7 +3647,13 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
     return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
   function melden(t,m,k){ if (typeof toast==='function') toast(t,m,k||'ok'); }
 
-  window.fwmSluit = function(){ $$('fwmWrap').classList.remove('on'); };
+  window.fwmSluit = function(){
+    $$('fwmWrap').classList.remove('on');
+    document.body.classList.remove('fwm-open');
+    // Het volgende venster is weer smal, tenzij het zelf om breed vraagt.
+    var v = document.querySelector('#fwmWrap .fwm');
+    if (v) v.classList.remove('breed');
+  };
 
   /* ── eigen wachtwoord ── */
   window.fwmWachtwoord = function(){
@@ -3639,7 +3666,7 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
       '<div><label>Nogmaals ter controle</label><input type="password" id="fwmHerhaal" autocomplete="new-password"></div>';
     $$('fwmOk').textContent = 'Wachtwoord opslaan';
     $$('fwmOk').onclick = bewaarWachtwoord;
-    $$('fwmWrap').classList.add('on');
+    $$('fwmWrap').classList.add('on'); document.body.classList.add('fwm-open');
     setTimeout(function(){ var e = $$('fwmOud'); if (e) e.focus(); }, 60);
   };
 
@@ -3680,7 +3707,7 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
     window.fwmRolUitleg();
     $$('fwmOk').textContent = bestaand ? 'Opslaan' : 'Toevoegen';
     $$('fwmOk').onclick = function(){ bewaarMedewerker(bestaand ? bestaand.id : null); };
-    $$('fwmWrap').classList.add('on');
+    $$('fwmWrap').classList.add('on'); document.body.classList.add('fwm-open');
   };
 
   // Wat de gekozen rol mag zien, in \u00e9\u00e9n regel onder de keuzelijst.
@@ -3728,7 +3755,7 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
         '<div style="text-align:center;padding:14px 0"><span class="fwm-code">' + esc(res.tempPassword) + '</span></div>';
       $$('fwmOk').textContent = 'Klaar';
       $$('fwmOk').onclick = window.fwmSluit;
-      $$('fwmWrap').classList.add('on');
+      $$('fwmWrap').classList.add('on'); document.body.classList.add('fwm-open');
     }).catch(function(e){ melden('Niet gelukt', e.message, 'err'); });
   };
 
@@ -4086,11 +4113,51 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
   var boekNu = 'verz';
   function inBoek(s){ return BOEK[boekNu].soorten.indexOf(s) > -1; }
 
-  // Waar een onderaannemer goed in is. Zelfde lijst als bij de opdrachtbon.
-  var VAKLIJST = [['droging','Drogen en meten'],['loodgieter','Loodgieterswerk'],
-    ['dak','Dakwerk'],['stuc','Stucwerk'],['tegel','Tegelwerk'],['schilder','Schilderwerk'],
-    ['vloer','Vloeren'],['timmer','Timmerwerk'],['elektra','Elektra'],
-    ['schoonmaak','Schoonmaak'],['overig','Overig']];
+  /* De categorieën komen van de server, zodat het portaal en de opdrachtbon
+     dezelfde lijst gebruiken en een zelf toegevoegde categorie er meteen bij
+     staat. Deze lijst is de terugval zolang die nog niet binnen is. */
+  var VAKLIJST = [['loodgieter','Loodgieter'],['tegelzetter','Tegelzetter'],
+    ['stukadoor','Stukadoor'],['schilder','Schilder'],['dakwerk','Dakwerk'],
+    ['vloeren','Vloeren'],['elektra','Elektra'],['inspectie','Bouwkundige inspectie'],
+    ['keuken','Keukenleverancier of monteur'],['timmerman','Timmerman'],['sloper','Sloper'],
+    ['droging','Drogen en meten'],['schoonmaak','Schoonmaak'],['overig','Overig']];
+
+  function haalCategorieen(){
+    return window.fwApi('/api/relaties/categorieen').then(function(r){
+      if (r && r.categorieen && r.categorieen.length) {
+        VAKLIJST = r.categorieen.map(function(c){ return [c.key, c.label]; });
+      }
+      return VAKLIJST;
+    }).catch(function(){ return VAKLIJST; });
+  }
+
+  // Een categorie die er nog niet bij staat, voeg je hier toe.
+  window.fwrVakErbij = function(){
+    window.fwVraag({
+      titel:'Categorie toevoegen',
+      uitleg:'Alleen als het echt iets anders is dan wat er al staat. De categorie '+
+             'komt daarna bij elke leverancier in de lijst.',
+      velden:[{naam:'naam',label:'Naam van de categorie',
+        plaats:'bijvoorbeeld Glaszetter of Asbestsanering',
+        verplicht:'Vul een naam in.'}],
+      ok:'Toevoegen'
+    }).then(function(r){
+      if (!r) return;
+      var sleutel = String(r.naam).toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+        .replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+\$/g,'').slice(0,32);
+      if (sleutel.length < 2) { melden('Te kort','Geef een wat langere naam.','err'); return; }
+      if (!VAKLIJST.some(function(v){ return v[0] === sleutel; })) {
+        VAKLIJST.push([sleutel, String(r.naam).trim()]);
+      }
+      // Het formulier opnieuw tekenen met de nieuwe categorie erbij, aangevinkt.
+      var vorm = leesVorm();
+      vorm.vakken = (vorm.vakken || []).concat([sleutel]);
+      var id = $$('fwrVorm').dataset.id;
+      if (id) vorm.id = id;
+      tekenVorm(vorm, id || null);
+    });
+  };
   var lijst = [], filter = 'VERZEKERAAR';
 
   function $$(id){ return document.getElementById(id); }
@@ -4131,12 +4198,19 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
     $$('fwmTitel').textContent = id ? r.naam
       : 'Nieuwe ' + SOORT[soorten.indexOf(filter) > -1 ? filter : soorten[0]].toLowerCase();
     $$('fwmSub').textContent = '';
+    // Dit formulier heeft veel velden; breed openen scheelt scrollen.
+    var venster = document.querySelector('#fwmWrap .fwm');
+    if (venster) venster.classList.add('breed');
     $$('fwmBody').innerHTML = '<div id="fwmMelding" style="display:none"></div><div id="fwrVorm"></div>';
     tekenVorm(r, id);
+    // De categorieën kunnen inmiddels zijn uitgebreid; opnieuw tekenen zodra ze binnen zijn.
+    haalCategorieen().then(function(){
+      if ($$('fwrVorm') && $$('fwrVakken')) tekenVorm(leesVorm(), id);
+    });
 
     $$('fwmOk').textContent = id ? 'Opslaan' : 'Toevoegen';
     $$('fwmOk').onclick = function(){ bewaar(id); };
-    $$('fwmWrap').classList.add('on');
+    $$('fwmWrap').classList.add('on'); document.body.classList.add('fwm-open');
   };
 
   // De velden hangen af van de soort. Een verzekeraar heeft een reactietermijn,
@@ -4176,7 +4250,7 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
         '<div><label>Vaste contactpersoon</label>' +
           '<input type="text" id="fwrPers" value="' + esc(r.contactpersoon || '') + '"></div>' +
 
-        '<div><label>Extra e-mailadressen</label><div id="fwrContacten"></div>' +
+        '<div class="vol"><label>Extra e-mailadressen</label><div id="fwrContacten"></div>' +
           '<button type="button" class="btn" onclick="fwrAdres()" style="margin-top:6px;font-size:12.5px;padding:7px 12px">' +
           'Adres toevoegen</button>' +
           '<div style="font-size:11.5px;color:var(--muted);margin-top:4px">' +
@@ -4188,7 +4262,7 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
           '<div><label>Postcode</label><input type="text" id="fwrPc" value="' + esc(r.postcode || '') + '"></div>' +
           '<div><label>Plaats</label><input type="text" id="fwrPlaats" value="' + esc(r.plaats || '') + '"></div>' +
         '</div>' +
-        '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">' +
+        '<div class="vol" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">' +
           '<button type="button" class="btn" onclick="fwrAdresNakijken(\'\')" ' +
             'style="font-size:12.5px;padding:8px 13px;min-height:auto">Adres nakijken</button>' +
           '<span class="fwq-melding" id="fwrAdresMelding"></span></div>' +
@@ -4199,19 +4273,21 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
           '<div><label>Postcode</label><input type="text" id="fwrPostPc" value="' + esc(r.postPostcode || '') + '"></div>' +
           '<div><label>Plaats</label><input type="text" id="fwrPostPlaats" value="' + esc(r.postPlaats || '') + '"></div>' +
         '</div>' +
-        '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">' +
+        '<div class="vol" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">' +
           '<button type="button" class="btn" onclick="fwrAdresNakijken(\'Post\')" ' +
             'style="font-size:12.5px;padding:8px 13px;min-height:auto">Adres nakijken</button>' +
           '<span class="fwq-melding" id="fwrPostAdresMelding"></span></div>' +
 
         (werkt
-          ? '<div><label>Waar zijn ze goed in?</label><div class="hd-chips" id="fwrVakken">' +
+          ? '<div class="vol"><label>Categorie</label><div class="hd-chips" id="fwrVakken">' +
               VAKLIJST.map(function(v){
                 return '<button type="button" class="hd-chip' + (vakken.indexOf(v[0]) > -1 ? ' aan' : '') + '" ' +
                   'data-vak="' + v[0] + '" onclick="fwrVak(this)">' + v[1] + '</button>';
-              }).join('') + '</div>' +
+              }).join('') +
+              '<button type="button" class="hd-chip" onclick="fwrVakErbij()" ' +
+                'style="border-style:dashed">+ Categorie toevoegen</button></div>' +
               '<div style="font-size:11.5px;color:var(--muted);margin-top:5px">' +
-              'Bepaalt bij welk type klus deze partij verschijnt.</div></div>'
+              'Meerdere mag. Bepaalt bij welk type klus deze partij verschijnt.</div></div>'
           : '') +
 
         '<div><label>Website of schadeportaal</label>' +
@@ -4233,7 +4309,7 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
                 '<input type="text" id="fwrBtwNr" value="' + esc(r.btwNummer || '') + '"></div>') +
         '</div>' +
 
-        '<div><label>Interne notitie</label><textarea id="fwrNotitie">' + esc(r.notitie || '') + '</textarea>' +
+        '<div class="vol"><label>Interne notitie</label><textarea id="fwrNotitie">' + esc(r.notitie || '') + '</textarea>' +
           '<div style="font-size:11.5px;color:var(--muted);margin-top:4px">' +
           'Alleen voor ons. Staat nooit op een bon of brief.</div></div>' +
 
@@ -4244,7 +4320,7 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
         // Blokkeren is iets anders dan niet-actief: de partij blijft zichtbaar
         // en in de geschiedenis staan, maar krijgt geen opdrachten meer.
         (id && werkt && window.fwIsDirectie && window.fwIsDirectie()
-          ? '<div class="fwn-blok k3" style="margin-top:6px">' +
+          ? '<div class="fwn-blok k3 vol" style="margin-top:6px">' +
               '<div class="fwn-kop"><span class="n">!</span>Opdrachten' +
                 '<span class="r">alleen directie</span></div>' +
               (r.geblokkeerd
@@ -4668,7 +4744,7 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
     extraAdressen = [];
     $$('fwmOk').textContent = 'Dossier aanmaken';
     $$('fwmOk').onclick = aanmaken;
-    $$('fwmWrap').classList.add('on');
+    $$('fwmWrap').classList.add('on'); document.body.classList.add('fwm-open');
     setTimeout(function(){ var e = $$('fwnOwner'); if (e) e.focus(); }, 60);
   };
 
@@ -5423,7 +5499,7 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
 
     $$('fwmOk').textContent = 'Opslaan';
     $$('fwmOk').onclick = bewaar;
-    $$('fwmWrap').classList.add('on');
+    $$('fwmWrap').classList.add('on'); document.body.classList.add('fwm-open');
 
     setTimeout(function(){ start(); haalOp(); }, 60);
   };
@@ -7236,7 +7312,12 @@ button.hd-cgl:hover .w{text-decoration:underline}
                        : Math.max(1, Math.round(n/1024))+' kB'; }
   function levVoorVak(vak){
     if (!vak) return [];
-    return levs.filter(function(l){ return (l.vakken||[]).indexOf(vak) > -1; });
+    var s = vakSleutel(vak);
+    // Oude namen meenemen, en geblokkeerde partijen niet aanbieden.
+    return levs.filter(function(l){
+      if (l.geblokkeerd) return false;
+      return (l.vakken||[]).some(function(v){ return vakSleutel(v) === s; });
+    });
   }
   function levById(id){ return levs.filter(function(l){ return l.id===id; })[0] || null; }
   function levCompleet(l){ return !!(l && (l.email || l.telefoon)); }
@@ -7419,7 +7500,7 @@ button.hd-cgl:hover .w{text-decoration:underline}
                     esc(o.telefoon||o.email||'geen gegevens')+
                     (levCompleet(o)?'':' \u00b7 nog aanvullen')+'</span></button>';
                 }).join('')+'</div>'
-              : '<div class="fwk-leeg">Nog geen leverancier voor '+VAKKEN[b.vak].toLowerCase()+
+              : '<div class="fwk-leeg">Nog geen leverancier voor '+vakNaam(b.vak).toLowerCase()+
                 '. Voeg er een toe met de knop hierboven.</div>')
           : '<div class="fwk-leeg">Kies eerst het type klus.</div>')+
         (l && !levCompleet(l)
@@ -7545,7 +7626,7 @@ button.hd-cgl:hover .w{text-decoration:underline}
                 return '<button class="hd-chip'+(aan?' aan':'')+'" onclick="fwkVraagLev(\''+o.id+'\')">'+
                   esc(o.naam)+'<span>'+esc(o.telefoon||o.email||'geen gegevens')+'</span></button>';
               }).join('')+'</div>'
-            : '<div class="fwk-leeg">Nog geen leverancier voor '+VAKKEN[v.vak].toLowerCase()+'.</div>')
+            : '<div class="fwk-leeg">Nog geen leverancier voor '+vakNaam(v.vak).toLowerCase()+'.</div>')
         : '<div class="fwk-leeg">Kies eerst het type klus.</div>')+
     '</div></div>';
 
@@ -8115,7 +8196,7 @@ button.hd-cgl:hover .w{text-decoration:underline}
         '<span class="fwk-uitvt">'+esc(u.starttijd||'08.00')+'\u2013'+tot(u.starttijd,u.uren)+
           ' \u00b7 '+duurTekst(u.uren)+'</span>'+
         '<span class="fwk-uitvo">'+
-          (u.vak?'<span class="fwk-vak">'+esc(VAKKEN[u.vak]||u.vak)+'</span>':'')+
+          (u.vak?'<span class="fwk-vak">'+esc(vakNaam(u.vak))+'</span>':'')+
           esc(u.omschrijving)+'</span>'+
         (klant ? (u.afgerond?'<span class="fwk-pil groen">Klaar</span>':'')
                : (u.afgerond
@@ -8182,7 +8263,7 @@ button.hd-cgl:hover .w{text-decoration:underline}
       x += '<div class="fwk-tlr'+(p.af?' af':'')+'">'+
         '<span class="fwk-tlico">'+svg(ico)+'</span>'+
         '<div style="flex:1;min-width:0"><div class="fwk-tlt">'+
-          (p.vak?'<span class="fwk-vak">'+esc(VAKKEN[p.vak]||p.vak)+'</span>':'')+esc(p.tekst)+'</div>'+
+          (p.vak?'<span class="fwk-vak">'+esc(vakNaam(p.vak))+'</span>':'')+esc(p.tekst)+'</div>'+
         '<div class="fwk-tls">'+(p.tijd?esc(p.tijd):'')+
           (p.duur?' \u00b7 '+esc(p.duur):'')+
           (p.waar?' \u00b7 '+esc(p.waar):'')+'</div></div>'+
@@ -8193,9 +8274,29 @@ button.hd-cgl:hover .w{text-decoration:underline}
     return x + '</div>';
   }
 
-  var VAKKEN = {droging:'Drogen en meten',loodgieter:'Loodgieterswerk',dak:'Dakwerk',
-    stuc:'Stucwerk',tegel:'Tegelwerk',schilder:'Schilderwerk',vloer:'Vloeren',
-    timmer:'Timmerwerk',elektra:'Elektra',schoonmaak:'Schoonmaak',overig:'Overig'};
+  /* Categorieën. Zelfde lijst als bij de relaties; komt van de server zodat
+     een zelf toegevoegde categorie hier ook verschijnt. */
+  var VAKKEN = {loodgieter:'Loodgieter', tegelzetter:'Tegelzetter', stukadoor:'Stukadoor',
+    schilder:'Schilder', dakwerk:'Dakwerk', vloeren:'Vloeren', elektra:'Elektra',
+    inspectie:'Bouwkundige inspectie', keuken:'Keukenleverancier of monteur',
+    timmerman:'Timmerman', sloper:'Sloper', droging:'Drogen en meten',
+    schoonmaak:'Schoonmaak', overig:'Overig'};
+  // Oude namen uit bestaande bonnen blijven werken.
+  var VAK_OUD = {stuc:'stukadoor', tegel:'tegelzetter', dak:'dakwerk',
+                 vloer:'vloeren', timmer:'timmerman'};
+  function vakSleutel(v){ v = String(v||''); return VAK_OUD[v] || v; }
+  function vakNaam(v){
+    var s = vakSleutel(v);
+    if (VAKKEN[s]) return VAKKEN[s];
+    var t = s.replace(/-/g,' ');
+    return t ? t.charAt(0).toUpperCase()+t.slice(1) : '';
+  }
+  (function haalVakken(){
+    if (!window.fwApi) return;
+    window.fwApi('/api/relaties/categorieen').then(function(r){
+      (r && r.categorieen || []).forEach(function(c){ VAKKEN[c.key] = c.label; });
+    }).catch(function(){});
+  })();
   // Wat de klant zelf doorgeeft als het hem niet schikt.
   var DAGDEEL = {ochtend:'ochtend', middag:'middag', dag:'hele dag'};
   // Vier uur is een dagdeel, acht een hele dag. Daarboven rekenen we in dagen.
@@ -8246,23 +8347,81 @@ button.hd-cgl:hover .w{text-decoration:underline}
   };
 
   window.fwkMachtiging = function(){
+    // Eerst kiezen naar wie hij gaat; de soort en de velden volgen daaruit.
     return window.fwVraag({
       titel:'Machtiging versturen',
       uitleg:'De klant krijgt een link, leest wat hij tekent, en zet er zijn naam onder. '+
-        'Zodra hij tekent staat het hier als binnen. Wilt u het stuk eerst nalezen, '+
-        'gebruik dan Proef bekijken in de kaart.',
+             'In de volgende stap loop je na wat er op het stuk komt te staan.',
       velden:[
         {naam:'naar',label:'Naar wie',type:'keuze',waarde:S.opdrachtgever?'beheerder':'klant',
-         opties:[['klant', S.owner + ' \u2014 eigenaar']].concat(
+         opties:[['klant', S.owner + ' \u2014 ' + (ogZakelijk()?'opdrachtgever':'eigenaar')]].concat(
            S.opdrachtgever ? [['beheerder', S.opdrachtgever + ' \u2014 beheerder']] : [])},
         {naam:'dagen',label:'Herinneren na hoeveel dagen',type:'keuze',waarde:'3',
          opties:[['2','2 dagen'],['3','3 dagen'],['5','5 dagen'],['7','een week']]}
       ],
-      ok:'Versturen'
+      ok:'Volgende'
     }).then(function(r){
       if (!r) return;
-      return api('/api/schades/'+encodeURIComponent(S.nr)+'/machtigingen',
-        {method:'POST', body:JSON.stringify({naar:r.naar, herinnerDagen:Number(r.dagen)})})
+      return api('/api/schades/'+encodeURIComponent(S.nr)+'/machtiging-velden?naar='+
+                 encodeURIComponent(r.naar))
+        .then(function(v){ machtigingNalopen(v, r.naar, Number(r.dagen)); })
+        .catch(function(e){ melden('Niet gelukt', e.message, 'err'); });
+    });
+  };
+
+  // Stap twee: wat er op het stuk komt. Alles is aan te passen, regels mogen
+  // erbij, en wat je leeg laat verdwijnt.
+  function machtigingNalopen(v, naar, dagen){
+    var rijen = (v.gegevens || []).slice();
+
+    // Elke regel is een eigen blok: een omschrijving en wat erachter komt.
+    function velden(w){
+      // Bewaar wat er al is ingetypt, zodat het niet weg is na 'Regel erbij'.
+      if (w && Object.keys(w).length) {
+        rijen.forEach(function(rij, i){
+          if (w['l'+i] !== undefined) rij.label = w['l'+i];
+          if (w['w'+i] !== undefined) rij.waarde = w['w'+i];
+        });
+      }
+      var lijst = [];
+      rijen.forEach(function(rij, i){
+        var kop = rij.label || 'Nieuwe regel';
+        lijst.push({groep:kop, groepNoot: rij.label ? '' : 'zelf toegevoegd',
+          naam:'l'+i, label:'Omschrijving', waarde:rij.label,
+          plaats:'bijvoorbeeld Contactpersoon ter plaatse'});
+        lijst.push({groep:kop,
+          naam:'w'+i, label:'Wat er komt te staan', waarde:rij.waarde,
+          plaats:'leeg laten om deze regel weg te halen'});
+      });
+      return lijst;
+    }
+
+    // Een lege regel erbij, zodat je iets kunt aanvullen.
+    window.fwkMachtRegel = function(){
+      rijen.push({label:'', waarde:''});
+      if (window.fwqOpnieuw) window.fwqOpnieuw();
+    };
+
+    window.fwVraag({
+      titel:'Machtiging nalopen',
+      uitleg:'Voor '+v.naarNaam+' \u2014 '+v.soortLabel.toLowerCase()+', '+v.artikelen+
+             ' artikelen. Deze gegevens komen bovenaan het stuk te staan. '+
+             'Pas ze aan waar het nodig is; een lege regel valt weg.',
+      velden: velden,
+      ok:'Versturen',
+      annuleer:'Terug',
+      extraKnop:{label:'Regel erbij', fn:'fwkMachtRegel'}
+    }).then(function(r){
+      if (!r) return;
+      var uit = [];
+      rijen.forEach(function(_, i){
+        var l = String(r['l'+i]||'').trim(), w = String(r['w'+i]||'').trim();
+        if (l && w) uit.push([l, w]);
+      });
+      if (!uit.length) { melden('Niets ingevuld','Er moet minstens \u00e9\u00e9n regel op het stuk staan.','err'); return; }
+
+      api('/api/schades/'+encodeURIComponent(S.nr)+'/machtigingen',
+        {method:'POST', body:JSON.stringify({naar:naar, herinnerDagen:dagen, gegevens:uit})})
         .then(function(u){
           melden(u && u.opnieuw ? 'Opnieuw verstuurd' : 'Verstuurd',
             'De klant kan hem nu tekenen.');
@@ -8270,7 +8429,7 @@ button.hd-cgl:hover .w{text-decoration:underline}
         })
         .catch(function(e){ melden('Niet gelukt', e.message, 'err'); });
     });
-  };
+  }
 
   window.fwkMachtHerinner = function(id){
     api('/api/machtigingen/'+encodeURIComponent(id)+'/herinneren', {method:'POST', body:'{}'})
@@ -8407,7 +8566,7 @@ button.hd-cgl:hover .w{text-decoration:underline}
             : api('/api/schades/'+encodeURIComponent(S.nr)+'/uitvoeringen',
                 {method:'POST', body:JSON.stringify(body)});
         })
-        .then(function(){ melden('Ingepland', dag(r.datum)+' \u00b7 '+VAKKEN[r.vak]); return ververs(); })
+        .then(function(){ melden('Ingepland', dag(r.datum)+' \u00b7 '+vakNaam(r.vak)); return ververs(); })
         .catch(function(e){melden('Niet gelukt',e.message,'err')});
     });
   };
@@ -10024,6 +10183,16 @@ body.fwq-open{overflow:hidden}
 
       $$('fwqJa').textContent = o.ok || 'Opslaan';
       $$('fwqNee').textContent = o.annuleer || 'Annuleren';
+      // Een venster kan een derde knop hebben, bijvoorbeeld om een regel toe
+      // te voegen. Die staat links, los van Annuleren en Opslaan.
+      var extra = $$('fwqExtra');
+      if (extra) {
+        if (o.extraKnop) {
+          extra.style.display = '';
+          extra.textContent = o.extraKnop.label;
+          extra.onclick = function(){ if (window[o.extraKnop.fn]) window[o.extraKnop.fn](); };
+        } else { extra.style.display = 'none'; extra.onclick = null; }
+      }
       $$('fwqJa').classList.toggle('gevaar', !!o.gevaar);
       $$('fwqWrap').classList.add('on');
       document.body.classList.add('fwq-open');
@@ -10052,8 +10221,13 @@ body.fwq-open{overflow:hidden}
 
     var pc = vPc ? String(vPc.value).toUpperCase().replace(/[^0-9A-Z]/g,'') : '';
     var adres = vAdres ? String(vAdres.value).trim() : '';
-    // Uit 'Weena 100' halen we het huisnummer; de rest is de straat.
-    var nr = (adres.match(/(\d+\s*[A-Za-z]?(?:[-\/]\d+[A-Za-z]?)?)\s*$/) || [])[1] || '';
+    /* Het huisnummer achter uit het adres halen. Nederland kent veel vormen:
+         Weena 100        Weena 100A       Weena 100 A
+         Voorburgwal 147-3                 Kerkstraat 12hs
+         Prinsengracht 3 bis               Dorpsstraat 5/2
+       We pakken het laatste getal plus alles wat daar direct achter staat. */
+    var nr = (adres.match(/(\d+\s*[A-Za-z]{0,4}(?:\s*[-\/]\s*[0-9A-Za-z]{1,4})?)\s*$/) || [])[1] || '';
+    nr = nr.replace(/\s+/g, '');
 
     var vraag;
     if (pc.length >= 6 && nr) vraag = 'postcode=' + encodeURIComponent(pc) + '&huisnummer=' + encodeURIComponent(nr.replace(/\s/g,''));
