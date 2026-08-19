@@ -56,6 +56,7 @@ function schadeForUser(s, user) {
     bronStatus: s.bronStatus,
     bronBeoordeeld: s.bronBeoordeeld,
     bronAanbod: s.bronAanbod,
+    bronAanbodAt: s.bronAanbodAt,
     bronFactuur: s.bronFactuur,
     bronDoorOns: s.bronDoorOns,
     weigerReden: s.weigerReden,
