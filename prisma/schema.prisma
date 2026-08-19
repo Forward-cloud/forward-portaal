@@ -108,7 +108,11 @@ model Schade {
   // Bij een VvE loopt de opstalverzekering via de vereniging; bij een
   // particulier is de eigenaar zelf de opdrachtgever. Dat bepaalt de
   // machtiging, de facturatie en wie er tekent.
-  opdrachtgeverType String? // vve | particulier
+  // vve         — vereniging van eigenaars
+  // zakelijk    — een bedrijf, stichting of belegger; wel op factuur met kvk,
+  //                maar geen vereniging en dus geen bestuursbesluit
+  // particulier — een natuurlijk persoon, met bedenktijd
+  opdrachtgeverType String?
   contactpersoon  String? // wie op brieven en bonnen staat
   // Een VvE heeft vaak meer dan één adres: een algemene bak, een adres waar
   // facturen heen moeten, en de persoon zelf. Bij een particulier mogen ze leeg
