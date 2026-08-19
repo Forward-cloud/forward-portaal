@@ -5401,30 +5401,29 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
 
 /* duo-kaarten */
 .fwk-duo{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
-/* Contactkaart: per groep een kopje, daaronder regels met het label links
-   en de waarde rechts. Zo staan de waarden onder elkaar uitgelijnd. */
+/* Contactkaart — letterlijk overgenomen uit haltes-voorbeeld.html. */
 .hd-cg{padding:11px 0;border-bottom:1px solid var(--line-2)}
 .hd-cg:first-child{padding-top:2px}
-.hd-cg:last-child{border-bottom:none;padding-bottom:0}
-.hd-cgl{font-size:10.5px;font-weight:700;color:var(--muted-2);letter-spacing:.05em;
-  text-transform:uppercase;margin-bottom:7px;display:flex;align-items:center;gap:10px}
-.hd-cgl .jbtn{margin-left:auto;text-transform:none;letter-spacing:0}
-/* Een groepskopje dat je kunt aanklikken om die gegevens te wijzigen. Ziet er
-   hetzelfde uit als een gewoon kopje — het voorbeeld toont daar geen knop. */
-button.hd-cgl{border:none;background:none;padding:0;width:100%;font-family:inherit;
-  cursor:pointer;text-align:left}
-button.hd-cgl:hover{color:var(--teal)}
+.hd-cgl{font-size:10.5px;font-weight:700;color:var(--muted-2);letter-spacing:.05em; text-transform:uppercase;margin-bottom:7px}
 .hd-cr{display:flex;align-items:baseline;gap:9px;padding:3px 0;font-size:13px}
 .hd-cr svg{width:15px;height:15px;color:var(--muted-2);flex:none;align-self:center}
 .hd-crl{color:var(--muted);flex:none;min-width:132px}
 .hd-crv{flex:1;text-align:right;color:var(--text);word-break:break-word}
+.hd-crx{font-size:11px;color:var(--muted-2);background:var(--canvas);border-radius:20px;padding:2px 8px; margin-left:4px}
+.hd-notitie{border-top:1px solid var(--line-2);margin-top:8px;padding-top:11px}
+.hd-notl{font-size:11px;font-weight:700;color:var(--muted-2);letter-spacing:.05em;text-transform:uppercase}
+.hd-nott{font-size:13px;line-height:1.5;margin:5px 0 8px}
 .hd-crv a{color:var(--text);text-decoration:none}
 .hd-crv a:hover{color:var(--teal);text-decoration:underline}
-.hd-crx{font-size:11px;color:var(--muted-2);background:var(--canvas);border-radius:20px;padding:2px 8px;
-  margin-left:4px}
 .hd-crlet{color:#8A5A0B}
-.hd-nott{font-size:13px;line-height:1.5;margin:5px 0 0;color:var(--text)}
 .hd-nott.leeg{color:var(--muted-2)}
+/* Een kopje dat tegelijk knop is, met 'wijzigen' rechts zoals bij de
+   samenvattingsblokken van de factuur. */
+button.hd-cgl{border:none;background:none;padding:0;width:100%;font-family:inherit;
+  cursor:pointer;text-align:left;display:flex;align-items:center;gap:10px}
+button.hd-cgl .w{margin-left:auto;font-size:10.5px;font-weight:600;color:var(--teal);
+  text-transform:none;letter-spacing:0}
+button.hd-cgl:hover .w{text-decoration:underline}
 /* Overgenomen uit haltes-voorbeeld.html \u2014 chips, documentregels,
    invulroosters en het verloopblok. */
 .hd-apblok{border-top:1px solid rgba(199,126,0,.22);background:#FDF3E0;padding:14px 18px 16px}
@@ -5532,6 +5531,50 @@ button.hd-cgl:hover{color:var(--teal)}
 .hd-mstat svg{width:15px;height:15px;flex:none}
 .hd-mstat.ok{background:var(--green-soft);color:#12704A}
 .hd-mstat.wacht{background:#FDF3E0;color:#8A5A0B}
+/* Het A4 zoals de klant het krijgt — uit haltes-voorbeeld.html. */
+.hd-velwrap{overflow:auto;margin-bottom:16px;padding:2px}
+.hd-vel.vervolg{margin-top:6mm}
+.hd-vel.vervolg .v-tab{margin-top:0}
+.hd-vel .v-blad{position:absolute;right:20mm;bottom:11mm;font-size:2.6mm;color:#888}
+.hd-vel{position:relative;width:210mm;height:297mm;background:#fff;flex:none; box-shadow:0 8px 28px rgba(21,31,53,.16);border:1px solid var(--line); padding:47mm 20mm 26mm;box-sizing:border-box; font-family:'Inter',system-ui,sans-serif;font-size:3.7mm;line-height:1.2;color:#1a1a1a; transform:scale(.58);transform-origin:top left;margin-bottom:-124mm}
+.hd-vel *{box-sizing:border-box}
+.hd-vel-kolom{position:absolute;right:13mm;top:50mm;bottom:21.6mm;width:.88mm}
+.hd-vel-kolom i{display:block;width:.88mm}
+.hd-vel-kolom i.teal{background:var(--teal);height:80.5mm}
+.hd-vel-kolom i.navy{background:var(--navy);height:141.9mm;margin-top:3mm}
+.hd-vel .v-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12mm}
+.hd-vel .v-klant{line-height:1.2;padding-top:3mm}
+.hd-vel .v-logo{text-align:right;flex:none}
+.hd-vel .v-logo .w{font-family:'Poppins',sans-serif;font-weight:600;font-size:9mm;color:var(--navy); letter-spacing:.2em;line-height:1}
+.hd-vel .v-logo .s{font-family:'Poppins',sans-serif;font-weight:500;font-size:3.5mm;color:var(--teal); letter-spacing:.35em;margin-top:1.6mm}
+.hd-vel .v-logo .streep{height:.4mm;background:var(--teal);width:42mm;margin:5mm 0 0 auto}
+.hd-vel .v-mid{display:flex;justify-content:space-between;gap:14mm;margin-top:14mm}
+.hd-vel .v-kop table{border-collapse:collapse;margin-top:0}
+.hd-vel .v-kop td{padding:0;height:4.45mm;line-height:4.45mm;white-space:nowrap;vertical-align:top}
+.hd-vel .v-kop td:first-child{width:43mm}
+.hd-vel .v-kop > b{display:block;height:4.45mm;line-height:4.45mm}
+.hd-vel .v-afz{text-align:right;white-space:nowrap;line-height:4.45mm}
+.hd-vel .v-afz .sp{height:4.45mm}
+.hd-vel .v-intro{margin-top:12.5mm;line-height:4.45mm;white-space:pre-line}
+.hd-vel .v-tab{width:100%;border-collapse:collapse;margin-top:16.5mm;table-layout:fixed}
+.hd-vel .v-tab col.c1{width:auto}
+.hd-vel .v-tab col.c2{width:16mm}
+.hd-vel .v-tab col.c3{width:30mm}
+.hd-vel .v-tab col.c4{width:14mm}
+.hd-vel .v-tab col.c5{width:30mm}
+.hd-vel .v-tab th{text-align:right;font-weight:600;padding:0 0 2mm;border-bottom:.25mm solid #8a8a8a; white-space:nowrap}
+.hd-vel .v-tab th:first-child,.hd-vel .v-tab td:first-child{text-align:left;padding-right:6mm}
+.hd-vel .v-tab td{text-align:right;padding:2.4mm 0 2.6mm;border-bottom:.2mm solid #e2e2e2; font-variant-numeric:tabular-nums;vertical-align:top;line-height:4.45mm}
+.hd-vel .v-tot{margin:12mm 0 0 auto;border-collapse:collapse}
+.hd-vel .v-tot td{padding:0 0 0 10mm;height:6.6mm;line-height:6.6mm;text-align:right; font-variant-numeric:tabular-nums;white-space:nowrap}
+.hd-vel .v-tot tr.eind td{font-weight:600;border-top:.25mm solid #8a8a8a;padding-top:2.2mm}
+.hd-vel .v-betaalrij{display:flex;gap:5mm;align-items:flex-start;margin-top:19mm}
+.hd-vel .v-qrblok{width:15mm;flex:none}
+.hd-vel .v-qr{width:15mm;height:15mm; background:repeating-conic-gradient(#222 0 25%,#fff 0 50%) 0 0/1.9mm 1.9mm}
+.hd-vel .v-betaal{line-height:4.45mm;padding-top:3.8mm}
+.hd-vel .v-app{font-size:2.6mm;color:#333;line-height:3.2mm;margin-top:5mm}
+.hd-vel .v-notitie{margin-top:8mm;line-height:4.45mm;color:#333}
+.hd-vel .v-voet{position:absolute;left:20mm;right:20mm;bottom:17mm;display:flex; justify-content:space-between;gap:4mm;font-size:2.8mm;color:#555}
 /* Factuurscherm — overgenomen uit haltes-voorbeeld.html. */
 .fwk-hr{display:flex;align-items:center;gap:9px;font-size:12.5px;padding:5px 0}
 .fwk-hr input{width:16px;height:16px;accent-color:var(--teal)}
@@ -6363,7 +6406,10 @@ button.hd-cgl:hover{color:var(--teal)}
       var t=String(e.value).replace(/[^0-9,.-]/g,'').replace(/\./g,'').replace(',','.');
       return Math.round(Number(t)||0); }
     var o=g('fwkOmzet');
-    patch({amount:o, fin:{herstelOmzet:o, herstelInkoop:g('fwkInkoop'), herstelUitbesteed:g('fwkUitb')}})
+    var fin = {herstelOmzet:o, herstelInkoop:g('fwkInkoop'), herstelUitbesteed:g('fwkUitb')};
+    // Het veld voor de expertise staat er alleen bij een route met rapport.
+    if (document.getElementById('fwkExp')) fin.expertiseOmzet = g('fwkExp');
+    patch({amount:o, fin:fin})
       .then(function(){ melden('Opgeslagen','De marge is bijgewerkt.'); return ververs(); })
       .catch(function(e){melden('Niet gelukt',e.message,'err')});
   };
@@ -6439,6 +6485,49 @@ button.hd-cgl:hover{color:var(--teal)}
       patch({contactpersoon:r.naam||null}).then(ververs).catch(function(e){melden('Niet gelukt',e.message,'err')});
     });
   };
+  window.fwkOpdrachtgever = function(){
+    window.fwVraag({
+      titel:'Opdrachtgever',
+      uitleg:'De partij die ons de opdracht geeft. Bij een VvE is dat de vereniging, '+
+             'bij een particulier de eigenaar zelf.',
+      velden:[
+        {naam:'naam',label:'Naam',waarde:S.owner||'',verplicht:'Vul een naam in.'},
+        {naam:'soort',label:'Wat voor opdrachtgever?',type:'keuze',
+         waarde:S.opdrachtgeverType||'vve',
+         opties:[['vve','Vereniging van eigenaars'],['particulier','Particulier']]},
+        {naam:'tel',label:'Telefoon',waarde:S.telefoon||''},
+        {naam:'mail',label:'E-mail',waarde:S.email||''}
+      ],
+      ok:'Opslaan'
+    }).then(function(r){
+      if (!r) return;
+      patch({owner:r.naam, opdrachtgeverType:r.soort, telefoon:r.tel||null, email:r.mail||null})
+        .then(ververs).catch(function(e){melden('Niet gelukt',e.message,'err')});
+    });
+  };
+
+  window.fwkBewoner = function(){
+    var l = locaties.filter(function(x){ return x.hoofd; })[0] || locaties[0];
+    if (!l) { melden('Geen adres','Voeg eerst een adres toe bij het tabblad Adressen.','info'); return; }
+    window.fwVraag({
+      titel:'Op het adres',
+      uitleg:esc(l.adres||'')+' \u2014 wie woont er en hoe is die bereikbaar?',
+      velden:[
+        {naam:'bewoner',label:'Bewoner',waarde:l.bewoner||''},
+        {naam:'soort',label:'Eigenaar of huurder?',type:'keuze',waarde:l.bewonerSoort||'eigenaar',
+         opties:[['eigenaar','Eigenaar en bewoner'],['huurder','Huurder'],['leeg','Staat leeg']]},
+        {naam:'tel',label:'Telefoon bewoner',waarde:l.telefoon||''},
+        {naam:'mail',label:'E-mail bewoner',waarde:l.email||''}
+      ],
+      ok:'Opslaan'
+    }).then(function(r){
+      if (!r) return;
+      api('/api/locaties/'+l.id,{method:'PATCH',body:JSON.stringify({bewoner:r.bewoner||null,
+        bewonerSoort:r.soort, telefoon:r.tel||null, email:r.mail||null})})
+        .then(ververs).catch(function(e){melden('Niet gelukt',e.message,'err')});
+    });
+  };
+
   window.fwkNotitie = function(){
     window.fwVraag({
       titel:'Bijzonderheden bij dit dossier',
@@ -7198,7 +7287,7 @@ button.hd-cgl:hover{color:var(--teal)}
     function cGroep(titel, inhoud, fn){
       if (!inhoud) return '';
       var kop = (fn && !klant)
-        ? '<button class="hd-cgl" onclick="'+fn+'()" title="'+esc(titel)+' wijzigen">'+esc(titel)+'</button>'
+        ? '<button class="hd-cgl" onclick="'+fn+'()">'+esc(titel)+'<span class="w">wijzigen</span></button>'
         : '<div class="hd-cgl">'+esc(titel)+'</div>';
       return '<div class="hd-cg">'+kop+inhoud+'</div>';
     }
@@ -7213,7 +7302,8 @@ button.hd-cgl:hover{color:var(--teal)}
         cGroep(vve ? 'Opdrachtgever \u00b7 VvE' : 'Opdrachtgever \u00b7 particulier',
           cRij(I.huis,'Naam', S.owner)+
           cRij(I.tel,'Telefoon', S.telefoon||S.phone, null, 'tel')+
-          cRij(I.mail,'E-mail', S.email, null, 'mail'))+
+          cRij(I.mail,'E-mail', S.email, null, 'mail'),
+          'fwkOpdrachtgever')+
 
         cGroep('Beheerder',
           cRij(I.huis,'Kantoor', S.opdrachtgever)+
@@ -7242,9 +7332,12 @@ button.hd-cgl:hover{color:var(--teal)}
           cRij(I.tel,'Telefoon bewoner', hoofdLoc.telefoon, null, 'tel')+
           (locaties.length>1
             ? cRij(I.doos,'Meer adressen', (locaties.length-1)+' \u00b7 zie het tabblad Adressen')
-            : ''))+
+            : ''),
+          'fwkBewoner')+
 
-        (klant?'':'<div class="hd-cg"><div class="hd-cgl">Bijzonderheden</div>'+
+        (klant?'':'<div class="hd-cg">'+
+          '<button class="hd-cgl" onclick="fwkNotitie()">Bijzonderheden'+
+            '<span class="w">wijzigen</span></button>'+
           '<div class="hd-nott'+(S.notitie?'':' leeg')+'">'+
             esc(S.notitie||'Nog niets vastgelegd.')+'</div></div>')+
 
@@ -8318,7 +8411,8 @@ button.hd-cgl:hover{color:var(--teal)}
               '<div class="hd-fbed">'+eur((f.totaal||0)/100)+'</div>'+
               '<span class="fwk-pil '+st[0]+'">'+st[1]+'</span></button>';
           }).join('')+'</div>'
-        : '<div class="fwk-leeg" style="margin-bottom:4px">Nog geen facturen verstuurd.</div>');
+        : '<div class="fwk-leeg" style="margin-bottom:4px">Nog geen facturen verstuurd.</div>')+
+      '<div class="fwk-bewerk"></div>';
 
     var om = S.fin.herstel.omzet||S.amount||0, ink = S.fin.herstel.inkoop||0, uit = S.fin.herstel.uitbesteed||0;
     var exp = (S.fin.expertise && S.fin.expertise.omzet) || 0;
@@ -8326,26 +8420,33 @@ button.hd-cgl:hover{color:var(--teal)}
     var tot = Math.max(om,1);
 
     return kop +
-      '<div class="fwk-hero"><div class="v">'+(marge<0?'\u2212':'')+eur(Math.abs(marge))+'</div>'+
+      '<div class="fwk-hero"><div class="v" style="color:'+(marge<0?'var(--red)':'var(--green)')+'">'+
+        (marge<0?'\u2212':'')+eur(Math.abs(marge))+'</div>'+
       '<div class="l">'+(marge<0?'verlies op dit dossier':'netto marge')+
         (om>0?' \u00b7 '+Math.abs(pct)+'% van de omzet':'')+'</div></div>'+
       '<div class="fwk-staaf">'+
-        '<span style="width:'+Math.max(0,marge/tot*100)+'%;background:var(--teal)"></span>'+
-        '<span style="width:'+(ink/tot*100)+'%;background:#7F77DD"></span>'+
-        '<span style="width:'+(uit/tot*100)+'%;background:#E0A030"></span></div>'+
-      '<div class="fwk-leg"><span><i style="background:var(--teal)"></i>marge</span>'+
-        '<span><i style="background:#7F77DD"></i>inkoop</span>'+
-        '<span><i style="background:#E0A030"></i>onderaanneming</span></div>'+
+        '<span style="width:'+Math.max(0,marge/tot*100)+'%;background:'+
+          (marge<0?'var(--red)':'var(--green)')+'"></span>'+
+        '<span style="width:'+(ink/tot*100)+'%;background:var(--navy-3)"></span>'+
+        '<span style="width:'+(uit/tot*100)+'%;background:var(--teal)"></span></div>'+
+      '<div class="fwk-leg"><span><i style="background:'+(marge<0?'var(--red)':'var(--green)')+
+        '"></i>marge</span>'+
+        '<span><i style="background:var(--navy-3)"></i>inkoop</span>'+
+        '<span><i style="background:var(--teal)"></i>onderaanneming</span></div>'+
       '<div class="fwk-gr"><div class="fwk-gico" style="background:var(--green-soft);color:#12704A">'+svg(I.euro)+'</div>'+
         '<div style="flex:1"><div class="fwk-gn">Omzet</div><div class="fwk-gm">Offertesom van dit dossier</div></div>'+
         '<div class="fwk-gb">'+eur(om)+'</div></div>'+
-      '<div class="fwk-gr"><div class="fwk-gico" style="background:#EEEDFE;color:#5B52C4">'+svg(I.doos)+'</div>'+
+      '<div class="fwk-gr"><div class="fwk-gico" style="background:#E7EBF2;color:var(--navy-3)">'+svg(I.doos)+'</div>'+
         '<div style="flex:1"><div class="fwk-gn">Inkoop materiaal</div><div class="fwk-gm">Handmatig ingevuld</div></div>'+
         '<div class="fwk-gb min">\u2212'+eur(ink)+'</div></div>'+
-      '<div class="fwk-gr"><div class="fwk-gico" style="background:#FAF0DA;color:#8A5A0B">'+svg(I.hamer)+'</div>'+
+      '<div class="fwk-gr"><div class="fwk-gico" style="background:var(--teal-soft);color:var(--teal-ink)">'+svg(I.hamer)+'</div>'+
         '<div style="flex:1"><div class="fwk-gn">Onderaanneming</div>'+
         '<div class="fwk-gm">Uit de facturen van leveranciers</div></div>'+
         '<div class="fwk-gb min">\u2212'+eur(uit)+'</div></div>'+
+      (S.preset==='expertise' && om>0
+        ? '<div class="hd-fnoot" style="color:#8A5A0B">Deze route heeft geen herstel. '+
+          'Hoort dit bedrag bij de expertise, zet de offertesom dan op 0.</div>'
+        : '')+
       '<div class="fwk-gtot"><span class="l">Netto marge herstel</span><span class="v">'+eur(marge)+'</span></div>'+
       (exp
         ? '<div class="hd-exp groot"><div class="hd-expico">'+svg(I.pen)+'</div>'+
@@ -8364,16 +8465,20 @@ button.hd-cgl:hover{color:var(--teal)}
         'letter-spacing:.05em;text-transform:uppercase;margin-bottom:10px">Bedragen aanpassen</div>'+
         '<div class="fwk-geld">'+
           '<label>Offertesom herstel<input type="text" id="fwkOmzet" value="'+om+'"></label>'+
+          (exp||S.preset==='expertise'
+            ? '<label>Omzet expertise<input type="text" id="fwkExp" value="'+exp+'"></label>' : '')+
           '<label>Inkoop materiaal<input type="text" id="fwkInkoop" value="'+ink+'"></label>'+
           '<label>Onderaanneming<input type="text" id="fwkUitb" value="'+uit+'"></label></div>'+
         '<div class="fwk-gv"><span>Geen onderaanneming? Vul 0 in.</span>'+
           '<button class="btn primary" onclick="fwkBewaarFin()">Opslaan</button></div></div>'+
+      // Zelfde knopstijl als in het voorbeeld. De eerste en de laatste bestaan
+      // alleen in het portaal en niet in het voorbeeldbestand.
       '<div class="fwk-acties">'+
-        (S.inWacht?'<button class="btn" onclick="fwkUitWacht()">Weer oppakken</button>'
-                  :'<button class="btn" onclick="fwkWacht()">In de wacht zetten</button>')+
-        (S.archived?'<button class="btn" onclick="fwkUitArchief()">Uit archief halen</button>'
-                   :'<button class="btn" onclick="fwkAfronden()">Dossier afronden</button>')+
-        (S.test?'':'<button class="btn" onclick="fwkTestAan()">Markeren als testdossier</button>')+
+        (S.inWacht?'<button class="btn ghost" onclick="fwkUitWacht()">Weer oppakken</button>'
+                  :'<button class="btn ghost" onclick="fwkWacht()">In de wacht zetten</button>')+
+        (S.archived?'<button class="btn ghost" onclick="fwkUitArchief()">Uit archief halen</button>'
+                   :'<button class="btn ghost" onclick="fwkAfronden()">Dossier afronden</button>')+
+        (S.test?'':'<button class="btn ghost" onclick="fwkTestAan()">Markeren als testdossier</button>')+
       '</div>';
   }
 
@@ -8709,6 +8814,139 @@ button.hd-cgl:hover{color:var(--teal)}
       '<span>Klant, regels, referenties of datums \u2014 net als in jortt, maar dan hier.</span></div></div>';
   }
 
+  // Onze gegevens op de factuur. Straks komen die uit jortt; nu staan ze vast.
+  var FORWARD = {
+    naam:'Forward Schadeherstel', straat:'De Entree 201', plaats:'1101HG Amsterdam',
+    land:'Nederland', email:'info@forwardschadeherstel.nl', web:'www.forwardschadeherstel.nl',
+    kvk:'76164144', btw:'NL860530644B01', iban:'NL98 INGB 0007 9448 84',
+    tenaamstelling:'Forward Real Estate B.V.'
+  };
+
+  // Hoeveel millimeter een factuurregel in beslag neemt. Elke tekstregel is
+  // 4,45 mm, een lege regel telt ook mee, plus 2,4 boven en 2,6 onder.
+  function regelHoogte(r){
+    return 5 + String(r.omschrijving || '\u2014').split('\n').length * 4.45;
+  }
+
+  // Het A4 zoals de ontvanger het krijgt: ons briefpapier, de indeling van jortt.
+  function factuurVel(f, t){
+    var vervalt = vervalDatum(f);
+    var vervalTekst = vervalt.toLocaleDateString('nl-NL', {day:'numeric', month:'long', year:'numeric'});
+    var dagNL = function(d){
+      var x = new Date(d);
+      return isNaN(x.getTime()) ? '' :
+        ('0'+x.getDate()).slice(-2)+'-'+('0'+(x.getMonth()+1)).slice(-2)+'-'+x.getFullYear();
+    };
+    var regels = (f.regels||[]).filter(function(r){ return r.omschrijving || num(r.prijs); });
+
+    /* ── de bladspiegel van jortt, in millimeters ── */
+    var BOVEN = 47, ONDER = 271;
+    var kopHoogte = 20.8 + 14 + 10 * 4.45;
+    var introHoogte = f.intro ? 12.5 + Math.ceil(String(f.intro).length / 95) * 4.45 : 0;
+    var tabelStart = BOVEN + kopHoogte + introHoogte + 16.5 + 6.9;
+
+    var totRegels = 1 + (f.btwVerlegd ? 1 : Object.keys(t.btw).length) + 1 + (t.korting ? 2 : 0);
+    var staartHoogte = 12 + totRegels * 6.6 + 19 + 19;
+
+    // Regels verdelen over bladen. Wat niet past schuift op.
+    var bladen = [[]], y = tabelStart;
+    regels.forEach(function(r){
+      var hh = regelHoogte(r);
+      if (y + hh > ONDER) { bladen.push([]); y = BOVEN + 6.9; }
+      bladen[bladen.length-1].push(r);
+      y += hh;
+    });
+    if ((y + staartHoogte) > ONDER) bladen.push([]);
+
+    var kop =
+      '<div class="v-top">'+
+        '<div class="v-klant"><b>'+esc(f.aanNaam||'Naam klant')+'</b>'+
+          (f.aanTav?'<br>t.a.v. '+esc(f.aanTav):'')+
+          '<br>'+esc(f.aanStraat||'Straat en huisnummer')+
+          (f.aanExtra?'<br>'+esc(f.aanExtra):'')+
+          '<br>'+esc(((f.aanPostcode||'')+' '+(f.aanPlaats||'')).trim() || 'Postcode Plaats')+'</div>'+
+        '<div class="v-logo"><div class="w">FORWARD</div><div class="s">SCHADEHERSTEL</div>'+
+          '<div class="streep"></div></div>'+
+      '</div>'+
+      '<div class="v-mid">'+
+        '<div class="v-kop"><b>Factuur '+esc(f.nummer || 'nummer volgt')+'</b>'+
+          '<table><tbody>'+
+            '<tr><td>Factuurdatum</td><td>'+dagNL(f.datum)+'</td></tr>'+
+            '<tr><td>Vervaldatum</td><td>'+dagNL(vervalt)+'</td></tr>'+
+            (f.leverMaand?'<tr><td>Leverdatum</td><td>'+maandNaam(f.leverMaand)+
+              (f.leverTot?' t/m '+maandNaam(f.leverTot):'')+'</td></tr>':'')+
+            (f.inkooporder?'<tr><td>Uw kenmerk</td><td>'+esc(f.inkooporder)+'</td></tr>':'')+
+            (f.verkooporder?'<tr><td>Onze referentie</td><td>'+esc(f.verkooporder)+'</td></tr>':'')+
+          '</tbody></table></div>'+
+        '<div class="v-afz"><b>'+esc(FORWARD.naam)+'</b><br>'+esc(FORWARD.straat)+'<br>'+
+          esc(FORWARD.plaats)+'<br>'+esc(FORWARD.land)+
+          '<div class="sp"></div>Email: '+esc(FORWARD.email)+
+          '<div class="sp"></div>KvK: '+esc(FORWARD.kvk)+'<br>Btw: '+esc(FORWARD.btw)+
+          '<br>IBAN: '+esc(FORWARD.iban)+'</div>'+
+      '</div>'+
+      (f.intro?'<div class="v-intro">'+esc(f.intro)+'</div>':'');
+
+    function tabel(deel, eerste){
+      if (!deel.length) return '';
+      return '<table class="v-tab'+(eerste?'':' verder')+'">'+
+        '<colgroup><col class="c1"><col class="c2"><col class="c3"><col class="c4"><col class="c5"></colgroup>'+
+        '<thead><tr><th>Omschrijving</th><th>Aantal</th>'+
+        '<th>Bedrag '+(f.bedragenIncl?'incl.':'ex.')+' btw</th><th>Btw</th>'+
+        '<th>Totaal '+(f.bedragenIncl?'incl.':'ex.')+' btw</th></tr></thead><tbody>'+
+        deel.map(function(r){
+          return '<tr><td>'+esc(r.omschrijving||'\u2014').replace(/\n/g,'<br>')+'</td><td>'+esc(r.aantal)+'</td>'+
+            '<td>'+eur2(num(r.prijs))+'</td>'+
+            '<td>'+(f.btwVerlegd?'verlegd':num(r.btw)+'%')+'</td>'+
+            '<td>'+eur2(num(r.aantal)*num(r.prijs))+'</td></tr>';
+        }).join('')+
+      '</tbody></table>';
+    }
+
+    var staart =
+      '<table class="v-tot"><tbody>'+
+        (t.korting
+          ? '<tr><td>Subtotaal</td><td>'+eur2((t.sub + t.korting)/100)+'</td></tr>'+
+            '<tr><td>'+esc((f.korting&&f.korting.omschrijving)||'Korting')+
+            '</td><td>\u2212'+eur2(t.korting/100)+'</td></tr>'
+          : '')+
+        '<tr><td>Subtotaal</td><td>'+eur2(t.sub/100)+'</td></tr>'+
+        (f.btwVerlegd
+          ? '<tr><td>Btw</td><td>verlegd</td></tr>'
+          : Object.keys(t.btw).sort().reverse().map(function(k){
+              return '<tr><td>Totaal btw '+k+'%</td><td>'+eur2(t.btw[k]/100)+'</td></tr>'; }).join(''))+
+        '<tr class="eind"><td>Totaal incl. btw</td><td>'+eur2(t.totaal/100)+'</td></tr>'+
+      '</tbody></table>'+
+      '<div class="v-betaalrij">'+
+        '<div class="v-qrblok"><div class="v-qr"></div>'+
+          '<div class="v-app">Betaal met ING,<br>Knab of bunq app</div></div>'+
+        '<div class="v-betaal">Wij verzoeken u het bedrag van <b>'+eur2(t.totaal/100)+
+        '</b> voor uiterlijk <b>'+vervalTekst+'</b> over te maken naar rekeningnummer <b>'+
+        esc(FORWARD.iban)+'</b> ten name van <b>'+esc(FORWARD.tenaamstelling)+
+        '</b> onder vermelding van het factuurnummer <b>'+esc(f.nummer||'\u2014')+'</b>.</div>'+
+      '</div>'+
+      (f.notitie?'<div class="v-notitie">'+esc(f.notitie)+'</div>':'')+
+      (f.btwVerlegd?'<div class="v-notitie">Btw verlegd op grond van artikel 12 lid 5 Wet OB.</div>':'');
+
+    var voet = '<div class="v-voet"><span>'+esc(FORWARD.web)+'</span><span>KvK: '+esc(FORWARD.kvk)+
+      '</span><span>Btw: '+esc(FORWARD.btw)+'</span><span>IBAN: '+esc(FORWARD.iban)+'</span></div>';
+
+    var vellen = bladen.map(function(deel, i){
+      var laatste = i === bladen.length - 1;
+      return '<div class="hd-vel'+(i?' vervolg':'')+'">'+
+        '<div class="hd-vel-kolom"><i class="teal"></i><i class="navy"></i></div>'+
+        (i === 0 ? kop : '')+
+        tabel(deel, i === 0)+
+        (laatste ? staart : '')+
+        voet+
+        (bladen.length > 1 ? '<div class="v-blad">'+(i+1)+' van '+bladen.length+'</div>' : '')+
+      '</div>';
+    }).join('');
+
+    return '<div class="hd-fnoot" style="margin:0 0 8px">Zo verstuurt jortt hem \u2014 op ware grootte, '+
+      'A4 met dezelfde marges'+(bladen.length>1?', verdeeld over '+bladen.length+' pagina\u2019s':'')+'.</div>'+
+      '<div class="hd-velwrap">'+vellen+'</div>';
+  }
+
   function tekenFactuur(){
     var f = factuurNu();
     if (!f) { factuurId = null; teken(); return; }
@@ -8751,6 +8989,8 @@ button.hd-cgl:hover{color:var(--teal)}
     if (f.status === 'betaald')
       x += '<div class="fwk-blok" style="background:var(--green-soft);color:#12704A">'+svg(I.vink)+
         '<span><b>Betaald</b>'+(f.betaaldAt?' op '+dag(f.betaaldAt):'')+'.</span></div>';
+
+    if (factuurVoor) x += factuurVel(f, t);
 
     /* ── links de samenvatting, rechts het invulpaneel ── */
     x += '<div class="hd-fbouw">';
