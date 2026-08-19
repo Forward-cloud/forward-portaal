@@ -157,6 +157,7 @@ function schadeForUser(s, user) {
 
     uitvoeringAt: s.uitvoeringAt,
     gefactureerd: s.gefactureerd,
+    gefactureerdAt: s.gefactureerdAt,
 
     ingediendAt: s.ingediendAt,
     docVisible: s.docVisible || {},
