@@ -162,6 +162,7 @@ model Schade {
   test           Boolean   @default(false)
   machtigingen   Machtiging[]
 
+  bronAanbodAt   DateTime? // wanneer wij het bronherstel hebben aangevraagd
   bronStatus     String    @default("nvt")
   bronBeoordeeld Boolean   @default(false) // pas na beoordelen kleurt de kaart rood
   bronAanbod     String?   // prijs | mandaat -- wij boden aan de bron zelf op te lossen
