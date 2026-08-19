@@ -19,20 +19,34 @@ const PDOK = process.env.PDOK_URL
 
 const schoonPc = (v) => String(v || '').toUpperCase().replace(/[^0-9A-Z]/g, '');
 const schoonNr = (v) => String(v || '').trim();
+// Voor het vergelijken: 147-3, 147 3 en 1473 zijn hetzelfde huisnummer.
+const kaalNr = (v) => String(v || '').toUpperCase().replace(/[^0-9A-Z]/g, '');
+
+/* Het huisnummer in elkaar zetten. Nederland kent twee soorten toevoegingen
+   en die schrijf je verschillend:
+     huisletter            plakt vast aan het nummer      12 + A   -> 12A
+     huisnummertoevoeging  komt achter een streepje       147 + 3  -> 147-3
+   Alles aan elkaar plakken maakt van 147-3 een 1473, en dat is een ander pand. */
+function bouwNummer(doc) {
+  const nr = doc.huisnummer === undefined || doc.huisnummer === null ? '' : String(doc.huisnummer).trim();
+  const letter = String(doc.huisletter || '').trim();
+  const toev = String(doc.huisnummertoevoeging || '').trim();
+  return (nr + letter + (toev ? `-${toev}` : '')).trim();
+}
 
 // PDOK levert 'Weena 100, 3012CM Rotterdam' als één regel plus losse velden.
 function uitPdok(doc) {
   if (!doc) return null;
   const straat = doc.straatnaam || '';
-  const nummer = [doc.huisnummer, doc.huisletter, doc.huisnummertoevoeging]
-    .filter((x) => x !== undefined && x !== null && String(x).trim() !== '')
-    .join('');
+  const nummer = bouwNummer(doc);
+  // De weergavenaam is PDOK's eigen schrijfwijze; die is leidend als hij er is.
+  const uitNaam = String(doc.weergavenaam || '').split(',')[0].trim();
   const postcode = doc.postcode
     ? `${String(doc.postcode).slice(0, 4)} ${String(doc.postcode).slice(4)}`.trim()
     : null;
   return {
     gevonden: true,
-    adres: [straat, nummer].filter(Boolean).join(' ').trim() || null,
+    adres: uitNaam || [straat, nummer].filter(Boolean).join(' ').trim() || null,
     straat: straat || null,
     huisnummer: nummer || null,
     postcode,
@@ -86,9 +100,20 @@ router.get('/adres', async (req, res) => {
     let beste = gevonden[0];
     if (pc && nr) {
       const exact = gevonden.find(
-        (a) => schoonPc(a.postcode) === pc && String(a.huisnummer).toUpperCase() === nr.toUpperCase()
+        (a) => schoonPc(a.postcode) === pc && kaalNr(a.huisnummer) === kaalNr(nr)
       );
       if (exact) beste = exact;
+      // Geen exacte treffer, maar wel iets op dezelfde postcode: dan is het
+      // huisnummer waarschijnlijk verkeerd. Dat zeggen we liever dan dat we
+      // stilzwijgend het verkeerde pand invullen.
+      else if (gevonden.length) {
+        return res.json({
+          gevonden: false,
+          boodschap: `Huisnummer ${nr} bestaat niet op ${pc.slice(0, 4)} ${pc.slice(4)}. `
+                   + `Bedoelde je ${gevonden.map((a) => a.huisnummer).filter(Boolean).slice(0, 4).join(', ')}?`,
+          alternatieven: gevonden.slice(0, 5),
+        });
+      }
     }
 
     res.json({ gevonden: true, adres: beste, alternatieven: gevonden.slice(0, 5) });

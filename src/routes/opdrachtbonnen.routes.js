@@ -14,19 +14,9 @@ function verloop(bon, wat, detail) {
   return lijst;
 }
 
-const VAKKEN = {
-  droging: 'Drogen en meten',
-  loodgieter: 'Loodgieterswerk',
-  dak: 'Dakwerk',
-  stuc: 'Stucwerk',
-  tegel: 'Tegelwerk',
-  schilder: 'Schilderwerk',
-  vloer: 'Vloeren',
-  timmer: 'Timmerwerk',
-  elektra: 'Elektra',
-  schoonmaak: 'Schoonmaak',
-  overig: 'Overig',
-};
+// Eén lijst voor het hele portaal; zie src/lib/categorieen.js.
+const cat = require('../lib/categorieen');
+const VAKKEN = cat.CATEGORIEEN;
 
 const BTWVORMEN = {
   excl: 'Bedragen exclusief btw',
@@ -126,7 +116,7 @@ router.post('/schades/:nummer/opdrachtbonnen', async (req, res) => {
       prijsvorm: PRIJSVORMEN[b.prijsvorm] ? b.prijsvorm : 'vast',
       uurtarief: b.uurtarief != null ? cent(b.uurtarief) : null,
       maxBedrag: b.maxBedrag != null ? cent(b.maxBedrag) : null,
-      vak: VAKKEN[b.vak] ? b.vak : null,
+      vak: cat.geldig(b.vak) ? cat.normaliseer(b.vak) : null,
       btwVorm: BTWVORMEN[b.btwVorm] ? b.btwVorm : (verlegd ? 'verlegd' : 'excl'),
       btwVerlegd: b.btwVorm ? b.btwVorm === 'verlegd' : verlegd,
       bewonerMee: b.bewonerMee !== false,
@@ -346,7 +336,7 @@ router.post('/opdrachtbonnen/:id/besluit', async (req, res) => {
       data: {
         schadeId: bon.schadeId,
         soort: 'offerte',
-        tekst: `Andere leverancier zoeken voor ${VAKKEN[bon.vak] || 'dit werk'}`,
+        tekst: `Andere leverancier zoeken voor ${cat.label(bon.vak) || 'dit werk'}`,
         klant: false,
         doorNaam: req.user.naam,
       },

@@ -1,6 +1,7 @@
 const express = require('express');
 const prisma = require('../db');
 const { requireAuth, requireDirectie } = require('../auth/middleware');
+const cat = require('../lib/categorieen');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -43,14 +44,33 @@ function schoon(b) {
   // Waar deze leverancier voor gebeld wordt. Zonder vakgebied verschijnt hij
   // niet bij het maken van een opdrachtbon of prijsaanvraag.
   if (b.vakken !== undefined) {
-    d.vakken = (Array.isArray(b.vakken) ? b.vakken : [])
-      .map((v) => String(v || '').trim())
-      .filter(Boolean)
-      .slice(0, 20);
+    // Oude namen worden omgezet, eigen categorieën krijgen een nette sleutel.
+    d.vakken = Array.from(new Set(
+      (Array.isArray(b.vakken) ? b.vakken : [])
+        .map((v) => cat.normaliseer(v))
+        .filter((v) => cat.geldig(v))
+    )).slice(0, 20);
   }
   if (b.btwVerlegd !== undefined) d.btwVerlegd = !!b.btwVerlegd;
   return { data: d };
 }
+
+/* De lijst met categorieën: de vaste lijst plus alles wat er in de praktijk
+   al bij een relatie is gezet. Zo verschijnt een eigen categorie vanzelf bij
+   de volgende partij die je toevoegt. */
+router.get('/categorieen', async (req, res) => {
+  const relaties = await prisma.relatie.findMany({ select: { vakken: true } });
+  const gebruikt = new Set();
+  relaties.forEach((r) => (r.vakken || []).forEach((v) => gebruikt.add(cat.normaliseer(v))));
+
+  const vast = Object.keys(cat.CATEGORIEEN).map((k) => ({ key: k, label: cat.CATEGORIEEN[k], vast: true }));
+  const eigen = Array.from(gebruikt)
+    .filter((k) => !cat.CATEGORIEEN[k] && cat.geldig(k))
+    .sort()
+    .map((k) => ({ key: k, label: cat.label(k), vast: false }));
+
+  res.json({ categorieen: vast.concat(eigen) });
+});
 
 // ?soort=VERZEKERAAR|TUSSENPERSOON   ?q=zoekterm   ?alle=1 (ook inactieve)
 router.get('/', async (req, res) => {

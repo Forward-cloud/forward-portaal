@@ -3,7 +3,7 @@ const express = require('express');
 const prisma = require('../db');
 const { requireAuth } = require('../auth/middleware');
 const { BEDRIJF, PORTAAL } = require('../lib/brieven');
-const { isZakelijk } = require('../lib/haltes');
+const { isZakelijk, soortOpdrachtgever } = require('../lib/haltes');
 
 const router = express.Router();
 
@@ -62,6 +62,42 @@ async function log(user, text, schadeId, detail) {
 // De gegevens die een verzekeraar nodig heeft om ons als gemachtigde te
 // erkennen. Zonder polisnummer en schadedatum komt een dossier niet in
 // behandeling.
+/* Wat er straks op de machtiging komt te staan, zonder dat er iets wordt
+   verstuurd. Het portaal haalt dit op, laat het nalopen en stuurt het terug. */
+router.get('/schades/:nummer/machtiging-velden', async (req, res) => {
+  const s = await prisma.schade.findUnique({
+    where: { nummer: req.params.nummer },
+    include: { verzekeraar: { select: { naam: true } } },
+  });
+  if (!s) return res.status(404).json({ error: 'Dossier niet gevonden' });
+
+  const naarWie = String(req.query.naar || (s.opdrachtgever ? 'beheerder' : 'klant'));
+  const soort = naarWie === 'beheerder' ? 'vve' : soortOpdrachtgever(s);
+
+  res.json({
+    soort,
+    soortLabel: { vve: 'Vereniging van eigenaars', zakelijk: 'Zakelijke klant',
+                  particulier: 'Particulier' }[soort],
+    naarNaam: naarWie === 'beheerder' ? (s.opdrachtgever || s.owner) : s.owner,
+    naarEmail: naarWie === 'beheerder' ? s.beheerderEmail : s.email,
+    artikelen: artikelen(soort, s.opdrachtgever || s.owner).length,
+    gegevens: gegevensBlok(s).map(([label, waarde]) => ({ label, waarde })),
+  });
+});
+
+/* De regels die op de machtiging komen. Het portaal mag ze aanpassen of
+   aanvullen; wij houden alleen tegen wat leeg of onzinnig lang is, en laten
+   regels die met een streepje beginnen niet toe \u2014 die houden wij voor
+   onszelf. */
+function schoonGegevens(aangeleverd, s) {
+  if (!Array.isArray(aangeleverd) || !aangeleverd.length) return gegevensBlok(s);
+  return aangeleverd
+    .map((r) => (Array.isArray(r) ? r : [r && r.label, r && r.waarde]))
+    .map(([l, w]) => [String(l || '').trim().slice(0, 60), String(w == null ? '' : w).trim().slice(0, 300)])
+    .filter(([l, w]) => l && w && !l.startsWith('_'))
+    .slice(0, 30);
+}
+
 function gegevensBlok(s) {
   const r = [];
   r.push(['Opdrachtgever', s.opdrachtgever || s.owner]);
@@ -82,17 +118,26 @@ function gegevensBlok(s) {
 
 // De artikelen. In gewone taal, maar compleet: de klant moet weten waar hij
 // aan toe is, en wij moeten betaald krijgen voor werk dat is gedaan.
-function artikelen(zakelijk, wie) {
+/* soort: 'vve' | 'zakelijk' | 'particulier'
+   Een vereniging heeft een splitsingsreglement en een vergadering; een bedrijf
+   heeft een tekenbevoegde bestuurder; een particulier heeft bedenktijd. */
+function artikelen(soort, wie) {
+  const vereniging = soort === 'vve';
+  const zakelijk = soort !== 'particulier';
   const lijst = [
     ['I', 'Wat u ons opdraagt',
       `U geeft ${BEDRIJF.naam} opdracht om de schade op te nemen, een schaderapport en een ` +
       'herstelbegroting op te stellen, en het dossier bij uw verzekeraar in te dienen. ' +
       'U machtigt ons om daarover met de verzekeraar, de tussenpersoon en de expert te overleggen ' +
       'en stukken op te vragen en te ontvangen. Dit formulier is tegelijk uw opdrachtbevestiging.' +
-      (zakelijk
+      (vereniging
         ? ` Opdrachtgever is ${wie} als rechtspersoon. De opstalverzekering loopt op naam van de ` +
           'vereniging; individuele appartementseigenaars zijn geen partij bij deze opdracht en ' +
           'kunnen daaraan geen rechten of verplichtingen ontlenen.'
+        : zakelijk
+        ? ` Opdrachtgever is ${wie} als rechtspersoon. Gebruikers, huurders of bewoners van het ` +
+          'pand zijn geen partij bij deze opdracht en kunnen daaraan geen rechten of ' +
+          'verplichtingen ontlenen.'
         : '')],
 
     ['II', 'Herstel pas na uw akkoord',
@@ -145,8 +190,10 @@ function artikelen(zakelijk, wie) {
       'gewerkt, en wij helpen u kosteloos met bezwaar bij de verzekeraar. ' +
       'Deze afspraak geldt uitsluitend tussen u en ons: de verzekeraar kan er geen recht aan ' +
       'ontlenen om vergoeding te weigeren, en zij laat de verplichting uit artikel IV onverlet.' +
-      (zakelijk
+      (vereniging
         ? ' De factuur gaat naar de vereniging, niet naar een individuele appartementseigenaar.'
+        : zakelijk
+        ? ` De factuur gaat naar ${wie}, niet naar een gebruiker of bewoner van het pand.`
         : '')],
 
     ['X', 'De uitkering gaat naar u',
@@ -161,16 +208,18 @@ function artikelen(zakelijk, wie) {
       'volgens onze privacyverklaring, en alleen voor deze schade.'],
 
     ['XII', 'Bevoegdheid',
-      zakelijk
+      vereniging
         ? `Ondergetekende verklaart bevoegd te zijn ${wie} rechtsgeldig te vertegenwoordigen, op ` +
           'grond van het splitsingsreglement, een bestuursbesluit, een besluit van de vergadering ' +
           'of een beheerovereenkomst, en binnen het daarin gegeven mandaat te handelen. ' +
           'Is voor deze opdracht een besluit van de vergadering nodig, dan zorgt de vereniging ' +
-          'daarvoor; wij mogen daarvan een afschrift opvragen. Gaat het om schade in een ' +
-          'privégedeelte, dan is de vereniging opdrachtgever voor het deel dat onder de ' +
-          'opstalverzekering valt, en de eigenaar voor het deel dat voor zijn rekening komt, ' +
-          'zoals het eigen risico of schade aan zijn inboedel of afwerking.'
-        : 'Ondergetekende verklaart eigenaar of rechthebbende te zijn en bevoegd deze opdracht te geven.'],
+          'daarvoor; wij mogen erop vertrouwen dat dit is geregeld.'
+        : zakelijk
+        ? `Ondergetekende verklaart bevoegd te zijn ${wie} rechtsgeldig te vertegenwoordigen, ` +
+          'zelfstandig of op grond van een volmacht, en binnen het daarin gegeven mandaat te ' +
+          'handelen. Wij mogen erop vertrouwen dat dit intern is geregeld.'
+        : 'Ondergetekende verklaart eigenaar of rechthebbende te zijn van het pand, of gemachtigd ' +
+          'te zijn namens de eigenaar te handelen.'],
 
     ['XIII', 'Hoe lang dit geldt',
       'Deze opdracht en machtiging lopen tot de schade is afgehandeld: tot het herstel is ' +
@@ -195,12 +244,12 @@ function artikelen(zakelijk, wie) {
 }
 
 // De tekst zoals hij getekend wordt, woordelijk bewaard bij de machtiging.
-function machtigingTekst(s, zakelijk) {
+function machtigingTekst(s, soort) {
   const wie = s.opdrachtgever || s.owner;
   const kop = `Met dit formulier machtigt ${wie} ${BEDRIJF.naam} om de opstalschade namens u te ` +
     'melden, het dossier op te stellen en in te dienen bij uw verzekeraar, en geeft u ons ' +
     'opdracht tot de opname en de rapportage.';
-  const arts = artikelen(zakelijk, wie).map(([n, t, b]) => `${n}. ${t}. ${b}`).join('\n\n');
+  const arts = artikelen(soort, wie).map(([n, t, b]) => `${n}. ${t}. ${b}`).join('\n\n');
   const wij = `Opdrachtnemer: ${BEDRIJF.naam}, ${BEDRIJF.adres}, ${BEDRIJF.postcode} ` +
     `${BEDRIJF.plaats}. KvK ${BEDRIJF.kvk} \u00b7 ${BEDRIJF.email}` +
     (BEDRIJF.telefoon ? ` \u00b7 ${BEDRIJF.telefoon}` : '') + '.';
@@ -364,14 +413,21 @@ router.post('/schades/:nummer/machtigingen', async (req, res) => {
   }
 
   // Naar de beheerder is altijd zakelijk; verder volgt het de soort opdrachtgever.
-  const zakelijk = naarWie === 'beheerder' || isZakelijk(s);
+  // Naar de beheerder is altijd zakelijk; verder volgt het de soort opdrachtgever.
+  const soort = naarWie === 'beheerder' ? 'vve' : soortOpdrachtgever(s);
+  const zakelijk = soort !== 'particulier';
   const m = await prisma.machtiging.create({
     data: {
       schadeId: s.id,
       token: crypto.randomBytes(24).toString('base64url'),
-      tekst: machtigingTekst(s, zakelijk),
+      tekst: machtigingTekst(s, soort),
       gegevens: gegevensBlok(s),
       zakelijk,
+      // De soort woordelijk bewaren, zodat het stuk ook over een jaar nog
+      // precies zo wordt weergegeven als de klant het heeft getekend.
+      // Wat het portaal meestuurt is leidend: daar heb je de regels nagelopen,
+      // aangepast of aangevuld. Zonder meegestuurde regels vullen wij ze zelf.
+      gegevens: schoonGegevens(req.body?.gegevens, s).concat([['_soort', soort]]),
       naarNaam: naam,
       naarEmail: email,
       kanaal: req.body?.kanaal === 'app' ? 'app' : 'mail',
@@ -406,7 +462,8 @@ router.get('/schades/:nummer/machtiging-proef', async (req, res) => {
   const naarWie = String(req.query.naar || (s.opdrachtgever ? 'beheerder' : 'klant'));
   const naam = naarWie === 'beheerder' ? (s.opdrachtgever || s.owner) : s.owner;
   // Naar de beheerder is altijd zakelijk; verder volgt het de soort opdrachtgever.
-  const zakelijk = naarWie === 'beheerder' || isZakelijk(s);
+  const soort = naarWie === 'beheerder' ? 'vve' : soortOpdrachtgever(s);
+  const zakelijk = soort !== 'particulier';
 
   // Een machtiging die alleen in het geheugen bestaat.
   const m = {
@@ -414,8 +471,10 @@ router.get('/schades/:nummer/machtiging-proef', async (req, res) => {
     schadeId: s.id,
     schade: { nummer: s.nummer, adres: s.adres, plaats: s.plaats, owner: s.owner },
     token: 'proef',
-    tekst: machtigingTekst(s, zakelijk),
-    gegevens: gegevensBlok(s),
+    tekst: machtigingTekst(s, soort),
+    // De soort meegeven, anders valt het stuk terug op het oude onderscheid
+    // en krijgt een bedrijf de tekst van een vereniging.
+    gegevens: gegevensBlok(s).concat([['_soort', soort]]),
     zakelijk,
     naarNaam: naam,
     naarEmail: naarWie === 'beheerder' ? s.beheerderEmail : s.email,
@@ -594,7 +653,11 @@ function veld(label, waarde, vol) {
 function artikelenBlok(m) {
   const rijen = Array.isArray(m.gegevens) ? m.gegevens : [];
   const wie = (rijen.find((r) => r[0] === 'Opdrachtgever') || [])[1] || m.naarNaam || 'de opdrachtgever';
-  return artikelen(!!m.zakelijk, wie).map(([n, t, b]) =>
+  // De bewaarde soort staat in de gegevens; ontbreekt hij bij een oude
+  // machtiging, dan vallen we terug op het oude onderscheid.
+  const bewaard = (rijen.find((r) => r[0] === '_soort') || [])[1];
+  const soort = bewaard || (m.zakelijk ? 'vve' : 'particulier');
+  return artikelen(soort, wie).map(([n, t, b]) =>
     `<div class="clause"><div class="num">${escH(n)}</div>` +
     `<div class="body"><b>${escH(t)}.</b> ${escH(b)}</div></div>`
   ).join('') +
@@ -617,8 +680,12 @@ function pagina({ m, fout, alleenLezen, proef }) {
     return `${kop}<div class="pad"><h1>Machtiging</h1><p class="lede">${escH(fout)}</p></div>${voet}`;
   }
 
-  const g = Object.fromEntries((Array.isArray(m.gegevens) ? m.gegevens : []).map((r) => [r[0], r[1]]));
-  const zakelijk = !!m.zakelijk;
+  const alleRijen = Array.isArray(m.gegevens) ? m.gegevens : [];
+  const g = Object.fromEntries(alleRijen.map((r) => [r[0], r[1]]));
+  // Regels die met een liggend streepje beginnen zijn voor ons, niet voor op het stuk.
+  const zichtbaar = alleRijen.filter((r) => !String(r[0] || '').startsWith('_'));
+  const soort = g['_soort'] || (m.zakelijk ? 'vve' : 'particulier');
+  const zakelijk = soort !== 'particulier';
   const getekend = m.status === 'getekend';
 
   const hoofd = `<div class="head">${VORM_LOGO}
@@ -631,8 +698,10 @@ function pagina({ m, fout, alleenLezen, proef }) {
 
   const gegevens = `
     <div class="section s1"><h2>De opdrachtgever</h2>
-      <div class="seg"><button type="button" class="${zakelijk ? 'on' : ''}">VvE</button>
-        <button type="button" class="${zakelijk ? '' : 'on'}">Particulier eigenaar</button></div>
+      <div class="seg">
+        <button type="button" class="${soort === 'vve' ? 'on' : ''}">VvE</button>
+        <button type="button" class="${soort === 'zakelijk' ? 'on' : ''}">Zakelijke klant</button>
+        <button type="button" class="${soort === 'particulier' ? 'on' : ''}">Particulier eigenaar</button></div>
       <div class="grid">
         ${veld('Naam', g['Opdrachtgever'], true)}
         ${g['Eigenaar'] ? veld('Eigenaar', g['Eigenaar'], true) : ''}
@@ -649,6 +718,15 @@ function pagina({ m, fout, alleenLezen, proef }) {
         ${veld('Tussenpersoon (indien van toepassing)', g['Tussenpersoon'], true)}
         ${veld('Tarief schade-opname', g['Tarief schade-opname'])}
         ${veld('Tarief rapportage', g['Tarief rapportage'])}
+        ${zichtbaar
+          .filter(([l]) => ![
+            'Opdrachtgever', 'Eigenaar', 'Schadelocatie', 'Schadedatum',
+            'Schadenummer Forward', 'Verzekeraar', 'Polisnummer',
+            'Schadenummer verzekeraar', 'Tussenpersoon', 'Opdrachtnummer', 'Oorzaak',
+            'Tarief schade-opname', 'Tarief rapportage',
+          ].includes(l))
+          .map(([l, w]) => veld(l, w))
+          .join('')}
       </div>
     </div>
 
