@@ -177,6 +177,8 @@ model Schade {
 
   uitvoeringAt DateTime?
   gefactureerd Boolean   @default(false)
+  // Wanneer er is gefactureerd. Staat op de kaart Financieel.
+  gefactureerdAt DateTime?
 
   finExpertiseOmzet    Int @default(0)
   finHerstelOmzet      Int @default(0)
