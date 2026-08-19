@@ -239,7 +239,37 @@ const ACTIEPUNTEN = {
   klant:       { klant: false },
 };
 
+/* ─────────── soort opdrachtgever ───────────
+   Drie soorten, en twee vragen die daaruit volgen:
+   is het een rechtspersoon (dan factureren wij op naam van het bedrijf en
+   geldt er geen bedenktijd), en is het een vereniging (dan is er een bestuur
+   dat namens de leden tekent). Overal dezelfde regel, zodat de machtiging,
+   de factuur en de contactkaart niet uit elkaar kunnen lopen. */
+const OPDRACHTGEVER_SOORTEN = {
+  vve: 'Vereniging van eigenaars',
+  zakelijk: 'Zakelijke klant',
+  particulier: 'Particulier',
+};
+
+// Valt terug op het oude gedrag: staat er een beheerkantoor, dan is het zakelijk.
+function soortOpdrachtgever(s) {
+  const t = String((s && s.opdrachtgeverType) || '');
+  if (OPDRACHTGEVER_SOORTEN[t]) return t;
+  return s && s.opdrachtgever ? 'vve' : 'particulier';
+}
+
+// Rechtspersoon: bedrijf op de factuur, geen bedenktijd in de machtiging.
+function isZakelijk(s) {
+  return soortOpdrachtgever(s) !== 'particulier';
+}
+
+// Vereniging: er is een bestuur dat namens de leden tekent.
+function isVereniging(s) {
+  return soortOpdrachtgever(s) === 'vve';
+}
+
 module.exports = {
+  OPDRACHTGEVER_SOORTEN, soortOpdrachtgever, isZakelijk, isVereniging,
   VERSIE, HALTES, VERZ_STATUS, OFFERTE_STATUS, VAST, BRON, PRESETS, BRON_STATUS,
   HALTES_EIGEN_RISICO, ACTIEPUNTEN,
   haltesVoorPreset, normaliseerHaltes, volgendeHalte, isAfgerond, positie,

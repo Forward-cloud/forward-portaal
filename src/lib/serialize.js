@@ -29,15 +29,10 @@ function schadeForUser(s, user) {
     ins: s.ins,
     verzekeraarId: s.verzekeraarId,
     tussenpersoonId: s.tussenpersoonId,
-    verzekeraar: s.verzekeraar
-      ? { id: s.verzekeraar.id, naam: s.verzekeraar.naam, email: s.verzekeraar.email,
-          telefoon: s.verzekeraar.telefoon, contactpersoon: s.verzekeraar.contactpersoon,
-          reactietermijn: s.verzekeraar.reactietermijn }
-      : null,
-    tussenpersoonRel: s.tussenpersoonRel
-      ? { id: s.tussenpersoonRel.id, naam: s.tussenpersoonRel.naam,
-          email: s.tussenpersoonRel.email, telefoon: s.tussenpersoonRel.telefoon }
-      : null,
+    // Alles wat in het relatiebestand staat gaat mee, zodat de contactkaart
+    // laat zien wat er bekend is in plaats van alleen de naam.
+    verzekeraar: s.verzekeraar ? relatieVoorKaart(s.verzekeraar) : null,
+    tussenpersoonRel: s.tussenpersoonRel ? relatieVoorKaart(s.tussenpersoonRel) : null,
     amount: s.amount,
     status: s.status,
     step: s.step,
@@ -201,6 +196,26 @@ function schadeForUser(s, user) {
 
 // Dossier zoals de KLANT het mag zien — nooit financiën, nooit de wachtstand,
 // nooit het opdrachtnummer van de beheerder, alleen vrijgegeven documenten.
+// Wat er van een verzekeraar of tussenpersoon op de kaart mag komen.
+function relatieVoorKaart(r) {
+  return {
+    id: r.id,
+    naam: r.naam,
+    soort: r.soort,
+    email: r.email,
+    telefoon: r.telefoon,
+    contactpersoon: r.contactpersoon,
+    adres: r.adres,
+    postcode: r.postcode,
+    plaats: r.plaats,
+    website: r.website,
+    // Extra adressen zoals een aparte schademeldbox: [{ label, email }]
+    contacten: Array.isArray(r.contacten) ? r.contacten : [],
+    reactietermijn: r.reactietermijn,
+    notitie: r.notitie,
+  };
+}
+
 function schadeForClient(s) {
   const dv = s.docVisible || {};
   const documents = DOCS.filter((d) => dv[d.key]).map((d) => ({ naam: d.naam, ico: d.ico, kleur: d.kleur }));
