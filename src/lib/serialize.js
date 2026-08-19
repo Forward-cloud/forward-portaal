@@ -73,6 +73,7 @@ function schadeForUser(s, user) {
     postcode: s.postcode,
     bewonerSoort: s.bewonerSoort,
     contactpersoon: s.contactpersoon,
+    notitie: s.notitie,
     locaties: (s.locaties || []).map((l) => ({
       id: l.id, adres: l.adres, postcode: l.postcode, plaats: l.plaats, aanduiding: l.aanduiding,
       bewoner: l.bewoner, bewonerSoort: l.bewonerSoort, telefoon: l.telefoon, email: l.email,
