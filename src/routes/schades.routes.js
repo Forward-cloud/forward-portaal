@@ -269,7 +269,10 @@ router.patch('/:nummer', async (req, res) => {
   if (b.herinnerDagen !== undefined) {
     data.herinnerDagen = Math.max(1, Math.min(Number(b.herinnerDagen) || 7, 60));
   }
-  if (b.gefactureerd !== undefined) data.gefactureerd = !!b.gefactureerd;
+  if (b.gefactureerd !== undefined) {
+    data.gefactureerd = !!b.gefactureerd;
+    data.gefactureerdAt = b.gefactureerd ? new Date() : null;
+  }
   if (b.uitvoeringAt !== undefined) data.uitvoeringAt = datum(b.uitvoeringAt);
   if (b.opnameAt !== undefined) data.opnameAt = datum(b.opnameAt);
   if (b.schadedatum !== undefined) data.schadedatum = datum(b.schadedatum);
