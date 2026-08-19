@@ -27,6 +27,23 @@ const escH = (v) =>
 const langeDatum = (d) =>
   new Date(d).toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' });
 
+// Een machtiging is ook post. Leg hem vast als verzending, zodat hij in het
+// tabblad Correspondentie staat naast de brieven en de bonnen.
+async function alsCorrespondentie(m, schadeId, doorNaam, wat) {
+  await prisma.verzending.create({
+    data: {
+      schadeId,
+      soort: 'machtiging',
+      naar: [m.naarEmail].filter(Boolean),
+      onderwerp: wat || 'Machtiging ter ondertekening',
+      tekst: m.tekst,
+      documentIds: [],
+      status: 'klaar',
+      doorNaam: doorNaam || 'Portaal',
+    },
+  }).catch(() => {});
+}
+
 async function log(user, text, schadeId, detail) {
   await prisma.logEntry.create({
     data: {
@@ -267,6 +284,7 @@ router.post('/machtiging/:token/tekenen', express.json({ limit: '2mb' }), async 
     data: { open: false, afgerondAt: new Date() },
   });
 
+  await alsCorrespondentie(m, m.schadeId, naam, 'Machtiging getekend door de klant');
   await log(null, 'Machtiging getekend', m.schadeId,
     `${naam}${functie ? ', ' + functie : ''}${plaats ? ' te ' + plaats : ''}`);
 
@@ -339,6 +357,7 @@ router.post('/schades/:nummer/machtigingen', async (req, res) => {
       where: { id: bestaat.id },
       data: { verstuurdAt: new Date(), herinneringen: { increment: 1 }, herinnerdAt: new Date() },
     });
+    await alsCorrespondentie(uit, s.id, req.user.naam, 'Machtiging opnieuw verstuurd');
     await log(req.user, 'Machtiging opnieuw verstuurd', s.id, naam);
     return res.json({ machtiging: { ...uit, handtekening: undefined, link: `${PORTAAL}/machtiging/${uit.token}` }, opnieuw: true });
   }
@@ -367,6 +386,7 @@ router.post('/schades/:nummer/machtigingen', async (req, res) => {
     data: { schadeId: s.id, soort: 'machtiging', tekst, klant: true, doorNaam: req.user.naam },
   });
 
+  await alsCorrespondentie(m, s.id, req.user.naam, 'Machtiging ter ondertekening');
   await log(req.user, 'Machtiging verstuurd', s.id, `${naam} \u00b7 ${email}`);
   res.status(201).json({ machtiging: { ...m, handtekening: undefined, link: `${PORTAAL}/machtiging/${m.token}` } });
 });
@@ -391,6 +411,8 @@ router.post('/machtigingen/:id/herinneren', async (req, res) => {
     where: { id: m.id },
     data: { herinneringen: { increment: 1 }, herinnerdAt: new Date() },
   });
+  await alsCorrespondentie(uit, m.schadeId, req.user.naam,
+    `${uit.herinneringen}e herinnering \u2014 machtiging nog niet getekend`);
   await log(req.user, `${uit.herinneringen}e herinnering machtiging verstuurd`, m.schadeId,
     `${m.naarNaam} \u00b7 ${m.status === 'geopend' ? 'wel geopend, niet getekend' : 'nog niet geopend'}`);
 

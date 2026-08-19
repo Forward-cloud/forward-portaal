@@ -546,7 +546,8 @@ router.post('/:nummer/bronaanbod', async (req, res) => {
 
   const s = await prisma.schade.update({
     where: { nummer: req.params.nummer },
-    data: { bronAanbod: vorm === 'geen' ? null : vorm },
+    data: { bronAanbod: vorm === 'geen' ? null : vorm, bronAanbodAt: new Date() },
+    include: { verzekeraar: true },
   }).catch(() => null);
   if (!s) return res.status(404).json({ error: 'Dossier niet gevonden' });
 
@@ -565,6 +566,31 @@ router.post('/:nummer/bronaanbod', async (req, res) => {
 
   const erbij = vorm === 'prijs' ? ' \u00b7 met aanbod, prijsopgave vooraf'
     : vorm === 'mandaat' ? ' \u00b7 met aanbod tegen mandaat' : '';
+
+  // Ook in het tabblad Correspondentie, zodat je terug kunt zien wat er is
+  // gevraagd en aan wie.
+  await prisma.verzending.create({
+    data: {
+      schadeId: s.id,
+      soort: 'bron',
+      naar: [s.beheerderEmail || s.email].filter(Boolean),
+      onderwerp: `Verzoek om bronherstel \u2014 ${naar}`,
+      tekst: [
+        `Aan ${naar},`,
+        wat || 'Wij verzoeken u het bronherstel te laten uitvoeren.',
+        vorm === 'prijs'
+          ? 'Wij kunnen dit ook zelf oppakken. Laat het weten, dan sturen wij eerst een prijsopgave.'
+          : vorm === 'mandaat'
+            ? 'Wij kunnen dit ook zelf oppakken tegen een mandaat, zodat er geen tijd verloren gaat.'
+            : '',
+        'Zolang de bron niet is hersteld kunnen wij het herstel niet afronden.',
+      ].filter(Boolean).join('\n\n'),
+      documentIds: [],
+      status: 'klaar',
+      doorNaam: req.user.naam,
+    },
+  }).catch(() => {});
+
   await log(req.user, `Bronherstel aangevraagd bij ${naar}`, { schadeId: s.id, detail: wat + erbij });
 
   res.json({ schade: schadeForUser(s, req.user) });
