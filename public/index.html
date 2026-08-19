@@ -6681,9 +6681,16 @@ button.hd-cgl:hover .w{text-decoration:underline}
       titel:'Verzekeraar van dit dossier',
       uitleg:'Kies wie de schade behandelt. Staat de partij er nog niet bij, typ dan de naam \u2014 '+
              'die maken wij meteen aan.',
-      velden:[
+      // Kies je een andere maatschappij, dan horen de voorbeeldteksten eronder
+      // die van die maatschappij te zijn.
+      velden: function(w){
+        var gekozen = alleVerz.filter(function(r){
+          return r.id === (w.verz !== undefined ? w.verz : (S.verzekeraarId||''));
+        })[0] || (w.verz === undefined ? verzNu : null);
+        return [
         {groep:'Welke maatschappij', groepNoot:'uit het relatiebestand',
-         naam:'verz',label:'Verzekeraar',type:'keuze',waarde:S.verzekeraarId||'',
+         naam:'verz',label:'Verzekeraar',type:'keuze',stuurt:true,
+         waarde: w.verz !== undefined ? w.verz : (S.verzekeraarId||''),
          opties:[['','Geen']].concat(alleVerz.map(function(r){ return [r.id, r.naam]; }))},
         {groep:'Welke maatschappij',
          naam:'nieuwV',label:'Of typ een nieuwe verzekeraar',plaats:'Leeg laten als je hierboven koos'},
@@ -6701,14 +6708,15 @@ button.hd-cgl:hover .w{text-decoration:underline}
         // dan geldt dat alleen voor dit dossier.
         {groep:'Afwijkend voor dit dossier', groepNoot:'leeg = uit het relatiebestand',
          naam:'vcontact',label:'Contactpersoon',waarde:S.verzContactpersoon||'',
-         plaats: verzNu && verzNu.contactpersoon ? verzNu.contactpersoon : 'niet bekend'},
+         plaats: gekozen && gekozen.contactpersoon ? gekozen.contactpersoon : 'niet bekend'},
         {groep:'Afwijkend voor dit dossier',
          naam:'vmail',label:'Schademelding naar',waarde:S.verzEmail||'',
-         plaats: verzNu && verzNu.email ? verzNu.email : 'niet bekend'},
+         plaats: gekozen && gekozen.email ? gekozen.email : 'niet bekend'},
         {groep:'Afwijkend voor dit dossier',
          naam:'vtel',label:'Telefoon',waarde:S.verzTelefoon||'',
-         plaats: verzNu && verzNu.telefoon ? verzNu.telefoon : 'niet bekend'}
-      ],
+         plaats: gekozen && gekozen.telefoon ? gekozen.telefoon : 'niet bekend'}
+        ];
+      },
       ok:'Opslaan'
     }).then(function(r){
       if (!r) return;
@@ -6767,26 +6775,25 @@ button.hd-cgl:hover .w{text-decoration:underline}
     });
   };
   window.fwkOpdrachtgever = function(){
-    var vve = ogVereniging(), zak = ogZakelijk();
-    window.fwVraag({
-      titel:'Opdrachtgever',
-      uitleg: vve
-        ? 'De vereniging geeft de opdracht. Facturen gaan naar het factuuradres; '+
-          'gewone post naar de contactpersoon.'
-        : zak
-        ? 'Een bedrijf, stichting of belegger geeft de opdracht. De factuur komt op naam '+
-          'van de organisatie; er geldt geen bedenktijd zoals bij een particulier.'
-        : 'De eigenaar geeft zelf de opdracht. Laat u de onderste velden leeg, dan '+
-          'gebruiken wij overal het e-mailadres hierboven.',
-      velden:[
+    // De labels hangen af van de soort die je hierin kiest, niet van wat er nu
+    // in het dossier staat. Daarom leveren we de velden als functie: kies je
+    // een andere soort, dan tekent het venster zichzelf opnieuw.
+    function velden(w){
+      var soort = w.soort || ogSoort();
+      var vve = soort === 'vve', zak = soort !== 'particulier';
+      return [
         {groep:'Wie is de opdrachtgever', groepNoot:'verplicht',
-         naam:'soort',label:'Wat voor opdrachtgever?',type:'keuze',
-         waarde:ogSoort(), opties:OG_SOORTEN},
+         naam:'soort',label:'Wat voor opdrachtgever?',type:'keuze',stuurt:true,
+         waarde:soort, opties:OG_SOORTEN},
         {groep:'Wie is de opdrachtgever',
          naam:'naam',label: vve?'Naam vereniging':(zak?'Bedrijfsnaam':'Naam eigenaar'),
-         waarde:S.owner||'',verplicht:'Vul een naam in.'},
+         waarde:S.owner||'',verplicht:'Vul een naam in.',
+         plaats: vve?'VvE Voorbeeldstraat 1 t/m 20'
+               : zak?'Voorbeeld Vastgoed B.V.':'Fam. de Vries'},
         {groep:'Wie is de opdrachtgever',
-         naam:'contact',label:'Contactpersoon',waarde:S.contactpersoon||'',
+         naam:'contact',label: vve?'Contactpersoon namens de vereniging'
+                              :(zak?'Contactpersoon bij het bedrijf':'Contactpersoon'),
+         waarde:S.contactpersoon||'',
          plaats:'wie wij bellen en wie op de brieven staat'},
 
         {groep:'Bereikbaarheid', groepNoot:'telefoon mag leeg',
@@ -6804,9 +6811,26 @@ button.hd-cgl:hover .w{text-decoration:underline}
          plaats: vve?'bijvoorbeeld administratie@beheerder.nl'
                : zak?'bijvoorbeeld crediteuren@bedrijfsnaam.nl':''},
         {groep:'Facturen',
-         naam:'opdrachtnr',label:'Ons opdrachtnummer bij de opdrachtgever',
+         naam:'opdrachtnr',
+         label: zak?'Ons opdrachtnummer bij de opdrachtgever':'Uw kenmerk',
          waarde:S.opdrachtnummer||'', plaats:'komt op de factuur als uw kenmerk'}
-      ],
+      ];
+    }
+
+    window.fwVraag({
+      titel:'Opdrachtgever',
+      uitleg: function(w){
+        var soort = w.soort || ogSoort();
+        return soort === 'vve'
+          ? 'De vereniging geeft de opdracht. Facturen gaan naar het factuuradres; '+
+            'gewone post naar de contactpersoon.'
+          : soort === 'zakelijk'
+          ? 'Een bedrijf, stichting of belegger geeft de opdracht. De factuur komt op naam '+
+            'van de organisatie; er geldt geen bedenktijd zoals bij een particulier.'
+          : 'De eigenaar geeft zelf de opdracht. Laat u de onderste velden leeg, dan '+
+            'gebruiken wij overal het e-mailadres hierboven.';
+      },
+      velden: velden,
       ok:'Opslaan'
     }).then(function(r){
       if (!r) return;
@@ -6960,7 +6984,10 @@ button.hd-cgl:hover .w{text-decoration:underline}
     if (t.indexOf(',') > -1) t = t.replace(/\./g, '').replace(',', '.');
     return Number(t) || 0;
   }
-  function kb(n){ return n > 1048576 ? (n/1048576).toFixed(1)+' MB' : Math.round((n||0)/1024)+' kB'; }
+  // Boven een megabyte in MB, met een komma zoals wij het schrijven.
+  function kb(n){ n = Number(n)||0;
+    return n > 1048576 ? (n/1048576).toFixed(1).replace('.',',')+' MB'
+                       : Math.max(1, Math.round(n/1024))+' kB'; }
   function levVoorVak(vak){
     if (!vak) return [];
     return levs.filter(function(l){ return (l.vakken||[]).indexOf(vak) > -1; });
@@ -8257,50 +8284,53 @@ button.hd-cgl:hover .w{text-decoration:underline}
     var getekend = m.status === 'getekend';
     if (klant && !getekend) return '';
 
-    // Wat er is verstuurd kun je altijd inzien en bewaren, ook zolang er nog
-    // niet getekend is. Dan staat erbij of hij hem geopend heeft.
+    // Zelfde vorm als de andere documenten in dit tabblad: pictogram, naam,
+    // een regel met de stand eronder, en de knoppen rechts.
     var stuk = '/api/machtigingen/'+esc(m.id)+'/document';
+    var laat = !getekend && m.dagenStil >= (m.herinnerDagen||3);
 
-    return '<div class="fwk-doc'+(getekend?'':' wacht')+'">'+
-      '<div class="fwk-dico">'+svg(I.pen)+'</div>'+
+    var meta = getekend
+      ? esc(m.tekenNaam||m.naarNaam)+' \u00b7 '+dag(m.getekendAt)+
+        (m.tekenPlaats?' te '+esc(m.tekenPlaats):'')+
+        (m.heeftKrabbel
+          ? ' \u00b7 met handtekening, '+(m.tekenWijze==='getekend'?'zelf gezet':'naam getypt')
+          : '')
+      : 'verstuurd '+dag(m.verstuurdAt)+' aan '+esc(m.naarNaam)+
+        (m.openCount
+          ? ' \u00b7 '+m.openCount+' keer bekeken, voor het laatst '+dag(m.geopendAt)
+          : ' \u00b7 nog niet geopend')+
+        (m.herinneringen
+          ? ' \u00b7 '+m.herinneringen+' herinnering'+(m.herinneringen===1?'':'en')
+          : '')+
+        ' \u00b7 '+m.dagenStil+' '+(m.dagenStil===1?'dag':'dagen')+' stil';
+
+    var stand = getekend ? ['groen','Getekend']
+              : m.status==='geopend' ? ['teal','Geopend'] : ['amber','Wacht'];
+
+    return '<div class="hd-doc">'+
+      '<div class="hd-docico"'+(getekend?' style="background:var(--green-soft);color:#12704A"':'')+'>'+
+        svg(getekend?I.vink:I.pen)+'</div>'+
       '<div style="flex:1;min-width:0">'+
-        '<div class="fwk-dnaam">Machtiging'+(getekend?' \u2014 getekend':'')+'</div>'+
-        '<div class="fwk-dsub">'+
-          (getekend
-            ? esc(m.tekenNaam||m.naarNaam)+' \u00b7 '+dag(m.getekendAt)+
-              (m.tekenPlaats?' te '+esc(m.tekenPlaats):'')
-            : 'verstuurd '+dag(m.verstuurdAt)+' aan '+esc(m.naarNaam)+
-              (m.openCount
-                ? ' \u00b7 '+m.openCount+' keer bekeken, voor het laatst '+dag(m.geopendAt)
-                : ' \u00b7 nog niet geopend')+
-              (m.herinneringen
-                ? ' \u00b7 '+m.herinneringen+' herinnering'+(m.herinneringen===1?'':'en')+' verstuurd'
-                : '')+
-              ' \u00b7 '+m.dagenStil+' '+(m.dagenStil===1?'dag':'dagen')+' stil'+
-              (m.herinneringen >= 4
-                ? ' \u00b7 vier automatische herinneringen gehad, daarna gaat het handmatig'
-                : ' \u00b7 volgende gaat vanzelf na '+
-                  Math.max(0, (m.herinnerDagen||3) - m.dagenStil)+' dagen'))+
-        '</div>'+
-        (getekend && m.heeftKrabbel
-          ? '<div class="fwk-dsub">met handtekening \u00b7 '+
-            (m.tekenWijze==='getekend'?'zelf gezet':'naam getypt')+'</div>' : '')+
+        '<div class="hd-doct">Machtiging '+
+          '<span class="fwk-pil '+stand[0]+'">'+stand[1]+'</span></div>'+
+        '<div class="hd-docs">'+meta+'</div>'+
+        (getekend||klant?''
+          : '<div class="hd-docs">'+(m.herinneringen >= 4
+              ? 'vier automatische herinneringen gehad, daarna gaat het handmatig'
+              : 'volgende herinnering gaat vanzelf na '+
+                Math.max(0, (m.herinnerDagen||3) - m.dagenStil)+' dagen')+'</div>')+
       '</div>'+
-      '<span class="fwk-pil '+(getekend?'groen':(m.status==='geopend'?'teal':'amber'))+'">'+
-        (getekend?'Getekend':(m.status==='geopend'?'Geopend':'Wacht'))+'</span>'+
-      (klant?'':
+      (klant?'' :
         '<a class="jbtn" href="'+stuk+'" target="_blank" rel="noopener">'+svg(I.oog)+'Bekijken</a>'+
-        // De naam van het bestand komt van de server en zegt of hij getekend is.
         '<a class="jbtn" href="'+stuk+'?download=ja">'+svg(I.pijl)+'Downloaden</a>'+
-        (getekend?'':
-          '<button class="jbtn'+(m.dagenStil >= (m.herinnerDagen||3) ? ' let' : '')+
-            '" onclick="fwkMachtHerinner(\''+m.id+'\')" '+
-            'title="Nu zelf een herinnering sturen, los van de automatische">'+
+        (getekend?'' :
+          '<button class="jbtn'+(laat?' let':'')+'" onclick="fwkMachtHerinner(\''+m.id+'\')">'+
             ((m.herinneringen||0)+1)+'e herinnering nu</button>'+
           '<button class="jbtn" onclick="fwkMachtLink(\''+esc(m.link)+'\')">Link kopi\u00ebren</button>'+
           '<button class="jbtn" onclick="fwkMachtIntrekken(\''+m.id+'\')">Intrekken</button>'))+
     '</div>';
   }
+
 
   function panDoc(){
     // Platte lijst met per regel een keuzelijst voor de soort, zoals in het
@@ -8333,7 +8363,7 @@ button.hd-cgl:hover .w{text-decoration:underline}
       var geld = (d.soort==='offerte' || d.soort==='factuur_expertise');
       return '<div class="hd-doc"><div class="hd-docico">'+svg(foto?I.camera:I.doos)+'</div>'+
         '<div style="flex:1;min-width:0"><div class="hd-doct">'+esc(d.bestandsnaam)+'</div>'+
-        '<div class="hd-docs">'+Math.round((d.grootte||0)/1024)+' kB'+
+        '<div class="hd-docs">'+kb(d.grootte)+
           (d.createdAt?' \u00b7 '+dag(d.createdAt):'')+(d.doorNaam?' \u00b7 '+esc(d.doorNaam):'')+
           (let_&&!klant?' \u00b7 <span class="hd-doclet">'+let_+'</span>':'')+'</div>'+
         (klant?'':'<select class="hd-docsel" onchange="fwkDocSoort(\''+d.id+'\',this.value)">'+
@@ -9633,12 +9663,55 @@ body.fwq-open{overflow:hidden}
     var o = opties || {};
     return new Promise(function(res){
       klaar = res;
-      $$('fwqTitel').textContent = o.titel || '';
-      $$('fwqSub').textContent = o.uitleg || '';
-      $$('fwqSub').style.display = o.uitleg ? '' : 'none';
+
+      /* Sommige vensters veranderen mee met wat je kiest: kies je 'zakelijke
+         klant', dan hoort er 'Bedrijfsnaam' te staan en geen 'Naam vereniging'.
+         Geef daarvoor een functie mee als o.velden; die krijgt de huidige
+         antwoorden en levert de velden opnieuw. Een keuzeveld met stuurt:true
+         laat het venster daarna opnieuw tekenen, met behoud van wat je al
+         had ingevuld. */
+      function huidigeWaarden(){
+        var uit = {};
+        var el = $$('fwqBody').querySelectorAll('[data-veld]');
+        Array.prototype.forEach.call(el, function(v){
+          if (v.classList && v.classList.contains('fwq-meer')) {
+            uit[v.dataset.veld] = Array.prototype.slice
+              .call(v.querySelectorAll('input:checked')).map(function(c){ return c.value; });
+          } else {
+            uit[v.dataset.veld] = v.value;
+          }
+        });
+        return uit;
+      }
+
+      function velden(waarden){
+        return typeof o.velden === 'function' ? (o.velden(waarden || {}) || []) : (o.velden || []);
+      }
+
+      function teken(lijst, waarden){
+        if (waarden) {
+          // Wat je al had ingevuld blijft staan, ook onder een nieuw label.
+          lijst.forEach(function(v){
+            if (waarden[v.naam] !== undefined && waarden[v.naam] !== '') v.waarde = waarden[v.naam];
+          });
+        }
+        bouw(lijst, waarden);
+      }
+
+      window.fwqOpnieuw = function(){
+        var w = huidigeWaarden();
+        teken(velden(w), w);
+      };
+
+      function bouw(lijst, waarden){
+        // Ook de kop en de uitleg mogen meebewegen met wat je kiest.
+        $$('fwqTitel').textContent = o.titel || '';
+        var uitleg = typeof o.uitleg === 'function' ? o.uitleg(waarden || {}) : o.uitleg;
+        $$('fwqSub').textContent = uitleg || '';
+        $$('fwqSub').style.display = uitleg ? '' : 'none';
 
       var h = '', groepNu = null, groepTeller = 0;
-      (o.velden || []).forEach(function(v){
+      (lijst || []).forEach(function(v){
         // Velden met dezelfde groepsnaam komen samen in \u00e9\u00e9n omkaderd blok.
         if (v.groep !== groepNu) {
           if (groepNu) h += '</div>';
@@ -9657,9 +9730,11 @@ body.fwq-open{overflow:hidden}
         if (v.type === 'tekst') {
           h += '<textarea ' + attr + ' placeholder="' + esc(v.plaats || '') + '">' + esc(v.waarde || '') + '</textarea>';
         } else if (v.type === 'keuze') {
-          h += '<select ' + attr + '>' + (v.opties || []).map(function(k){
-            return '<option value="' + esc(k[0]) + '"' + (k[0] === v.waarde ? ' selected' : '') + '>' + esc(k[1]) + '</option>';
-          }).join('') + '</select>';
+          // stuurt:true \u2014 een wijziging hier tekent het venster opnieuw.
+          h += '<select ' + attr + (v.stuurt ? ' onchange="fwqOpnieuw()"' : '') + '>' +
+            (v.opties || []).map(function(k){
+              return '<option value="' + esc(k[0]) + '"' + (k[0] === v.waarde ? ' selected' : '') + '>' + esc(k[1]) + '</option>';
+            }).join('') + '</select>';
         } else if (v.type === 'meer') {
           h += '<div class="fwq-meer" data-veld="' + v.naam + '"' +
             (v.verplicht ? ' data-verplicht="' + esc(v.verplicht) + '"' : '') + '>' +
@@ -9681,6 +9756,9 @@ body.fwq-open{overflow:hidden}
       });
       if (groepNu) h += '</div>';
       $$('fwqBody').innerHTML = h;
+      }
+
+      teken(velden({}), null);
 
       $$('fwqJa').textContent = o.ok || 'Opslaan';
       $$('fwqNee').textContent = o.annuleer || 'Annuleren';
