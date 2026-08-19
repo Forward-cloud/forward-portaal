@@ -31,6 +31,8 @@ app.use('/api', require('./routes/actiepunten.routes'));
 app.use('/api', require('./routes/facturen.routes'));
 app.use('/api', require('./routes/machtigingen.routes'));
 app.use('/api', require('./routes/offerte.routes'));
+app.use('/api', require('./routes/kvk.routes'));
+app.use('/api', require('./routes/adres.routes'));
 app.use('/api/portal', require('./routes/portal.routes'));
 
 // De vaste bestanden staan hier bewust vóór de klantroutes hieronder.
