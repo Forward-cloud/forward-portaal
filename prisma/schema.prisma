@@ -69,6 +69,16 @@ model Relatie {
   factuurwijze   String       @default("per_klus")
   btwVerlegd     Boolean      @default(true)
   actief         Boolean      @default(true)
+  // Post gaat soms naar een ander adres dan waar het bedrijf zit.
+  postAdres      String?
+  postPostcode   String?
+  postPlaats     String?
+  // Geblokkeerd: staat nog in het adresboek, maar krijgt geen opdrachten meer.
+  // Alleen directie kan dit zetten en weer opheffen.
+  geblokkeerd    Boolean      @default(false)
+  blokkadeReden  String?
+  geblokkeerdAt  DateTime?
+  geblokkeerdDoor String?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
