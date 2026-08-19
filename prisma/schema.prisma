@@ -474,6 +474,9 @@ model Afspraak {
   naam         String?
   reden        String?
   tegenDatum   DateTime? // de datum die de klant zelf voorstelt
+  // Schikt geen van onze momenten, dan geeft de klant zelf drie momenten door.
+  // [{ datum, deel }] met deel = ochtend | middag | dag
+  tegenOpties  Json      @default("[]")
   ip           String?
 
   geopendAt    DateTime?
