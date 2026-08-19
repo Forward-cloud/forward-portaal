@@ -110,6 +110,11 @@ model Schade {
   // machtiging, de facturatie en wie er tekent.
   opdrachtgeverType String? // vve | particulier
   contactpersoon  String? // wie op brieven en bonnen staat
+  // Een VvE heeft vaak meer dan één adres: een algemene bak, een adres waar
+  // facturen heen moeten, en de persoon zelf. Bij een particulier mogen ze leeg
+  // blijven; dan gebruiken we gewoon het e-mailadres van de eigenaar.
+  algemeenEmail   String?
+  factuurEmail    String?
   // Vrije aantekening bij het dossier: sleutel bij de buren, hond in huis,
   // bewoner slecht ter been. Staat op de contactkaart, niet op de bon.
   notitie         String?
@@ -124,7 +129,11 @@ model Schade {
   // geen | ingediend | informatie | akkoord | afgewezen | doorverwezen
   verzStatus       String    @default("geen")
   verzSchadenummer String?
-  verzEmail        String?
+  verzEmail        String?   // waar de schademelding heen gaat
+  // Wat er in het relatiebestand staat geldt voor alle dossiers. Wijkt het bij
+  // dit dossier af, dan vult dit het aan zonder de relatie te wijzigen.
+  verzContactpersoon String?
+  verzTelefoon       String?
   tussenpersoon    String?
   verzIngediendAt  DateTime?
 
