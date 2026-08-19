@@ -6817,6 +6817,8 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
     // De volgende halte in de route; hoofdknop() kijkt daarnaar.
     var vlg = h.filter(function(n){return n>stap})[0];
 
+    var x = '<div class="fwk-wrap">';
+
     /* kop */
     x += '<button class="fwk-terug" onclick="fwkTerug()">'+
       '<svg viewBox="0 0 24 24" fill="none"><path d="M15 6l-6 6 6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Alle schades</button>';
@@ -6883,12 +6885,24 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
       '<button class="jbtn" onclick="fwkUitWacht()">Weer oppakken</button></div>';
     var openAfs = afspraken.filter(function(a){ return a.status==='open'; })[0];
     var gekozenAfs = afspraken.filter(function(a){ return a.status==='gekozen'; })[0];
+    var geweigerdAfs = afspraken.filter(function(a){ return a.status==='geweigerd'; })[0];
     if (openAfs) {
       x += '<div class="fwk-blok amber">'+svg(I.kalender)+
         '<span><b>Wacht op de klant.</b> '+(openAfs.opties||[]).length+' momenten voorgesteld voor '+
         (openAfs.soort==='opname'?'de opname':'het herstel')+' \u00b7 '+
         (openAfs.geopendAt?'geopend op '+dag(openAfs.geopendAt):'nog niet geopend')+'</span>'+
         '<button class="jbtn" onclick="navigator.clipboard&&navigator.clipboard.writeText(\''+openAfs.link+'\')">Link kopi\u00ebren</button></div>';
+    } else if (geweigerdAfs && (geweigerdAfs.tegenOpties||[]).length) {
+      // De klant kon niet, maar gaf zelf momenten door. Daar kan de planner
+      // direct een nieuw voorstel op bouwen.
+      x += '<div class="fwk-blok amber">'+svg(I.kalender)+
+        '<span><b>De klant kan wel op deze momenten.</b> '+
+        geweigerdAfs.tegenOpties.map(function(o){
+          return dag(o.datum)+' \u00b7 '+(DAGDEEL[o.deel]||o.deel);
+        }).join(' \u2003')+
+        (geweigerdAfs.reden?' \u2014 \u201c'+esc(geweigerdAfs.reden)+'\u201d':'')+'</span>'+
+        (klant?'':'<button class="jbtn" onclick="fwkOpKlantDatum(\''+geweigerdAfs.id+'\')">'+
+          'Nieuw voorstel op deze data</button>')+'</div>';
     } else if (gekozenAfs && stap<8) {
       x += '<div class="fwk-blok" style="background:var(--green-soft);color:#12704A">'+svg(I.vink)+
         '<span><b>Afspraak staat.</b> '+dag(gekozenAfs.gekozenDatum)+
@@ -7276,6 +7290,8 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
   var VAKKEN = {droging:'Drogen en meten',loodgieter:'Loodgieterswerk',dak:'Dakwerk',
     stuc:'Stucwerk',tegel:'Tegelwerk',schilder:'Schilderwerk',vloer:'Vloeren',
     timmer:'Timmerwerk',elektra:'Elektra',schoonmaak:'Schoonmaak',overig:'Overig'};
+  // Wat de klant zelf doorgeeft als het hem niet schikt.
+  var DAGDEEL = {ochtend:'ochtend', middag:'middag', dag:'hele dag'};
   // Vier uur is een dagdeel, acht een hele dag. Daarboven rekenen we in dagen.
   var DUUR = [['2','2 uur'],['4','een dagdeel'],['8','een hele dag'],
     ['16','twee dagen'],['24','drie dagen'],['40','een week']];
@@ -7898,15 +7914,31 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
     });
   }
 
-  function afspraakVoorstel(soort){
+  // De klant gaf zelf momenten door: neem die over als eerste voorstel.
+  window.fwkOpKlantDatum = function(id){
+    var a = afspraken.filter(function(x){ return x.id===id; })[0];
+    if (!a) return;
+    afspraakVoorstel(a.soort, a.tegenOpties||[]);
+  };
+
+  function afspraakVoorstel(soort, voor){
     var opname = soort==='opname';
     var vandaag = new Date();
     function over(d){ var x=new Date(vandaag); x.setDate(x.getDate()+d); return x.toISOString().slice(0,10); }
+    // Een dagdeel van de klant wordt bij ons een tijdvak.
+    var VAK = {ochtend:'08.00 \u2013 12.00 uur', middag:'13.00 \u2013 17.00 uur', dag:'Hele dag'};
+    var vv = Array.isArray(voor) ? voor : [];
+    function vd(i, terug){ return vv[i] ? String(vv[i].datum).slice(0,10) : terug; }
+    function vt(i, terug){ return vv[i] ? (VAK[vv[i].deel] || terug) : terug; }
     window.fwVraag({
       titel: opname ? 'Schade-opname inplannen' : 'Herstel inplannen',
-      uitleg: opname
-        ? 'Stel drie momenten voor. De klant kiest er \u00e9\u00e9n via een link \u2014 geen heen-en-weer gebel.'
-        : 'Stel momenten voor deze werkgang voor. Meerdere vakmensen? Maak per vakman een eigen voorstel.',
+      uitleg: (opname
+        ? 'Stel maximaal drie momenten voor. De klant kiest er \u00e9\u00e9n via een link \u2014 geen heen-en-weer gebel.'
+        : 'Stel maximaal drie momenten voor deze werkgang voor. Meerdere vakmensen? '+
+          'Maak per vakman een eigen voorstel.') +
+        (vv.length
+          ? ' De momenten die de klant zelf doorgaf staan al ingevuld.'
+          : ' Alleen het eerste voorstel is verplicht.'),
       velden:[].concat(
         opname ? [] : [
           {naam:'wat',label:'Welke werkzaamheden?',plaats:'bijvoorbeeld Stucwerk trapwand en plafond',
@@ -7916,13 +7948,23 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
            snel:['\u00e9\u00e9n dag','twee dagen','drie dagen','een week']}
         ],
         [
-          {naam:'d1',label:'Eerste moment',type:'datum',waarde:over(7),verplicht:'Kies minstens \u00e9\u00e9n datum.'},
-          {naam:'t1',label:'Tijdvak',waarde:'08.00 \u2013 12.00 uur',
+          {groep:'Eerste voorstel', groepNoot: vv[0] ? 'van de klant' : 'verplicht',
+           naam:'d1',label:'Datum',type:'datum',waarde:vd(0,over(7)),verplicht:'Kies minstens \u00e9\u00e9n datum.'},
+          {groep:'Eerste voorstel',
+           naam:'t1',label:'Tijdvak',waarde:vt(0,'08.00 \u2013 12.00 uur'),
            snel:['08.00 \u2013 12.00 uur','13.00 \u2013 17.00 uur','Hele dag']},
-          {naam:'d2',label:'Tweede moment',type:'datum',waarde:over(9)},
-          {naam:'t2',label:'Tijdvak',waarde:'13.00 \u2013 17.00 uur'},
-          {naam:'d3',label:'Derde moment',type:'datum',waarde:over(14)},
-          {naam:'t3',label:'Tijdvak',waarde:'08.00 \u2013 12.00 uur'}
+
+          {groep:'Tweede voorstel', groepNoot: vv[1] ? 'van de klant' : 'leeg laten mag',
+           naam:'d2',label:'Datum',type:'datum',waarde:vd(1,over(9))},
+          {groep:'Tweede voorstel',
+           naam:'t2',label:'Tijdvak',waarde:vt(1,'13.00 \u2013 17.00 uur'),
+           snel:['08.00 \u2013 12.00 uur','13.00 \u2013 17.00 uur','Hele dag']},
+
+          {groep:'Derde voorstel', groepNoot: vv[2] ? 'van de klant' : 'leeg laten mag',
+           naam:'d3',label:'Datum',type:'datum',waarde:vd(2,over(14))},
+          {groep:'Derde voorstel',
+           naam:'t3',label:'Tijdvak',waarde:vt(2,'08.00 \u2013 12.00 uur'),
+           snel:['08.00 \u2013 12.00 uur','13.00 \u2013 17.00 uur','Hele dag']}
         ]),
       ok:'Voorstel klaarzetten'
     }).then(function(r){
@@ -8389,6 +8431,22 @@ body.fwq-open{overflow:hidden}
 .fwq-body{padding:16px 20px}
 .fwq-body label{display:block;font-size:12px;color:var(--muted);margin:0 0 5px}
 .fwq-body label+label{margin-top:14px}
+/* Een genummerd blok per voorstel. De kleur en het cijfer maken meteen
+   duidelijk dat het om losse momenten gaat en niet om losse velden. */
+.fwq-groep{border:1px solid var(--line);border-left:3px solid var(--fwqk,var(--teal));
+  border-radius:12px;padding:11px 13px 13px;margin-bottom:10px;background:var(--canvas)}
+.fwq-groep.k1{--fwqk:#009BA8}
+.fwq-groep.k2{--fwqk:#7F77DD}
+.fwq-groep.k3{--fwqk:#C77E00}
+.fwq-groep+.fwq-groep{margin-top:0}
+.fwq-groep label:first-child{margin-top:0}
+.fwq-groepkop{display:flex;align-items:center;gap:9px;font-size:11px;font-weight:700;
+  letter-spacing:.05em;text-transform:uppercase;color:var(--muted-2);margin-bottom:9px}
+.fwq-groepkop .n{width:20px;height:20px;border-radius:50%;flex:none;display:flex;
+  align-items:center;justify-content:center;font-size:11px;font-weight:700;letter-spacing:0;
+  background:var(--fwqk);color:#fff;font-family:'Poppins',sans-serif}
+.fwq-groepkop .r{margin-left:auto;font-size:10.5px;font-weight:600;color:var(--muted-2);
+  text-transform:none;letter-spacing:0}
 .fwq-body input[type=text],.fwq-body input[type=date],.fwq-body textarea,.fwq-body select{
   width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:11px;
   font-family:inherit;font-size:14.5px;background:var(--surface);color:var(--text);min-height:46px}
@@ -8480,8 +8538,20 @@ body.fwq-open{overflow:hidden}
       $$('fwqSub').textContent = o.uitleg || '';
       $$('fwqSub').style.display = o.uitleg ? '' : 'none';
 
-      var h = '';
+      var h = '', groepNu = null, groepTeller = 0;
       (o.velden || []).forEach(function(v){
+        // Velden met dezelfde groepsnaam komen samen in \u00e9\u00e9n omkaderd blok.
+        if (v.groep !== groepNu) {
+          if (groepNu) h += '</div>';
+          groepNu = v.groep || null;
+          if (groepNu) {
+            groepTeller++;
+            h += '<div class="fwq-groep k' + Math.min(groepTeller, 3) + '">' +
+              '<div class="fwq-groepkop"><span class="n">' + groepTeller + '</span>' +
+              esc(v.groep) + (v.groepNoot ? '<span class="r">' + esc(v.groepNoot) + '</span>' : '') +
+              '</div>';
+          }
+        }
         h += '<label for="fwq_' + v.naam + '">' + esc(v.label) + '</label>';
         var attr = 'id="fwq_' + v.naam + '" data-veld="' + v.naam + '"' +
           (v.verplicht ? ' data-verplicht="' + esc(v.verplicht) + '"' : '');
@@ -8510,6 +8580,7 @@ body.fwq-open{overflow:hidden}
           }).join('') + '</div>';
         }
       });
+      if (groepNu) h += '</div>';
       $$('fwqBody').innerHTML = h;
 
       $$('fwqJa').textContent = o.ok || 'Opslaan';
