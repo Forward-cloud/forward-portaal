@@ -4716,6 +4716,16 @@ body.fwm-open{overflow:hidden}
           '<div><label for="fwnTussen">Tussenpersoon</label><select id="fwnTussen">' +
             '<option value="">Geen</option></select></div>' +
         '</div>' +
+        // Staat de partij er nog niet bij, dan leg je hier de naam vast en
+        // vult iemand de rest later aan bij Relaties.
+        '<div class="fwn-rij" style="margin-top:9px">' +
+          '<div><label for="fwnVerzNieuw">Of typ een nieuwe verzekeraar</label>' +
+            '<input type="text" id="fwnVerzNieuw" placeholder="alleen de naam is genoeg"></div>' +
+          '<div><label for="fwnTussenNieuw">Of typ een nieuwe tussenpersoon</label>' +
+            '<input type="text" id="fwnTussenNieuw" placeholder="alleen de naam is genoeg"></div>' +
+        '</div>' +
+        '<div class="fwn-noot">Wat u hier typt komt in het adresboek te staan. '+
+          'De gegevens vult u later aan bij Relaties.</div>' +
         '<div class="fwn-rij" style="margin-top:9px">' +
           '<div><label for="fwnPolis">Polisnummer</label><input type="text" id="fwnPolis"></div>' +
           '<div><label for="fwnVerzNr">Hun schadenummer</label>' +
@@ -4817,7 +4827,32 @@ body.fwm-open{overflow:hidden}
 
     function v(id){ var e = $$(id); return e ? String(e.value).trim() : ''; }
 
-    window.fwApi('/api/schades', {
+    // Eerst de partijen die nog niet bestaan vastleggen, dan pas het dossier.
+    function nieuweRelatie(naam, soort){
+      if (!naam) return Promise.resolve('');
+      return window.fwApi('/api/relaties/snel',
+        {method:'POST', body:JSON.stringify({naam:naam, soort:soort})})
+        .then(function(res){ return res.relatie.id; });
+    }
+
+    Promise.all([
+      v('fwnVerz') || nieuweRelatie(v('fwnVerzNieuw'), 'VERZEKERAAR'),
+      v('fwnTussen') || nieuweRelatie(v('fwnTussenNieuw'), 'TUSSENPERSOON')
+    ]).then(function(ids){
+      return maakDossier(ids[0], ids[1]);
+    }).catch(function(e){
+      var m = $$('fwmMelding');
+      m.className = 'fwm-err'; m.textContent = e.message; m.style.display = '';
+      knop.disabled = false; knop.textContent = 'Dossier aanmaken';
+    });
+  }
+
+  function maakDossier(verzekeraarId, tussenpersoonId){
+    function v(id){ var e = $$(id); return e ? String(e.value).trim() : ''; }
+    var knop = $$('fwmOk');
+    var owner = v('fwnOwner'), adres = v('fwnAdres');
+
+    return window.fwApi('/api/schades', {
       method:'POST',
       body: JSON.stringify({
         owner: owner || adres,
@@ -4841,8 +4876,8 @@ body.fwm-open{overflow:hidden}
         bewonerSoort: v('fwnBewSoort'),
 
         preset: v('fwnPreset'),
-        verzekeraarId: v('fwnVerz'),
-        tussenpersoonId: v('fwnTussen'),
+        verzekeraarId: verzekeraarId,
+        tussenpersoonId: tussenpersoonId,
         polisnummer: v('fwnPolis'),
         verzSchadenummer: v('fwnVerzNr'),
 
@@ -7012,6 +7047,9 @@ button.hd-cgl:hover .w{text-decoration:underline}
         {groep:'Welke maatschappij',
          naam:'tus',label:'Tussenpersoon',type:'keuze',waarde:S.tussenpersoonId||'',
          opties:[['','Geen']].concat(alleTus.map(function(r){ return [r.id, r.naam]; }))},
+        {groep:'Welke maatschappij',
+         naam:'nieuwT',label:'Of typ een nieuwe tussenpersoon',
+         plaats:'Leeg laten als je hierboven koos'},
 
         {groep:'Deze polis', groepNoot:'per dossier',
          naam:'polis',label:'Polisnummer',waarde:S.polisnummer||''},
@@ -7035,21 +7073,40 @@ button.hd-cgl:hover .w{text-decoration:underline}
       ok:'Opslaan'
     }).then(function(r){
       if (!r) return;
-      var klaar = Promise.resolve(r.verz);
-      if (r.nieuwV && r.nieuwV.trim()) {
-        klaar = api('/api/relaties',{method:'POST',
-          body:JSON.stringify({naam:r.nieuwV.trim(), soort:'VERZEKERAAR'})})
-          .then(function(res){ return res.relatie.id; })
-          .catch(function(){ return r.verz; });
+      /* Een naam die nog niet in het adresboek staat, leggen we meteen vast.
+         Mislukt dat, dan zeggen we het \u2014 stil doorgaan met de oude keuze
+         betekent dat je later niet begrijpt waarom de verzekeraar ontbreekt. */
+      function nieuweRelatie(naam, soort){
+        return api('/api/relaties/snel',
+          {method:'POST', body:JSON.stringify({naam:naam.trim(), soort:soort})})
+          .then(function(res){ return res.relatie.id; });
       }
-      klaar.then(function(id){
+
+      var klaar = Promise.resolve({verz:r.verz, tus:r.tus});
+      if (r.nieuwV && r.nieuwV.trim()) {
+        klaar = klaar.then(function(k){
+          return nieuweRelatie(r.nieuwV, 'VERZEKERAAR').then(function(id){ k.verz = id; return k; });
+        });
+      }
+      if (r.nieuwT && r.nieuwT.trim()) {
+        klaar = klaar.then(function(k){
+          return nieuweRelatie(r.nieuwT, 'TUSSENPERSOON').then(function(id){ k.tus = id; return k; });
+        });
+      }
+      klaar.then(function(k){
+        var id = k.verz;
+        r.tus = k.tus;
         return patch({ verzekeraarId:id||null, tussenpersoonId:r.tus||null,
           polisnummer:r.polis||null, verzSchadenummer:r.schadenr||null,
           // Leeg laten betekent: gebruik wat er in het relatiebestand staat.
           verzContactpersoon:r.vcontact||null, verzEmail:r.vmail||null, verzTelefoon:r.vtel||null,
           ins: (alleVerz.find(function(x){return x.id===id})||{}).naam || (r.nieuwV||'').trim() || null });
       }).then(function(){ verzs=[]; return ververs(); })
-        .then(function(){ melden('Bijgewerkt','De verzekeraar is opgeslagen.'); })
+        .then(function(){
+          melden('Bijgewerkt', (r.nieuwV||r.nieuwT)
+            ? 'Opgeslagen. Vul de gegevens later aan bij Relaties.'
+            : 'De verzekeraar is opgeslagen.');
+        })
         .catch(function(e){melden('Niet gelukt',e.message,'err')});
     });
   };
