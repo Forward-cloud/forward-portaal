@@ -980,7 +980,7 @@ function planRepair(nr){const s=SCHADES.find(x=>x.nr===nr);s.step=trajOf(s).hers
 
 /* ---------- schade list ---------- */
 function renderSchades(filter){
-  filter=filter||(document.querySelector('#filters .chip.active')?.dataset.f)||'all';
+  filter=filter||(document.querySelector('#filters .chip.active[data-f]')?.dataset.f)||'all';
   const rows=SCHADES.filter(s=>filter==='all'||s.status===filter);
   $('#schadeRows').innerHTML=rows.map(s=>`<div class="t-row" onclick="openDetail('${s.nr}')">
     <div class="t-num mono">${s.nr}${s.unread?' <span title="Nieuw bericht van de klant" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--teal);vertical-align:1px"></span>':''}</div>
@@ -991,7 +991,9 @@ function renderSchades(filter){
     <div class="t-amt">${money(s.amount)}</div>
     <div>${s.invoiced?'<span class="tag done">✓</span>':s.draft?'<span class="tag prog">Concept</span>':'<span class="tag grey">Open</span>'}</div></div>`).join('')||'<div class="empty">Geen schades in deze filter.</div>';
 }
-document.querySelectorAll('#filters .chip').forEach(c=>c.onclick=()=>{document.querySelectorAll('#filters .chip').forEach(x=>x.classList.remove('active'));c.classList.add('active');renderSchades(c.dataset.f);});
+// Alleen de statusknoppen reageren op elkaar. De knoppen voor archief en
+// testdossiers staan in dezelfde rij maar hebben hun eigen markering.
+document.querySelectorAll('#filters .chip[data-f]').forEach(c=>c.onclick=()=>{document.querySelectorAll('#filters .chip[data-f]').forEach(x=>x.classList.remove('active'));c.classList.add('active');renderSchades(c.dataset.f);});
 
 function renderFacturen(){$('#factuurRows').innerHTML=SCHADES.map(s=>`<div class="t-row" style="grid-template-columns:130px 1.4fr 1fr 120px 90px" onclick="openDetail('${s.nr}')"><div class="t-num mono">${s.nr}</div><div class="t-owner">${s.owner}</div><div class="t-type">${s.ins}</div><div class="t-amt">${money(s.amount)}</div><div>${s.invoiced?'<span class="tag done">Verstuurd</span>':s.draft?'<span class="tag prog">Concept</span>':'<span class="tag grey">Open</span>'}</div></div>`).join('');}
 function renderAgenda(){const rows=[];SCHADES.filter(s=>s.appt&&s.appt.options).forEach(s=>{const st=s.appt.state;if(st==='definitief'){const o=apptChosenOpt(s);if(o)rows.push({s,when:o.when,start:o.start,mode:'def'});}else if(st==='gekozen'){s.appt.options.forEach((o,i)=>rows.push({s,when:o.when,start:o.start,mode:i===s.appt.chosen?'confirm':'tent'}));}else if(st!=='declined'&&st!=='verlopen'){s.appt.options.forEach(o=>rows.push({s,when:o.when,start:o.start,mode:'tent'}));}});
@@ -2923,6 +2925,7 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
       test: !!d.test,
       bronBeoordeeld: !!d.bronBeoordeeld,
       bronAanbod: d.bronAanbod,
+      bronAanbodAt: d.bronAanbodAt,
       herinnerDagen: d.herinnerDagen || 7,
       herinnerAantal: d.herinnerAantal || 0,
       dagenOpen: d.dagenOpen || 0,
@@ -2992,7 +2995,7 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
     api('/api/schades/test', { method:'POST', body:JSON.stringify(gegevens) })
       .then(function(r){
         testStand = true;
-        var t = document.querySelector('#fwArchief [data-test="1"]');
+        var t = document.querySelector('#filters [data-test="1"]');
         if (t) t.classList.add('active');
         return window.fwLaadDossiers().then(function(){
           if (typeof toast === 'function') toast('Testdossier aangemaakt', r.schade.nummer);
@@ -3025,50 +3028,48 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
   }
   window.fwHerteken = hertekenen;
 
-  // Archiefschakelaar boven de filters
+  // Eén filterrij. De statusknoppen stonden er al; hier komen archief en
+  // testdossiers erbij, met een scheiding ertussen zodat het niet dubbel leest.
   function schakelaar(){
     var f = document.getElementById('filters');
-    if (!f || document.getElementById('fwArchief')) return;
-    var wrap = document.createElement('div');
-    wrap.id = 'fwArchief';
-    wrap.style.cssText = 'display:flex;gap:6px;margin-bottom:10px';
-    [['nee','Lopend'],['ja','Archief'],['alles','Alles']].forEach(function(o){
+    if (!f || f.dataset.fw === '1') return;
+    f.dataset.fw = '1';
+    f.style.flexWrap = 'wrap';
+
+    var streep = document.createElement('span');
+    streep.style.cssText = 'width:1px;background:var(--line);margin:2px 6px;align-self:stretch';
+    f.appendChild(streep);
+
+    // Archief: lopend, archief, of allebei.
+    [['nee','Lopend'],['ja','Archief'],['alles','Beide']].forEach(function(o){
       var b = document.createElement('button');
       b.className = 'chip' + (o[0] === archiefStand ? ' active' : '');
-      b.textContent = o[1];
+      b.dataset.arch = o[0];
       b.onclick = function(){
         archiefStand = o[0];
-        Array.prototype.forEach.call(wrap.children, function(c){
-          if (c.dataset.test !== '1') c.classList.remove('active');
-        });
+        f.querySelectorAll('[data-arch]').forEach(function(c){ c.classList.remove('active'); });
         b.classList.add('active');
         window.fwLaadDossiers();
       };
-      wrap.appendChild(b);
+      b.textContent = o[1];
+      f.appendChild(b);
     });
 
-    // Testdossiers staan er standaard niet tussen. Met deze knop wel.
+    var streep2 = document.createElement('span');
+    streep2.style.cssText = 'width:1px;background:var(--line);margin:2px 6px;align-self:stretch';
+    f.appendChild(streep2);
+
+    // Testdossiers staan er standaard niet tussen.
     var t = document.createElement('button');
-    t.className = 'chip';
+    t.className = 'chip' + (testStand ? ' active' : '');
     t.dataset.test = '1';
     t.textContent = 'Testdossiers';
-    t.style.marginLeft = '8px';
     t.onclick = function(){
       testStand = !testStand;
       t.classList.toggle('active', testStand);
       window.fwLaadDossiers();
     };
-    wrap.appendChild(t);
-
-    // En een knop om er een te maken, met alles er alvast in.
-    var n = document.createElement('button');
-    n.className = 'chip';
-    n.textContent = '+ Testdossier';
-    n.style.marginLeft = 'auto';
-    n.onclick = function(){ window.fwTestdossier(n); };
-    wrap.appendChild(n);
-
-    f.parentNode.insertBefore(wrap, f);
+    f.appendChild(t);
   }
 
   // Zoeken doorzoekt de database, inclusief archief
@@ -6595,6 +6596,20 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
         }).join('')+'</div>';
     }
 
+    // Is het herstel aangevraagd, dan zie je dat hier -- met wat er is
+    // aangeboden en hoe lang het stil is.
+    if (S.bronAanbodAt && !bronOk) {
+      var dgn = dagenGeleden(S.bronAanbodAt);
+      x += '<div class="fwk-blok amber">'+svg(I.klok)+'<span>'+
+        '<b>Bronherstel aangevraagd</b> bij '+esc(S.opdrachtgever || S.owner)+
+        ' op '+dag(S.bronAanbodAt)+
+        (S.bronAanbod==='prijs' ? ' \u00b7 met aanbod, prijsopgave vooraf'
+          : S.bronAanbod==='mandaat' ? ' \u00b7 met aanbod tegen mandaat' : '')+
+        ' \u00b7 '+dgn+' '+(dgn===1?'dag':'dagen')+' stil.</span>'+
+        (klant?'':'<button class="jbtn" onclick="fwkBronAanvragen()">Opnieuw vragen</button>')+
+      '</div>';
+    }
+
     /* Stand bij de verzekeraar — alleen zolang het dossier daar ook echt ligt.
        Voorbij halte 6 is die fase voorbij; de haltelijn vertelt de rest. */
     var bijVerz = h.indexOf(5)>-1 && stap >= 5 && !afgewezen;
@@ -7615,7 +7630,12 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
       update_beheerder:['#00838F','#E0F4F6','Update aan de beheerder'],
       update_eigenaar:['#00838F','#E0F4F6','Update aan de eigenaar'],
       afronding_eigenaar:['#1D9E75','#E1F5EE','Afronding aan de eigenaar'],
-      afronding_beheerder:['#1D9E75','#E1F5EE','Afronding aan de beheerder']};
+      afronding_beheerder:['#1D9E75','#E1F5EE','Afronding aan de beheerder'],
+      machtiging:['#6B4FA8','#F3F0FA','Machtiging'],
+      bron:['#BA7517','#FAEEDA','Verzoek om bronherstel'],
+      bon:['#00838F','#E0F4F6','Opdrachtbon'],
+      aanvraag:['#7F77DD','#EEEDFE','Prijsaanvraag'],
+      factuur:['#1D9E75','#E1F5EE','Factuur']};
     var l = corr.filter(function(v){return v.status!=='concept'});
     var kop = '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;'+
       'margin-bottom:14px;flex-wrap:wrap"><div style="font-size:12.5px;color:var(--muted)">'+
@@ -7629,7 +7649,8 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
       return '<button class="fwk-c fwk-klik" onclick="fwkVoorvertoning(\''+v.id+'\')">'+
         '<div class="fwk-cico" style="background:'+k[1]+';color:'+k[0]+'">'+svg(I.mail)+'</div>'+
         '<div style="flex:1;min-width:0;text-align:left"><div class="fwk-ct2">'+
-          esc(v.onderwerp && v.soort==='vrij' ? v.onderwerp : k[2])+'</div>'+
+          esc(v.onderwerp && (v.soort==='vrij' || v.soort==='machtiging' || v.soort==='bron')
+            ? v.onderwerp : k[2])+'</div>'+
         '<div class="fwk-cs">'+esc((v.naar||[]).join(', '))+'</div>'+
         '<div class="fwk-cb">'+(n?n+' stuk'+(n>1?'ken':'')+' meegestuurd \u00b7 ':'')+'door '+esc(v.doorNaam||'')+'</div></div>'+
         '<div class="fwk-cd">'+dag(v.createdAt)+'</div>'+
