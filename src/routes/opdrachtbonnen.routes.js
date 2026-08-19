@@ -101,6 +101,14 @@ router.post('/schades/:nummer/opdrachtbonnen', async (req, res) => {
   let verlegd = true;
   if (b.leverancierId) {
     const lev = await prisma.relatie.findUnique({ where: { id: b.leverancierId } });
+    // Een geblokkeerde partij krijgt geen nieuwe opdracht \u2014 ook niet als de
+    // browser hem toch meestuurt.
+    if (lev && lev.geblokkeerd) {
+      return res.status(400).json({
+        error: `${lev.naam} is geblokkeerd voor nieuwe opdrachten` +
+               (lev.blokkadeReden ? ` \u2014 ${lev.blokkadeReden}` : '') + '.',
+      });
+    }
     if (lev) verlegd = lev.btwVerlegd;
   }
   if (b.btwVerlegd !== undefined) verlegd = !!b.btwVerlegd;
@@ -139,6 +147,19 @@ router.post('/schades/:nummer/prijsaanvragen', async (req, res) => {
   if (!b.werk || !String(b.werk).trim()) return res.status(400).json({ error: 'Omschrijf waarvoor je een prijs vraagt' });
 
   const ids = Array.isArray(b.leverancierIds) ? b.leverancierIds.filter(Boolean) : [];
+
+  // Geblokkeerde partijen vragen we ook geen prijs meer.
+  if (ids.length) {
+    const geblokkeerd = await prisma.relatie.findMany({
+      where: { id: { in: ids }, geblokkeerd: true },
+      select: { naam: true },
+    });
+    if (geblokkeerd.length) {
+      return res.status(400).json({
+        error: `Geblokkeerd voor nieuwe opdrachten: ${geblokkeerd.map((r) => r.naam).join(', ')}.`,
+      });
+    }
+  }
 
   // Namen die nog niet in de lijst staan, maken wij meteen aan.
   const nieuwe = Array.isArray(b.nieuweNamen) ? b.nieuweNamen : [];
@@ -232,6 +253,11 @@ router.post('/opdrachtbonnen/:id/versturen', async (req, res) => {
   });
   if (!nu) return res.status(404).json({ error: 'Niet gevonden' });
   if (!nu.leverancierId) return res.status(400).json({ error: 'Kies eerst een leverancier.' });
+  if (nu.leverancier && nu.leverancier.geblokkeerd) {
+    return res.status(400).json({
+      error: `${nu.leverancier.naam} is geblokkeerd voor nieuwe opdrachten.`,
+    });
+  }
   if (!nu.werk || !nu.werk.trim()) return res.status(400).json({ error: 'Beschrijf eerst het werk.' });
   if (nu.prijsvorm === 'mandaat' && !nu.maxBedrag) {
     return res.status(400).json({ error: 'Een mandaat zonder maximum is een blanco cheque.' });

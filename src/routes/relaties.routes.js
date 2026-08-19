@@ -9,7 +9,8 @@ const SOORTEN = ['VERZEKERAAR', 'TUSSENPERSOON', 'ONDERAANNEMER', 'LEVERANCIER']
 
 function schoon(b) {
   const d = {};
-  ['naam', 'email', 'telefoon', 'adres', 'postcode', 'plaats', 'website', 'contactpersoon', 'notitie']
+  ['naam', 'email', 'telefoon', 'adres', 'postcode', 'plaats', 'website', 'contactpersoon', 'notitie',
+   'postAdres', 'postPostcode', 'postPlaats', 'kvk', 'btwNummer', 'iban']
     .forEach((k) => { if (b[k] !== undefined) d[k] = b[k] ? String(b[k]).trim() : null; });
   if (b.soort !== undefined) {
     const s = String(b.soort).toUpperCase();
@@ -67,7 +68,10 @@ router.get('/', async (req, res) => {
       { plaats: { contains: q, mode: 'insensitive' } },
     ];
   }
-  const relaties = await prisma.relatie.findMany({ where, orderBy: { naam: 'asc' } });
+  const relaties = await prisma.relatie.findMany({
+    where,
+    orderBy: [{ geblokkeerd: 'asc' }, { naam: 'asc' }],
+  });
   res.json({ relaties });
 });
 
@@ -78,6 +82,40 @@ router.get('/:id', async (req, res) => {
   });
   if (!r) return res.status(404).json({ error: 'Niet gevonden' });
   res.json({ relatie: r });
+});
+
+/* ─────────── blokkeren ───────────
+   Een geblokkeerde partij blijft in het adresboek staan — je wilt de
+   geschiedenis houden — maar krijgt geen opdrachten meer. Alleen directie. */
+router.post('/:id/blokkade', requireDirectie, async (req, res) => {
+  const r = await prisma.relatie.findUnique({ where: { id: req.params.id } });
+  if (!r) return res.status(404).json({ error: 'Relatie niet gevonden' });
+
+  const aan = req.body?.geblokkeerd !== false;
+  const reden = String(req.body?.reden || '').trim();
+  if (aan && !reden) {
+    return res.status(400).json({ error: 'Leg vast waarom deze partij geen opdrachten meer krijgt' });
+  }
+
+  const uit = await prisma.relatie.update({
+    where: { id: r.id },
+    data: aan
+      ? { geblokkeerd: true, blokkadeReden: reden,
+          geblokkeerdAt: new Date(), geblokkeerdDoor: req.user.naam }
+      : { geblokkeerd: false, blokkadeReden: null, geblokkeerdAt: null, geblokkeerdDoor: null },
+  });
+
+  await prisma.logEntry.create({
+    data: {
+      text: aan ? `${r.naam} geblokkeerd voor nieuwe opdrachten`
+                : `Blokkade opgeheven voor ${r.naam}`,
+      detail: aan ? reden : null,
+      soort: 'relatie', intern: true,
+      byUserId: req.user.id, byName: req.user.naam,
+    },
+  });
+
+  res.json({ relatie: uit });
 });
 
 router.post('/', requireDirectie, async (req, res) => {
