@@ -138,6 +138,36 @@ router.post('/:id/blokkade', requireDirectie, async (req, res) => {
   res.json({ relatie: uit });
 });
 
+/* ─────────── snel toevoegen ───────────
+   Tijdens het aanmaken van een schade kom je een verzekeraar of tussenpersoon
+   tegen die nog niet in het adresboek staat. Dan wil je niet eerst naar een
+   ander scherm. Iedereen mag daarom een naam vastleggen; de rest — adressen,
+   e-mail, reactietermijn — vult directie later aan bij Relaties. */
+router.post('/snel', async (req, res) => {
+  const naam = String(req.body?.naam || '').trim();
+  const soort = String(req.body?.soort || '').toUpperCase();
+  if (!naam) return res.status(400).json({ error: 'Vul een naam in' });
+  if (!SOORTEN.includes(soort)) return res.status(400).json({ error: 'Onbekende soort relatie' });
+
+  // Bestaat hij al onder dezelfde naam, dan pakken we die in plaats van een
+  // tweede aan te maken.
+  const bestaat = await prisma.relatie.findFirst({
+    where: { naam: { equals: naam, mode: 'insensitive' }, soort },
+  });
+  if (bestaat) return res.json({ relatie: bestaat, bestond: true });
+
+  const r = await prisma.relatie.create({ data: { naam, soort } });
+  await prisma.logEntry.create({
+    data: {
+      text: `${naam} toegevoegd aan het adresboek`,
+      detail: 'Aangemaakt vanuit een dossier \u2014 gegevens nog aanvullen bij Relaties',
+      soort: 'relatie', intern: true,
+      byUserId: req.user.id, byName: req.user.naam,
+    },
+  });
+  res.status(201).json({ relatie: r, bestond: false });
+});
+
 router.post('/', requireDirectie, async (req, res) => {
   const { data, fout } = schoon(req.body || {});
   if (fout) return res.status(400).json({ error: fout });
