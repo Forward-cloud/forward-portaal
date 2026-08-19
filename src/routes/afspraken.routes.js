@@ -7,6 +7,7 @@ const { BEDRIJF, PORTAAL, datumNL } = require('../lib/brieven');
 const router = express.Router();
 
 const SOORTEN = { opname: 'Schade-opname', herstel: 'Herstelwerkzaamheden' };
+const DAGDELEN = { ochtend: 'Ochtend', middag: 'Middag', dag: 'Hele dag' };
 const GELDIG_DAGEN = Number(process.env.AFSPRAAK_GELDIG_DAGEN || 14);
 
 const escH = (v) =>
@@ -56,12 +57,22 @@ router.post('/afspraak/:token/kies', express.json(), async (req, res) => {
 
   let bij;
   if (b.geen) {
-    if (!String(b.reden || '').trim()) {
-      return res.status(400).json({ error: 'Laat ons weten waarom geen van de momenten schikt' });
+    // In plaats van heen-en-weer bellen vragen wij de klant zelf momenten door
+    // te geven. Zonder die momenten kunnen wij niets nieuws voorstellen.
+    const tegen = (Array.isArray(b.tegenOpties) ? b.tegenOpties : [])
+      .map((o) => ({ datum: o && o.datum, deel: DAGDELEN[o && o.deel] ? o.deel : 'dag' }))
+      .filter((o) => datum(o.datum));
+    if (!tegen.length) {
+      return res.status(400).json({ error: 'Geef minstens één moment door waarop het u wel schikt' });
     }
     bij = await prisma.afspraak.update({
       where: { id: a.id },
-      data: { status: 'geweigerd', besluitAt: new Date(), naam, reden: String(b.reden).trim(), ip },
+      data: {
+        status: 'geweigerd', besluitAt: new Date(), naam, ip,
+        reden: String(b.reden || '').trim() || null,
+        tegenOpties: tegen.slice(0, 3),
+        tegenDatum: datum(tegen[0].datum),
+      },
     });
   } else {
     const opties = Array.isArray(a.opties) ? a.opties : [];
@@ -81,6 +92,11 @@ router.post('/afspraak/:token/kies', express.json(), async (req, res) => {
       text: b.geen
         ? `Geen van de voorgestelde momenten schikt — ${naam}`
         : `Afspraak gekozen door ${naam}: ${langeDatum(bij.gekozenDatum)}${bij.gekozenTijd ? ', ' + bij.gekozenTijd : ''}`,
+      detail: b.geen
+        ? `Klant kan wel: ${(bij.tegenOpties || [])
+            .map((o) => `${langeDatum(o.datum)} (${DAGDELEN[o.deel].toLowerCase()})`)
+            .join(' · ')}${bij.reden ? ` — ${bij.reden}` : ''}`
+        : null,
       schadeId: a.schadeId, soort: 'afspraak', byName: naam,
     },
   });
@@ -199,6 +215,24 @@ function pagina({ a, verlopen, fout }) {
   .melding.err{background:var(--red-soft);color:var(--red)}
   .voet{text-align:center;font-size:12px;color:var(--muted-2);padding-top:6px;line-height:1.7}
   .klein{font-size:12px;color:var(--muted);margin-top:12px}
+  /* Drie blokken waarin de klant zelf momenten doorgeeft. Nummer en kleur
+     maken duidelijk dat het om drie losse momenten gaat. */
+  .vblok{border:1px solid var(--line);border-left:3px solid var(--vk,var(--teal));border-radius:12px;
+    padding:12px 14px 14px;margin-top:12px;background:var(--canvas)}
+  .vblok.k1{--vk:#009BA8}.vblok.k2{--vk:#7F77DD}.vblok.k3{--vk:#C77E00}
+  .vkop{display:flex;align-items:center;gap:9px;font-size:11px;font-weight:700;letter-spacing:.05em;
+    text-transform:uppercase;color:var(--muted-2);margin-bottom:9px}
+  .vkop .n{width:21px;height:21px;border-radius:50%;flex:none;display:flex;align-items:center;
+    justify-content:center;font-size:11.5px;font-weight:700;letter-spacing:0;background:var(--vk);color:#fff;
+    font-family:'Poppins',sans-serif}
+  .vkop .r{margin-left:auto;font-size:10.5px;font-weight:600;text-transform:none;letter-spacing:0}
+  .vblok label{margin-top:0}
+  .delen{display:flex;gap:8px;margin-top:6px;flex-wrap:wrap}
+  .deel{flex:1;min-width:92px;font-family:inherit;font-size:13.5px;padding:11px 8px;border-radius:11px;
+    border:1.5px solid var(--line);background:var(--surface);color:var(--text);cursor:pointer;
+    min-height:44px;transition:.15s}
+  .deel:hover{border-color:var(--teal)}
+  .deel.aan{border-color:var(--teal);background:var(--teal-soft);color:#006670;font-weight:600}
 </style></head><body><div class="vel">`;
 
   const voet = `<div class="voet">${escH(BEDRIJF.naam)} &middot; ${escH(BEDRIJF.adres)}, ${escH(BEDRIJF.postcode)} ${escH(BEDRIJF.plaats)}<br>
@@ -221,7 +255,12 @@ function pagina({ a, verlopen, fout }) {
       a.gekozenTijd ? `, ${escH(a.gekozenTijd)}` : ''
     }. U ontvangt van ons een bevestiging.</div>`;
   } else if (a.status === 'geweigerd') {
-    blok = `<div class="melding let">U gaf aan dat geen van de momenten schikt. Wij nemen contact met u op voor een nieuwe datum.</div>`;
+    const tg = Array.isArray(a.tegenOpties) ? a.tegenOpties : [];
+    blok = `<div class="melding let">U gaf aan dat geen van de momenten schikt.${
+      tg.length
+        ? ` U kunt wel op: ${tg.map((o) => `${escH(langeDatum(o.datum))} (${escH((DAGDELEN[o.deel] || '').toLowerCase())})`).join(', ')}.`
+        : ''
+    } Wij komen zo snel mogelijk met een nieuw voorstel.</div>`;
   } else if (a.status === 'vervallen') {
     blok = `<div class="melding let">Dit voorstel is vervangen door een nieuwer voorstel.</div>`;
   } else if (verlopen) {
@@ -250,7 +289,8 @@ function pagina({ a, verlopen, fout }) {
       ${a.omschrijving ? `<b>${escH(a.omschrijving)}</b><br>` : ''}
       ${a.vakman ? `Uitgevoerd door ${escH(a.vakman)}. ` : ''}
       ${a.duur ? `Reken op ${escH(a.duur)}. ` : ''}
-      ${klaar || verlopen ? '' : 'Kies hieronder het moment dat u het beste uitkomt.'}
+      ${klaar || verlopen ? '' : 'Kies hieronder het moment dat u het beste uitkomt. '+
+      'Schikt geen van de drie? Dan geeft u onderaan zelf momenten door.'}
     </div>
 
     ${keuze}
@@ -269,22 +309,62 @@ function pagina({ a, verlopen, fout }) {
         '<div class="klein">Uw keuze wordt met datum en tijd vastgelegd bij het dossier.</div><div id="fout"></div>';
       document.getElementById('naam').focus();
     }
+    var delen = ['', '', ''];
+    function zetDeel(i, d){
+      delen[i] = d;
+      document.querySelectorAll('[data-blok="'+i+'"] .deel').forEach(function(b){
+        b.classList.toggle('aan', b.dataset.deel === d);
+      });
+    }
     function geenPast(){
       gekozen = null;
       document.querySelectorAll('.moment').forEach(function(m){ m.classList.remove('aan'); });
+      var noot = ['verplicht', 'graag ook', 'graag ook'];
+      var blokken = '';
+      for (var i = 0; i < 3; i++) {
+        blokken +=
+          '<div class="vblok k' + (i+1) + '" data-blok="' + i + '">' +
+            '<div class="vkop"><span class="n">' + (i+1) + '</span>Moment ' + (i+1) +
+              '<span class="r">' + noot[i] + '</span></div>' +
+            '<label for="dat' + i + '">Datum waarop het u wel schikt</label>' +
+            '<input type="date" id="dat' + i + '" min="' + new Date().toISOString().slice(0,10) + '">' +
+            '<label>Welk dagdeel?</label><div class="delen">' +
+              '<button type="button" class="deel" data-deel="ochtend" onclick="zetDeel(' + i + ',\'ochtend\')">Ochtend</button>' +
+              '<button type="button" class="deel" data-deel="middag" onclick="zetDeel(' + i + ',\'middag\')">Middag</button>' +
+              '<button type="button" class="deel aan" data-deel="dag" onclick="zetDeel(' + i + ',\'dag\')">Hele dag</button>' +
+            '</div></div>';
+        delen[i] = 'dag';
+      }
       document.getElementById('vak').innerHTML =
-        '<label>Waarom schikken deze momenten niet?</label>' +
+        '<div class="wat" style="margin-top:18px">Geef ons drie momenten door waarop het u w\u00e9l schikt. ' +
+        'Wij plannen daarbinnen en sturen u een nieuw voorstel \u2014 zo hoeven wij u niet te bellen.</div>' +
+        blokken +
+        '<label>Wilt u er iets bij vertellen? <span style="color:var(--muted-2)">niet verplicht</span></label>' +
         '<textarea id="reden" placeholder="Bijvoorbeeld: ik ben die week op vakantie"></textarea>' +
         '<label>Uw naam</label><input id="naam" placeholder="Voor- en achternaam" autocomplete="name">' +
-        '<button class="groot ja" onclick="verstuur(true)">Versturen</button><div id="fout"></div>';
-      document.getElementById('reden').focus();
+        '<button class="groot ja" onclick="verstuur(true)">Beschikbaarheid versturen</button>' +
+        '<div class="klein">Wij nemen uw momenten over in een nieuw voorstel.</div><div id="fout"></div>';
+      var e = document.getElementById('dat0');
+      if (e) e.focus();
     }
     function verstuur(geen){
       var naam = (document.getElementById('naam')||{}).value || '';
       var reden = (document.getElementById('reden')||{}).value || '';
+      var tegen = [];
+      if (geen) {
+        for (var i = 0; i < 3; i++) {
+          var d = (document.getElementById('dat' + i)||{}).value || '';
+          if (d) tegen.push({ datum: d, deel: delen[i] || 'dag' });
+        }
+        if (!tegen.length) {
+          document.getElementById('fout').innerHTML =
+            '<div class="melding err" style="margin-top:14px">Vul minstens \u00e9\u00e9n datum in waarop het u wel schikt.</div>';
+          return;
+        }
+      }
       fetch('/api/afspraak/${escH(a.token)}/kies', {
         method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ index: gekozen, naam: naam, geen: geen, reden: reden })
+        body: JSON.stringify({ index: gekozen, naam: naam, geen: geen, reden: reden, tegenOpties: tegen })
       }).then(function(r){ return r.json().then(function(j){ return {ok:r.ok, j:j}; }); })
         .then(function(res){
           if (!res.ok) { document.getElementById('fout').innerHTML =
