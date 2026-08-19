@@ -3,6 +3,7 @@ const prisma = require('../db');
 const { requireAuth, isDirectie } = require('../auth/middleware');
 const jortt = require('../lib/jortt');
 const { isTest } = require('../lib/testmodus');
+const { isZakelijk } = require('../lib/haltes');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -178,7 +179,7 @@ router.post('/schades/:nummer/facturen', async (req, res) => {
 
   const aan = String(req.body?.aan || (s.opdrachtgever ? 'beheerder' : 'klant'));
   const adr = s.locaties[0] || {};
-  const vve = s.opdrachtgeverType === 'vve' || !!s.opdrachtgever;
+  const zakelijk = isZakelijk(s);   // vve of bedrijf: factuur op naam van de organisatie
 
   let klant;
   if (aan === 'verzekeraar' && s.verzekeraar) {
@@ -189,12 +190,12 @@ router.post('/schades/:nummer/facturen', async (req, res) => {
       straat: '', postcode: '', plaats: '', email: s.beheerderEmail || '' };
   } else {
     klant = {
-      soort: vve ? 'bedrijf' : 'particulier',
+      soort: zakelijk ? 'bedrijf' : 'particulier',
       naam: s.owner,
-      tav: vve ? s.contactpersoon || '' : '',
-      straat: vve ? '' : adr.adres || s.adres || '',
+      tav: zakelijk ? s.contactpersoon || '' : '',
+      straat: zakelijk ? '' : adr.adres || s.adres || '',
       postcode: adr.postcode || s.postcode || '',
-      plaats: vve ? '' : adr.plaats || s.plaats || '',
+      plaats: zakelijk ? '' : adr.plaats || s.plaats || '',
       email: s.email || '',
     };
   }

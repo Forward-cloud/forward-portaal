@@ -3,6 +3,7 @@ const express = require('express');
 const prisma = require('../db');
 const { requireAuth } = require('../auth/middleware');
 const { BEDRIJF, PORTAAL } = require('../lib/brieven');
+const { isZakelijk } = require('../lib/haltes');
 
 const router = express.Router();
 
@@ -362,7 +363,8 @@ router.post('/schades/:nummer/machtigingen', async (req, res) => {
     return res.json({ machtiging: { ...uit, handtekening: undefined, link: `${PORTAAL}/machtiging/${uit.token}` }, opnieuw: true });
   }
 
-  const zakelijk = naarWie === 'beheerder' || !!s.opdrachtgever;
+  // Naar de beheerder is altijd zakelijk; verder volgt het de soort opdrachtgever.
+  const zakelijk = naarWie === 'beheerder' || isZakelijk(s);
   const m = await prisma.machtiging.create({
     data: {
       schadeId: s.id,
@@ -403,7 +405,8 @@ router.get('/schades/:nummer/machtiging-proef', async (req, res) => {
 
   const naarWie = String(req.query.naar || (s.opdrachtgever ? 'beheerder' : 'klant'));
   const naam = naarWie === 'beheerder' ? (s.opdrachtgever || s.owner) : s.owner;
-  const zakelijk = naarWie === 'beheerder' || !!s.opdrachtgever;
+  // Naar de beheerder is altijd zakelijk; verder volgt het de soort opdrachtgever.
+  const zakelijk = naarWie === 'beheerder' || isZakelijk(s);
 
   // Een machtiging die alleen in het geheugen bestaat.
   const m = {

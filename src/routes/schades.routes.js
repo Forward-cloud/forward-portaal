@@ -66,7 +66,7 @@ const datum = (v) => {
 };
 
 /* ─────────── lijst ─────────── */
-// ?archief=nee|ja|alles   ?q=zoekterm
+// ?archief=nee|ja|alles   ?test=alleen|ja   ?q=zoekterm
 router.get('/', async (req, res) => {
   const archief = String(req.query.archief || 'nee').toLowerCase();
   const q = String(req.query.q || '').trim();
@@ -74,10 +74,15 @@ router.get('/', async (req, res) => {
   const where = {};
   if (archief === 'nee') where.archived = false;
   else if (archief === 'ja') where.archived = true;
-  // Testdossiers alleen tonen als je erom vraagt. Een opleidingsaccount ziet
-  // niets anders -- daar valt niets echts te raken.
-  if (isOpleiding(req.user)) where.test = true;
-  else if (String(req.query.test || '') !== 'ja') where.test = false;
+  // Testdossiers staan standaard buiten de werkvoorraad.
+  //   test=alleen  -> uitsluitend testdossiers
+  //   test=ja      -> echte dossiers en testdossiers door elkaar
+  //   (niets)      -> alleen echte dossiers
+  // Een opleidingsaccount ziet nooit iets anders dan testdossiers; daar valt
+  // niets echts te raken.
+  const testStand = String(req.query.test || '').toLowerCase();
+  if (isOpleiding(req.user) || testStand === 'alleen') where.test = true;
+  else if (testStand !== 'ja') where.test = false;
 
   if (q) {
     where.OR = [
@@ -194,6 +199,7 @@ router.post('/', async (req, res) => {
           owner: String(b.owner).trim(),
           email: b.email || null,
           adres: b.adres || null,
+          postcode: b.postcode || null,
           plaats: b.plaats || null,
           ins: b.ins || null,
           amount: Number(b.amount) || 0,
@@ -203,12 +209,40 @@ router.post('/', async (req, res) => {
           opdrachtnummer: b.opdrachtnummer || null,
           opdrachtgever: b.opdrachtgever || null,
           test: b.test === true,
+
+          // Alles wat bij de melding al bekend is, gaat er meteen in. Wat de
+          // melder niet wist vul je later aan op de contactkaart.
+          opdrachtgeverType: ['vve', 'zakelijk', 'particulier'].includes(String(b.opdrachtgeverType || ''))
+            ? b.opdrachtgeverType : null,
+          telefoon: b.telefoon || null,
+          contactpersoon: b.contactpersoon || null,
+          algemeenEmail: b.algemeenEmail || null,
+          factuurEmail: b.factuurEmail || null,
+          beheerderEmail: b.beheerderEmail || null,
+          beheerderTel: b.beheerderTel || null,
+          bewonerSoort: b.bewonerSoort || null,
+          verzekeraarId: b.verzekeraarId || null,
+          tussenpersoonId: b.tussenpersoonId || null,
+          polisnummer: b.polisnummer || null,
+          verzSchadenummer: b.verzSchadenummer || null,
+          oorzaak: b.oorzaak || null,
+          schadedatum: b.schadedatum ? new Date(b.schadedatum) : null,
+          notitie: b.bijzonderheden || null,
         },
       });
       // Het opgegeven adres wordt meteen het hoofdadres; extra adressen kun je erbij zetten.
       const extra = Array.isArray(b.locaties) ? b.locaties : [];
-      const alle = [{ adres: b.adres, postcode: b.postcode, plaats: b.plaats, bewoner: b.owner,
-                      telefoon: b.telefoon, email: b.email, bewonerSoort: b.bewonerSoort }].concat(extra);
+      // Het hoofdadres krijgt de bewoner die bij de melding is opgegeven. Is die
+      // niet ingevuld, dan is de opdrachtgever zelf de bewoner.
+      const alle = [{
+        adres: b.adres,
+        postcode: b.postcode,
+        plaats: b.plaats,
+        bewoner: b.bewoner || b.owner,
+        telefoon: b.bewonerTelefoon || b.telefoon,
+        email: b.bewonerEmail || b.email,
+        bewonerSoort: b.bewonerSoort,
+      }].concat(extra);
       let i = 0;
       for (const l of alle) {
         if (!l || !l.adres || !String(l.adres).trim()) continue;
@@ -257,6 +291,16 @@ router.patch('/:nummer', async (req, res) => {
    'verzContactpersoon', 'verzTelefoon'].forEach((k) => {
     if (b[k] !== undefined) data[k] = b[k] || null;
   });
+
+  // Vve of particulier bepaalt de machtiging, de facturatie en wie er tekent.
+  // Alleen deze twee waarden zijn geldig; iets anders negeren we.
+  if (b.opdrachtgeverType !== undefined) {
+    const t = String(b.opdrachtgeverType || '');
+    if (t && !['vve', 'zakelijk', 'particulier'].includes(t)) {
+      return res.status(400).json({ error: 'Kies vereniging, zakelijk of particulier' });
+    }
+    data.opdrachtgeverType = t || null;
+  }
 
   ['verzekeraarId', 'tussenpersoonId'].forEach((k) => {
     if (b[k] !== undefined) data[k] = b[k] || null;
