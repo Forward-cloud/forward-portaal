@@ -127,7 +127,8 @@
   .a-main{flex:1;min-width:0}
   .a-title{font-size:13.5px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .a-sub{font-size:12px;color:var(--muted);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .fin-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:10px}
+  /* Past zich aan het aantal cellen aan: twee bij bedragen, drie bij aantallen. */
+  .fin-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:10px}
   .kpi-click{cursor:pointer;transition:.14s}
   .kpi-click:hover{box-shadow:0 8px 22px -12px rgba(20,31,53,.4);transform:translateY(-1px)}
   .cdot{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:5px;vertical-align:0}
@@ -221,7 +222,9 @@
     border:1px solid var(--line);border-radius:9px;font-family:inherit;font-size:13.5px;
     background:var(--surface);color:var(--text);min-height:40px}
   .fwn-blok textarea{min-height:74px;resize:vertical;line-height:1.5}
-  .fwn-rij{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:9px}
+  /* Twee velden naast elkaar zolang er ruimte is; anders onder elkaar. Bij 140px
+   werden ze te smal en liep de tekst in de keuzelijsten af. */
+.fwn-rij{display:grid;grid-template-columns:repeat(auto-fit,minmax(175px,1fr));gap:10px}
   .fwn-rij>div{min-width:0}
   .fwn-noot{font-size:11.5px;color:var(--muted);margin-top:6px;line-height:1.45}
   .table{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow-s)}
@@ -643,7 +646,7 @@
       <section class="view active" id="view-dashboard">
         <div class="page-head"><div class="eyebrow" id="todayLabel">Overzicht</div><h1 id="dashGroet">Welkom</h1><p id="dashIntro"></p></div>
         <div class="kpis" id="kpis"></div>
-        <div class="card" id="finCard" style="margin-bottom:18px;display:none"><div class="card-head"><h3><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M4 19V5m0 14h16M8 15l3-3 2 2 5-5" stroke="var(--teal)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Omzet &amp; marge <span class="tag grey" style="font-size:9px">alleen intern</span></h3><button class="modal-close" onclick="toggleFinChart()"><svg viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button></div><div style="padding:14px 18px" id="finDash"></div></div>
+        <div class="card" id="finCard" style="margin-bottom:18px;display:none"><div class="card-head"><h3><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M4 19V5m0 14h16M8 15l3-3 2 2 5-5" stroke="var(--teal)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Dossiers &amp; omzet <span class="tag grey" style="font-size:9px">alleen intern</span></h3><button class="modal-close" onclick="toggleFinChart()"><svg viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button></div><div style="padding:14px 18px" id="finDash"></div></div>
         <div class="grid-2">
           <div class="card">
             <div class="card-head"><h3><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M13 2L3 14h7l-1 8 10-12h-7l1-8z" stroke="var(--teal)" stroke-width="1.8" stroke-linejoin="round"/></svg>Acties · opvolging <span class="cnt" id="actCnt"></span></h3></div>
@@ -1972,16 +1975,103 @@ function finEditor(s){if(!can('omzet'))return '';const f=ensureFin(s);const inge
 const MONTHS=['jan','feb','mrt','apr','mei','jun','jul','aug','sep','okt','nov','dec'];
 let FINPERIOD='maand';
 // demo-historie zodat de grafiek gevuld is (in productie komt dit uit de dossiers/DB)
-let FINHIST=(function(){const arr=[];const now=new Date();for(let i=30;i>=1;i--){const d=new Date(now.getFullYear(),now.getMonth()-i,12);const ho=5000+Math.round(Math.random()*11000);const ex=700+Math.round(Math.random()*1400);const ko=Math.round(ho*(0.42+Math.random()*0.22));arr.push({date:d.toISOString(),ex,ho,ko});}return arr;})();
-function finEntries(){const out=[];SCHADES.forEach(s=>{if(!s.fin)return;const d=(s.verz&&s.verz.ingediend)?s.verz.ingediend:null;if(!d)return;const f=s.fin;out.push({date:d,ex:f.expertise.omzet||0,ho:f.herstel.omzet||0,ko:(f.herstel.inkoop||0)+(f.herstel.uitbesteed||0)});});FINHIST.forEach(e=>out.push(e));return out;}
+// Geen verzonnen historie meer: wat hier staat komt uit de dossiers.
+let FINHIST=[];
+/* Aantallen per periode, uit de echte dossiers.
+     binnen    — datum waarop de melding binnenkwam
+     aangenomen— datum waarop wij de opdracht aannamen
+     afgerond  — datum waarop het dossier is afgerond of gearchiveerd
+   Een dossier kan in dezelfde maand binnenkomen en worden aangenomen; dat
+   telt dan in beide reeksen mee. */
+function telEntries(){
+  const uit = [];
+  (typeof SCHADES !== 'undefined' ? SCHADES : []).forEach(s => {
+    if (s.test) return;
+    if (s.createdAt)    uit.push({ date: s.createdAt,    soort: 'binnen' });
+    if (s.aangenomenAt) uit.push({ date: s.aangenomenAt, soort: 'aangenomen' });
+    if (s.archivedAt)   uit.push({ date: s.archivedAt,   soort: 'afgerond' });
+  });
+  return uit;
+}
+
+/* De omzet per dossier, op de datum waarop hij telt. Gefactureerd gaat voor;
+   is er nog niet gefactureerd, dan de datum van indienen bij de verzekeraar.
+   Een dossier zonder van beide telt nog niet mee \u2014 het bedrag staat dan
+   wel in het dossier, maar hoort nog niet in een maand thuis. */
+function finEntries(){
+  const out=[];
+  (typeof SCHADES!=='undefined'?SCHADES:[]).forEach(s=>{
+    if(!s.fin||s.test)return;
+    const d=s.gefactureerdAt||s.verzIngediendAt||null;
+    if(!d)return;
+    const f=s.fin;
+    const ex=(f.expertise&&f.expertise.omzet)||0;
+    const ho=(f.herstel&&f.herstel.omzet)||0;
+    const ko=((f.herstel&&f.herstel.inkoop)||0)+((f.herstel&&f.herstel.uitbesteed)||0);
+    if(!ex&&!ho&&!ko)return;
+    out.push({date:d,ex,ho,ko});
+  });
+  FINHIST.forEach(e=>out.push(e));
+  return out;
+}
 function finBucketKey(date,period){const d=new Date(date),y=d.getFullYear(),m=d.getMonth();if(period==='jaar')return {key:''+y};if(period==='kwartaal')return {key:y+'-Q'+(Math.floor(m/3)+1)};return {key:y+'-'+String(m+1).padStart(2,'0')};}
 function finBuckets(period){const now=new Date(),y=now.getFullYear();
   if(period==='maand')return Array.from({length:12},(_,m)=>({key:y+'-'+String(m+1).padStart(2,'0'),label:MONTHS[m]}));
   if(period==='kwartaal')return [1,2,3,4].map(q=>({key:y+'-Q'+q,label:'Q'+q}));
   return Array.from({length:5},(_,i)=>{const yy=y-4+i;return {key:''+yy,label:''+yy};});}
-function finAggregate(period){const bs=finBuckets(period),map={};bs.forEach(b=>map[b.key]={label:b.label,ex:0,ho:0,ko:0});finEntries().forEach(e=>{const k=finBucketKey(e.date,period).key;if(map[k]){map[k].ex+=e.ex;map[k].ho+=e.ho;map[k].ko+=e.ko;}});return bs.map(b=>map[b.key]);}
+function finAggregate(period){
+  const bs=finBuckets(period),map={};
+  bs.forEach(b=>map[b.key]={label:b.label,ex:0,ho:0,ko:0,binnen:0,aangenomen:0,afgerond:0});
+  finEntries().forEach(e=>{const k=finBucketKey(e.date,period).key;
+    if(map[k]){map[k].ex+=e.ex;map[k].ho+=e.ho;map[k].ko+=e.ko;}});
+  telEntries().forEach(e=>{const k=finBucketKey(e.date,period).key;
+    if(map[k])map[k][e.soort]++;});
+  return bs.map(b=>map[b.key]);}
 function moneyShort(v){v=Math.round(v);if(Math.abs(v)>=1000)return '€'+(v/1000).toFixed(Math.abs(v)<10000&&v%1000?1:0)+'k';return '€'+v;}
 function niceMax(v){if(v<=0)return 1000;const p=Math.pow(10,Math.floor(Math.log10(v)));const n=v/p;const step=n<=1?1:n<=2?2:n<=5?5:10;return step*p;}
+/* De grafiek met aantallen dossiers. Drie staafjes naast elkaar per periode:
+   binnengekomen, aangenomen en afgerond. Zo zie je in één blik of er meer
+   binnenkomt dan er afgaat. */
+function telChartSVG(buckets,sel){
+  const W=700,H=250,padL=34,padB=28,padT=14,padR=14,pw=W-padL-padR,ph=H-padT-padB;
+  const hoogste=Math.max(1,...buckets.map(b=>Math.max(b.binnen,b.aangenomen,b.afgerond)));
+  const maxV=Math.max(4,Math.ceil(hoogste*1.15));
+  const n=buckets.length,slot=pw/n,yb=padT+ph;
+  const groep=Math.min(46,slot*0.66), bw=groep/3-2;
+  const y=v=>padT+ph*(1-v/maxV), x=i=>padL+slot*i+slot/2;
+
+  // Hele getallen op de as; halve dossiers bestaan niet.
+  const stappen=Math.min(4,maxV);
+  let grid='';
+  for(let g=0;g<=stappen;g++){
+    const val=Math.round(maxV*g/stappen),yy=y(val);
+    grid+=`<line x1="${padL}" y1="${yy}" x2="${W-padR}" y2="${yy}" stroke="var(--line-2)"/>`+
+      `<text x="${padL-7}" y="${yy+3}" text-anchor="end" font-size="9" fill="var(--muted-2)">${val}</text>`;
+  }
+  let hl='';
+  if(sel!=null&&buckets[sel])hl=`<rect x="${x(sel)-slot/2}" y="${padT}" width="${slot}" height="${ph}" fill="var(--teal-soft)" opacity=".55" rx="5"/>`;
+
+  const reeksen=[['binnen','var(--navy-3)'],['aangenomen','var(--teal)'],['afgerond','var(--green)']];
+  let bars='';
+  buckets.forEach((b,i)=>{
+    const cx=x(i),op=(sel!=null&&i!==sel)?' opacity="0.4"':'';
+    reeksen.forEach(([sleutel,kleur],k)=>{
+      const v=b[sleutel]||0; if(!v)return;
+      const hh=ph*(v/maxV), x0=cx-groep/2+k*(groep/3);
+      bars+=`<rect x="${x0}" y="${yb-hh}" width="${bw}" height="${hh}" rx="2" fill="${kleur}"${op}/>`;
+      if(v>0&&hh>13)bars+=`<text x="${x0+bw/2}" y="${yb-hh-3}" text-anchor="middle" font-size="8.5" fill="var(--muted)"${op}>${v}</text>`;
+    });
+    bars+=`<text x="${cx}" y="${H-9}" text-anchor="middle" font-size="9.5" fill="${i===sel?'var(--teal-ink)':'var(--muted)'}" font-weight="${i===sel?'700':'400'}">${b.label}</text>`;
+  });
+
+  let hits='';
+  buckets.forEach((b,i)=>{
+    hits+=`<rect x="${x(i)-slot/2}" y="${padT}" width="${slot}" height="${ph}" fill="transparent" style="cursor:pointer" onclick="finSelectBucket(${i})">`+
+      `<title>${b.label}: ${b.binnen} binnen \u00b7 ${b.aangenomen} aangenomen \u00b7 ${b.afgerond} afgerond</title></rect>`;
+  });
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block">${hl}${grid}${bars}${hits}</svg>`;
+}
+
 function finChartSVG(buckets,sel){const W=700,H=250,padL=48,padB=28,padT=14,padR=14,pw=W-padL-padR,ph=H-padT-padB;
   const maxV=niceMax(Math.max(1,...buckets.map(b=>b.ex+b.ho)));const n=buckets.length,slot=pw/n,bw=Math.min(40,slot*0.55),yb=padT+ph;
   const y=v=>padT+ph*(1-v/maxV),x=i=>padL+slot*i+slot/2;
@@ -1998,21 +2088,74 @@ function finChartSVG(buckets,sel){const W=700,H=250,padL=48,padB=28,padT=14,padR
 let FINSEL=null;
 function setFinPeriod(p){FINPERIOD=p;FINSEL=null;renderFinDash();}
 function finSelectBucket(i){FINSEL=(FINSEL===i)?null:i;renderFinDash();}
-function renderFinDash(){const el=$('#finDash');if(!el)return;const buckets=finAggregate(FINPERIOD);
+// Bedragen staan standaard uit. Ze horen niet zomaar op een scherm dat
+// iemand over je schouder kan meelezen; met het oogje zet je ze aan.
+let FINGELD = false;
+function toggleFinGeld(){ FINGELD = !FINGELD; renderFinDash(); }
+
+function renderFinDash(){
+  const el=$('#finDash'); if(!el)return;
+  const buckets=finAggregate(FINPERIOD);
   const sel=(FINSEL!=null&&buckets[FINSEL])?buckets[FINSEL]:null;
-  const v=sel||buckets.reduce((a,b)=>({ex:a.ex+b.ex,ho:a.ho+b.ho,ko:a.ko+b.ko}),{ex:0,ho:0,ko:0});
-  const netto=v.ex+v.ho-v.ko;const yr=new Date().getFullYear();
-  const scope=sel?(FINPERIOD==='jaar'?sel.label:sel.label+' '+yr):(FINPERIOD==='jaar'?'laatste 5 jaar · totaal':'dit jaar · totaal');
+  const v=sel||buckets.reduce((a,b)=>({ex:a.ex+b.ex,ho:a.ho+b.ho,ko:a.ko+b.ko,
+    binnen:a.binnen+b.binnen,aangenomen:a.aangenomen+b.aangenomen,afgerond:a.afgerond+b.afgerond}),
+    {ex:0,ho:0,ko:0,binnen:0,aangenomen:0,afgerond:0});
+  const netto=v.ex+v.ho-v.ko, yr=new Date().getFullYear();
+  const scope=sel?(FINPERIOD==='jaar'?sel.label:sel.label+' '+yr)
+                 :(FINPERIOD==='jaar'?'laatste 5 jaar · totaal':'dit jaar · totaal');
+
+  const oog=FINGELD
+    ? '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="2.8" stroke="currentColor" stroke-width="1.8"/>'
+    : '<path d="M2.5 12S6 5.5 12 5.5c1.5 0 2.9.3 4.1.9M21.5 12S18 18.5 12 18.5c-1.5 0-2.9-.3-4.1-.9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M4 4l16 16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>';
+
+  const legenda = FINGELD
+    ? '<span><span class="cdot" style="background:var(--navy)"></span>Expertise</span>' +
+      '<span><span class="cdot" style="background:var(--teal)"></span>Herstel</span>' +
+      '<span><span class="cdot" style="background:var(--green)"></span>Netto winst</span>'
+    : '<span><span class="cdot" style="background:var(--navy-3)"></span>Binnengekomen</span>' +
+      '<span><span class="cdot" style="background:var(--teal)"></span>Aangenomen</span>' +
+      '<span><span class="cdot" style="background:var(--green)"></span>Afgerond</span>';
+
+  // Het verschil tussen wat er binnenkomt en wat er afgaat: de werkvoorraad.
+  const verschil = v.binnen - v.afgerond;
+
   el.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:12px">
       <div class="seg"><button class="${FINPERIOD==='maand'?'on':''}" onclick="setFinPeriod('maand')">Per maand</button><button class="${FINPERIOD==='kwartaal'?'on':''}" onclick="setFinPeriod('kwartaal')">Per kwartaal</button><button class="${FINPERIOD==='jaar'?'on':''}" onclick="setFinPeriod('jaar')">Per jaar</button></div>
-      <div style="display:flex;gap:14px;font-size:11.5px;color:var(--muted)"><span><span class="cdot" style="background:var(--navy)"></span>Expertise</span><span><span class="cdot" style="background:var(--teal)"></span>Herstel</span><span><span class="cdot" style="background:var(--green)"></span>Netto winst</span></div>
+      <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+        <div style="display:flex;gap:14px;font-size:11.5px;color:var(--muted)">${legenda}</div>
+        <button class="jbtn${FINGELD?' aan':''}" onclick="toggleFinGeld()" style="${FINGELD?'background:var(--teal-soft);border-color:var(--teal)':''}">
+          <svg viewBox="0 0 24 24" fill="none" width="14" height="14">${oog}</svg>${FINGELD?'Bedragen verbergen':'Bedragen tonen'}</button>
+      </div>
     </div>
-    ${finChartSVG(buckets,FINSEL)}
+
+    ${FINGELD
+      ? (buckets.some(b=>b.ex||b.ho||b.ko)
+          ? finChartSVG(buckets,FINSEL)
+          : `<div class="empty" style="padding:34px 14px;font-size:12.5px">Nog geen bedragen in deze periode.<br>
+             <span style="color:var(--muted-2)">Omzet telt mee zodra een dossier is gefactureerd, of anders vanaf het indienen bij de verzekeraar.</span></div>`)
+      : (buckets.some(b=>b.binnen||b.aangenomen||b.afgerond)
+          ? telChartSVG(buckets,FINSEL)
+          : `<div class="empty" style="padding:34px 14px;font-size:12.5px">Nog geen dossiers in deze periode.</div>`)}
+
     <div style="font-size:11px;color:var(--muted-2);margin:8px 0 2px">${sel?'Weergave: <b>'+escT(scope)+'</b> — klik nogmaals op de balk voor het totaal.':'Klik op een balk voor de cijfers van die periode.'}</div>
-    <div class="fin-row" style="margin-top:10px"><div class="fin-cell"><span>Omzet expertise · ${escT(scope)}</span><b>${money(v.ex)}</b></div><div class="fin-cell"><span>Omzet herstel · ${escT(scope)}</span><b>${money(v.ho)}</b></div></div>
-    <div class="fin-net"><span>Netto winst voor Forward · ${escT(scope)}</span><b>${money(netto)}</b></div>
-    <div style="font-size:11px;color:var(--muted-2);margin-top:8px">Alleen zichtbaar op dit interne dashboard.</div>`;
+
+    <div class="fin-row" style="margin-top:10px">
+      <div class="fin-cell"><span>Binnengekomen · ${escT(scope)}</span><b>${v.binnen}</b></div>
+      <div class="fin-cell"><span>Aangenomen · ${escT(scope)}</span><b>${v.aangenomen}</b></div>
+      <div class="fin-cell"><span>Afgerond · ${escT(scope)}</span><b>${v.afgerond}</b></div>
+    </div>
+    <div class="fin-net" style="background:${verschil>0?'#FDF3E0':'var(--green-soft)'};color:${verschil>0?'#8A5A0B':'#12704A'}">
+      <span>${verschil>0?'Werkvoorraad loopt op':verschil<0?'Werkvoorraad loopt terug':'Evenveel binnen als afgerond'} · ${escT(scope)}</span>
+      <b>${verschil>0?'+':''}${verschil}</b></div>
+
+    ${FINGELD?`
+      <div class="fin-row" style="margin-top:10px"><div class="fin-cell"><span>Omzet expertise · ${escT(scope)}</span><b>${money(v.ex)}</b></div><div class="fin-cell"><span>Omzet herstel · ${escT(scope)}</span><b>${money(v.ho)}</b></div></div>
+      <div class="fin-net"><span>Netto winst voor Forward · ${escT(scope)}</span><b>${money(netto)}</b></div>`
+    :''}
+
+    <div style="font-size:11px;color:var(--muted-2);margin-top:8px">Alleen zichtbaar op dit interne dashboard.${FINGELD?'':' Bedragen staan uit.'}</div>`;
 }
+
 
 function factPaneHTML(s){
   if(!canInvoice())return '<div class="empty" style="padding:26px">Factureren is voorbehouden aan directie en de financiële administratie.</div>';
@@ -3001,6 +3144,10 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
       halteNamen: d.halteNamen || [],
       eigenRisico: !!d.eigenRisico,
       aangenomenAt: d.aangenomenAt,
+      // Voor het tellen per maand: binnengekomen, aangenomen en afgerond.
+      createdAt: d.createdAt,
+      archivedAt: d.archivedAt,
+      afgerond: !!d.afgerond,
       test: !!d.test,
       bronBeoordeeld: !!d.bronBeoordeeld,
       bronAanbod: d.bronAanbod,
@@ -3600,6 +3747,12 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
 /* Een formulier met veel velden past niet in een smalle kolom. Breed openen
    scheelt scrollen: de velden staan dan naast elkaar in plaats van eronder. */
 .fwm.breed{max-width:940px}
+/* De nieuwe schademelding heeft vier blokken; die zetten we in twee kolommen
+   zodat je het hele formulier in \u00e9\u00e9n blik ziet. */
+.fwm.breed .fwn-blok{margin-bottom:0}
+.fwm.breed #fwmBody{grid-template-columns:1fr 1fr;gap:11px 16px;align-items:start}
+.fwm.breed #fwmBody > #fwmMelding{grid-column:1 / -1}
+@media (max-width:900px){ .fwm.breed #fwmBody{grid-template-columns:1fr} }
 .fwm.breed .fwr-form{grid-template-columns:1fr 1fr;gap:11px 18px;align-items:start}
 /* Blokken die de volle breedte nodig hebben: de categorieën, de notitie en
    alles wat zelf al uit meer kolommen bestaat. */
@@ -4612,6 +4765,56 @@ body.fwm-open{overflow:hidden}
     if (b) b.style.display = s==='particulier' ? 'none' : '';
   };
 
+  /* Een verzekeraar of tussenpersoon die nog niet in het adresboek staat.
+     Een klein schermpje bovenop dit formulier: naam invullen, opslaan, en hij
+     staat meteen gekozen in de lijst. De rest vult u later aan bij Relaties. */
+  window.fwnPartijErbij = function(soort){
+    var isVerz = soort === 'VERZEKERAAR';
+    window.fwVraag({
+      titel: isVerz ? 'Nieuwe verzekeraar' : 'Nieuwe tussenpersoon',
+      uitleg:'Alleen de naam is nodig om verder te kunnen. Adres, e-mail en '+
+             'reactietermijn vult u later aan bij Relaties.',
+      velden:[
+        {naam:'naam', label:'Naam', verplicht:'Vul een naam in.',
+         plaats: isVerz ? 'bijvoorbeeld Klaverblad Verzekeringen' : 'bijvoorbeeld Meeus Assurantiën'},
+        {naam:'mail', label:'E-mail', plaats:'mag later'},
+        {naam:'tel',  label:'Telefoon', plaats:'mag later'}
+      ],
+      ok:'Toevoegen'
+    }).then(function(r){
+      if (!r) return;
+      window.fwApi('/api/relaties/snel',
+        {method:'POST', body:JSON.stringify({naam:r.naam, soort:soort})})
+        .then(function(res){
+          var rel = res.relatie;
+          // Meteen in de keuzelijst zetten en selecteren.
+          var sel = $$(isVerz ? 'fwnVerz' : 'fwnTussen');
+          if (sel && !Array.prototype.some.call(sel.options, function(o){ return o.value === rel.id; })) {
+            var o = document.createElement('option');
+            o.value = rel.id; o.textContent = rel.naam;
+            sel.appendChild(o);
+          }
+          if (sel) sel.value = rel.id;
+
+          // E-mail of telefoon meegegeven? Die vullen we gelijk aan.
+          if (r.mail || r.tel) {
+            return window.fwApi('/api/relaties/' + rel.id,
+              {method:'PATCH', body:JSON.stringify({email:r.mail||null, telefoon:r.tel||null})})
+              .catch(function(){ /* alleen directie mag bewerken; de naam staat er in elk geval */ })
+              .then(function(){ return rel; });
+          }
+          return rel;
+        })
+        .then(function(rel){
+          if (typeof toast === 'function') toast('Toegevoegd', rel.naam + ' staat nu in het adresboek', 'ok');
+        })
+        .catch(function(e){
+          var m = $$('fwmMelding');
+          if (m) { m.className = 'fwm-err'; m.textContent = e.message; m.style.display = ''; }
+        });
+    });
+  };
+
   window.fwnAdresNakijken = function(){
     window.fwAdresNakijken({adres:'fwnAdres', postcode:'fwnPostcode',
       plaats:'fwnPlaats', melding:'fwnAdresMelding'});
@@ -4716,16 +4919,14 @@ body.fwm-open{overflow:hidden}
           '<div><label for="fwnTussen">Tussenpersoon</label><select id="fwnTussen">' +
             '<option value="">Geen</option></select></div>' +
         '</div>' +
-        // Staat de partij er nog niet bij, dan leg je hier de naam vast en
-        // vult iemand de rest later aan bij Relaties.
-        '<div class="fwn-rij" style="margin-top:9px">' +
-          '<div><label for="fwnVerzNieuw">Of typ een nieuwe verzekeraar</label>' +
-            '<input type="text" id="fwnVerzNieuw" placeholder="alleen de naam is genoeg"></div>' +
-          '<div><label for="fwnTussenNieuw">Of typ een nieuwe tussenpersoon</label>' +
-            '<input type="text" id="fwnTussenNieuw" placeholder="alleen de naam is genoeg"></div>' +
+        // Staat de partij er nog niet bij, dan voeg je hem in een apart
+        // schermpje toe; hij komt daarna meteen in de lijst hierboven te staan.
+        '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">' +
+          '<button type="button" class="btn" onclick="fwnPartijErbij(\'VERZEKERAAR\')" ' +
+            'style="font-size:12.5px;padding:8px 13px;min-height:auto">+ Nieuwe verzekeraar</button>' +
+          '<button type="button" class="btn" onclick="fwnPartijErbij(\'TUSSENPERSOON\')" ' +
+            'style="font-size:12.5px;padding:8px 13px;min-height:auto">+ Nieuwe tussenpersoon</button>' +
         '</div>' +
-        '<div class="fwn-noot">Wat u hier typt komt in het adresboek te staan. '+
-          'De gegevens vult u later aan bij Relaties.</div>' +
         '<div class="fwn-rij" style="margin-top:9px">' +
           '<div><label for="fwnPolis">Polisnummer</label><input type="text" id="fwnPolis"></div>' +
           '<div><label for="fwnVerzNr">Hun schadenummer</label>' +
@@ -4754,6 +4955,9 @@ body.fwm-open{overflow:hidden}
     extraAdressen = [];
     $$('fwmOk').textContent = 'Dossier aanmaken';
     $$('fwmOk').onclick = aanmaken;
+    // Vier blokken naast elkaar in plaats van een smalle kolom.
+    var venster = document.querySelector('#fwmWrap .fwm');
+    if (venster) venster.classList.add('breed');
     $$('fwmWrap').classList.add('on'); document.body.classList.add('fwm-open');
     setTimeout(function(){ var e = $$('fwnOwner'); if (e) e.focus(); }, 60);
   };
@@ -4827,20 +5031,10 @@ body.fwm-open{overflow:hidden}
 
     function v(id){ var e = $$(id); return e ? String(e.value).trim() : ''; }
 
-    // Eerst de partijen die nog niet bestaan vastleggen, dan pas het dossier.
-    function nieuweRelatie(naam, soort){
-      if (!naam) return Promise.resolve('');
-      return window.fwApi('/api/relaties/snel',
-        {method:'POST', body:JSON.stringify({naam:naam, soort:soort})})
-        .then(function(res){ return res.relatie.id; });
-    }
-
-    Promise.all([
-      v('fwnVerz') || nieuweRelatie(v('fwnVerzNieuw'), 'VERZEKERAAR'),
-      v('fwnTussen') || nieuweRelatie(v('fwnTussenNieuw'), 'TUSSENPERSOON')
-    ]).then(function(ids){
-      return maakDossier(ids[0], ids[1]);
-    }).catch(function(e){
+    // De partijen zijn al aangemaakt via het schermpje; hier staan hun id's.
+    Promise.resolve()
+      .then(function(){ return maakDossier(v('fwnVerz'), v('fwnTussen')); })
+      .catch(function(e){
       var m = $$('fwmMelding');
       m.className = 'fwm-err'; m.textContent = e.message; m.style.display = '';
       knop.disabled = false; knop.textContent = 'Dossier aanmaken';
