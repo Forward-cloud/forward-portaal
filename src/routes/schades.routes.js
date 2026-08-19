@@ -253,7 +253,8 @@ router.patch('/:nummer', async (req, res) => {
    'tussenpersoon', 'polisnummer', 'oorzaak', 'beheerderEmail', 'polisvorm',
    'telefoon', 'postcode', 'beheerderTel', 'bewonerSoort', 'contactpersoon',
    'afwijzingReden', 'naAfwijzing', 'betalerNaAfwijzing', 'weigerReden',
-   'notitie'].forEach((k) => {
+   'notitie', 'algemeenEmail', 'factuurEmail',
+   'verzContactpersoon', 'verzTelefoon'].forEach((k) => {
     if (b[k] !== undefined) data[k] = b[k] || null;
   });
 
