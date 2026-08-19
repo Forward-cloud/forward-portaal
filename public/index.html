@@ -5409,6 +5409,11 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
 .hd-cgl{font-size:10.5px;font-weight:700;color:var(--muted-2);letter-spacing:.05em;
   text-transform:uppercase;margin-bottom:7px;display:flex;align-items:center;gap:10px}
 .hd-cgl .jbtn{margin-left:auto;text-transform:none;letter-spacing:0}
+/* Een groepskopje dat je kunt aanklikken om die gegevens te wijzigen. Ziet er
+   hetzelfde uit als een gewoon kopje — het voorbeeld toont daar geen knop. */
+button.hd-cgl{border:none;background:none;padding:0;width:100%;font-family:inherit;
+  cursor:pointer;text-align:left}
+button.hd-cgl:hover{color:var(--teal)}
 .hd-cr{display:flex;align-items:baseline;gap:9px;padding:3px 0;font-size:13px}
 .hd-cr svg{width:15px;height:15px;color:var(--muted-2);flex:none;align-self:center}
 .hd-crl{color:var(--muted);flex:none;min-width:132px}
@@ -5493,6 +5498,95 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
 .hd-dz span{display:block;font-size:11.5px;color:var(--muted);margin-top:2px}
 .hd-doclet{color:#8A5A0B}
 .hd-docsel{margin-top:7px;min-height:34px;padding:5px 9px;border:1px solid var(--line);border-radius:9px; font-family:inherit;font-size:12px;background:var(--surface);color:var(--text);max-width:230px}
+/* Kaart Financieel — overgenomen uit haltes-voorbeeld.html. */
+.hd-mg{font-family:'Poppins',sans-serif;font-size:34px;font-weight:600;color:var(--green); letter-spacing:-.01em;font-variant-numeric:tabular-nums;line-height:1.1}
+.hd-mg.min{color:var(--red)}
+.hd-mgl{font-size:12.5px;color:var(--muted);margin-top:3px}
+.hd-mgb{display:flex;height:10px;border-radius:6px;overflow:hidden;background:var(--line);margin:14px 0 16px}
+.hd-mgb span{display:block}
+.hd-mgb .in{background:var(--navy-3)}
+.hd-mgb .ub{background:var(--teal)}
+.hd-mgb .mg{background:var(--green)}
+.hd-mgb .mg.min{background:var(--red)}
+.hd-mr{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line-2);font-size:13.5px}
+.hd-mr .t{width:16px;flex:none;text-align:center;font-weight:600;font-size:14px}
+.hd-mr .t.plus{color:var(--green)}
+.hd-mr .t.min{color:var(--red)}
+.hd-mr .l{flex:1;color:var(--muted)}
+.hd-mr b{font-variant-numeric:tabular-nums;font-weight:500}
+.hd-mr b.plus{color:#12704A}
+.hd-mr b.min{color:var(--red)}
+.hd-mr.eind{border-bottom:none;border-top:1px solid var(--line);margin-top:4px;padding-top:11px}
+.hd-mr.eind .l{color:var(--navy);font-weight:500}
+.hd-mr.eind b{font-family:'Poppins',sans-serif;font-weight:600;font-size:16px}
+.hd-exp{display:flex;align-items:center;gap:12px;margin-top:12px;padding:11px 13px;border-radius:12px; background:var(--canvas);border:1px solid var(--line)}
+.hd-exp b{font-variant-numeric:tabular-nums;font-size:14px;font-weight:500;color:var(--navy); margin-left:auto;flex:none}
+.hd-expl{font-size:13px;font-weight:500;color:var(--navy)}
+.hd-exps{font-size:11px;color:var(--muted);margin-top:2px;line-height:1.45}
+.hd-exp.groot{margin-top:16px;padding:13px 15px}
+.hd-exptot{display:flex;justify-content:space-between;gap:12px;align-items:baseline;margin-top:10px; padding:0 3px;font-size:12.5px;color:var(--muted)}
+.hd-exptot b{color:var(--navy);font-variant-numeric:tabular-nums;font-size:14px;font-weight:500}
+.hd-mr.eind.incl{border-top:1px dashed var(--line);margin-top:8px}
+.hd-inclnoot{font-size:11px;color:var(--muted);text-align:right;margin-top:3px}
+.hd-mstat{display:flex;align-items:center;gap:8px;margin-top:12px;padding:9px 12px;border-radius:11px; font-size:12px}
+.hd-mstat svg{width:15px;height:15px;flex:none}
+.hd-mstat.ok{background:var(--green-soft);color:#12704A}
+.hd-mstat.wacht{background:#FDF3E0;color:#8A5A0B}
+/* Factuurscherm — overgenomen uit haltes-voorbeeld.html. */
+.fwk-hr{display:flex;align-items:center;gap:9px;font-size:12.5px;padding:5px 0}
+.fwk-hr input{width:16px;height:16px;accent-color:var(--teal)}
+.fwk-hr.vast{opacity:.5}
+.hd-fbouw{display:grid;grid-template-columns:minmax(0,.78fr) minmax(0,1.22fr);gap:14px;align-items:start}
+.hd-sam{padding-top:6px}
+.hd-samblok{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:9px; cursor:pointer;transition:.14s;background:var(--surface)}
+.hd-samblok:hover{border-color:#c8d0db}
+.hd-samblok.aan{border-color:var(--teal);box-shadow:0 0 0 3px rgba(0,155,168,.10)}
+.hd-samkop{display:flex;justify-content:space-between;align-items:center;gap:10px; font-family:'Poppins',sans-serif;font-weight:600;font-size:13px;color:var(--teal-ink)}
+.hd-samkop span{font-size:11px;font-weight:400;color:var(--muted);font-family:'Inter',sans-serif}
+.hd-saminh{font-size:12.5px;line-height:1.55;color:var(--text);margin-top:7px}
+.hd-samleeg{font-size:12.5px;color:var(--muted-2);font-style:italic;margin-top:7px}
+.hd-samm{font-size:11px;color:var(--muted-2)}
+.hd-samtab{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:4px}
+.hd-samtab td{padding:4px 0;vertical-align:top;border-bottom:1px solid var(--line-2)}
+.hd-samtab td:nth-child(n+2){text-align:right;white-space:nowrap;padding-left:10px}
+.hd-samtab tr:last-child td{border-bottom:none}
+.hd-samtot{margin-top:9px}
+.hd-samtot div{display:flex;justify-content:space-between;font-size:12.5px;color:var(--muted);padding:2px 0}
+.hd-samtot div b{color:var(--text);font-variant-numeric:tabular-nums;font-weight:500}
+.hd-samtot div.eind{border-top:1px solid var(--line);margin-top:5px;padding-top:7px;color:var(--navy)}
+.hd-samtot div.eind b{font-family:'Poppins',sans-serif;font-weight:600;font-size:15px;color:var(--navy)}
+.hd-mist{display:flex;gap:10px;align-items:flex-start;background:#FDF3E0;border:1px solid rgba(199,126,0,.28); border-radius:12px;padding:12px 14px;font-size:12.5px;line-height:1.6;color:#8A5A0B;margin-top:4px}
+.hd-mist svg{width:16px;height:16px;flex:none;margin-top:2px}
+.hd-inv{position:sticky;top:14px}
+.hd-kies{display:flex;gap:13px;align-items:center;color:var(--muted);padding:34px 18px}
+.hd-kies svg{width:24px;height:24px;color:var(--muted-2);flex:none}
+.hd-kies b{display:block;font-family:'Poppins',sans-serif;font-weight:600;font-size:14px;color:var(--navy)}
+.hd-kies span{display:block;font-size:12.5px;margin-top:3px;line-height:1.5}
+.hd-inv{font-size:12.5px}
+.hd-inv .fwk-kkop h4{font-size:13.5px}
+.hd-inv .hd-chip{padding:7px 11px;font-size:12px}
+.hd-inv .hd-chip span{font-size:10.5px}
+.hd-inv .hd-fnoot{font-size:11px}
+.hd-inv .hd-cgl{font-size:10px}
+.hd-reg{border:1px solid var(--line);border-radius:11px;padding:11px 12px;margin-bottom:9px; background:var(--surface)}
+.hd-regoms{display:block;font-size:10.5px;color:var(--muted)}
+.hd-regoms textarea{margin-top:3px}
+.hd-regkop{display:flex;justify-content:space-between;align-items:center;margin-bottom:7px; font-size:10.5px;font-weight:700;color:var(--muted-2);letter-spacing:.05em;text-transform:uppercase}
+.hd-reg textarea{width:100%;min-height:62px;padding:8px 10px;border:1px solid var(--line); border-radius:9px;font-family:inherit;font-size:12.5px;line-height:1.5;background:var(--surface); color:var(--text);resize:vertical}
+.hd-reg textarea:focus{outline:none;border-color:var(--teal);box-shadow:0 0 0 3px rgba(0,155,168,.10)}
+.hd-regrij{display:grid;grid-template-columns:62px minmax(0,1fr) 72px minmax(84px,auto); gap:8px;align-items:end;margin-top:9px}
+.hd-regrij label{font-size:10.5px;color:var(--muted);display:block;min-width:0}
+.hd-regrij input,.hd-regrij select{width:100%;margin-top:3px;min-height:34px;padding:6px 8px; border:1px solid var(--line);border-radius:8px;font-family:inherit;font-size:12.5px; background:var(--surface);color:var(--text)}
+.hd-regrij input{text-align:right;font-variant-numeric:tabular-nums}
+.hd-regbed{text-align:right;padding-bottom:6px;white-space:nowrap}
+.hd-regbed span{display:block;font-size:10.5px;color:var(--muted)}
+.hd-regbed b{font-size:13px;font-weight:500;font-variant-numeric:tabular-nums;color:var(--navy)}
+.hd-ftot{margin-top:14px;margin-left:auto;max-width:330px}
+.hd-ftr{display:flex;justify-content:space-between;gap:14px;padding:6px 0;font-size:13.5px;color:var(--muted)}
+.hd-ftr b{color:var(--text);font-variant-numeric:tabular-nums;font-weight:500}
+.hd-ftr.eind{border-top:1px solid var(--line);margin-top:6px;padding-top:11px;font-size:15px;color:var(--navy)}
+.hd-ftr.eind b{font-family:'Poppins',sans-serif;font-weight:600;font-size:18px;color:var(--navy)}
+@media (max-width:900px){ .hd-fbouw{grid-template-columns:1fr} }
 .hd-logm{margin-left:auto;font-size:10.5px;color:var(--muted-2);flex:none;padding-top:2px}
 .fwk-kaart{background:var(--surface);border:1px solid var(--line);border-radius:15px;
   box-shadow:var(--shadow-s);overflow:hidden}
@@ -5813,13 +5907,15 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
         return '<button class="btn lijn" onclick="fwkWeigeren()">Opdracht weigeren</button>'+
                '<button class="btn primary" onclick="fwkAannemen()">'+svg(I.vink)+'Opdracht aannemen</button>';
       }
-      return '<button class="btn primary" onclick="fwkHalte(2)">'+svg(I.kalender)+'Schade-opname inplannen</button>';
+      return '<button class="btn primary" onclick="fwkActie(\'opname\')">'+svg(I.kalender)+
+        'Schade-opname inplannen</button>';
     }
 
     if (stap === 2) {
       return h.indexOf(3)>-1
         ? '<button class="btn primary" onclick="fwkHalte(3)">'+svg(I.vink)+'Opname afgerond</button>'
-        : '<button class="btn primary" onclick="fwkHalte(4)">'+svg(I.pen)+'Schaderapport opstellen</button>';
+        : '<button class="btn primary" onclick="fwvOpen(\''+S.nr+'\',\'rapport\')">'+svg(I.pen)+
+          'Schaderapport opstellen</button>';
     }
 
     if (stap === 3) {
@@ -5829,9 +5925,12 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
       if (!bronOk) {
         return '<button class="btn primary" onclick="fwkBronAanvragen()">'+svg(I.mail)+'Bronherstel aanvragen</button>';
       }
-      if (h.indexOf(4)>-1) return '<button class="btn primary" onclick="fwkHalte(4)">'+svg(I.pen)+'Schaderapport opstellen</button>';
-      if (h.indexOf(5)>-1) return '<button class="btn primary" onclick="fwkHalte(5)">'+svg(I.stuur)+'Offerte versturen</button>';
-      return '<button class="btn primary" onclick="fwkHalte(7)">'+svg(I.kalender)+'Herstel inplannen</button>';
+      if (h.indexOf(4)>-1) return '<button class="btn primary" onclick="fwvOpen(\''+S.nr+'\',\'rapport\')">'+
+        svg(I.pen)+'Schaderapport opstellen</button>';
+      if (h.indexOf(5)>-1) return '<button class="btn primary" onclick="fwvOpen(\''+S.nr+'\',\'offerte\')">'+
+        svg(I.stuur)+'Offerte versturen</button>';
+      return '<button class="btn primary" onclick="fwkActie(\'herstel\')">'+svg(I.kalender)+
+        'Herstel inplannen</button>';
     }
 
     if (stap === 4) {
@@ -5846,15 +5945,21 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
           ? '<button class="btn lijn" onclick="fwkMachtHerinner(\''+machtiging.id+'\')">Herinneren</button>'+
             '<button class="btn primary uit" onclick="fwkMelding()" title="De getekende machtiging ontbreekt nog">'+
             svg(I.stuur)+'Claim indienen</button>'
-          : '<button class="btn primary" onclick="fwkHalte(5)">'+svg(I.stuur)+'Claim indienen</button>';
+          : '<button class="btn primary" onclick="fwvOpen(\''+S.nr+'\',\'claim\')">'+svg(I.stuur)+
+            'Claim indienen</button>';
       }
-      if (S.preset === 'expertise') return '<button class="btn primary" onclick="fwkAfronden()">Rapport versturen</button>';
-      return '<button class="btn primary" onclick="fwkHalte(7)">'+svg(I.kalender)+'Herstel inplannen</button>';
+      if (S.preset === 'expertise') return '<button class="btn primary" onclick="fwvOpen(\''+S.nr+'\',\'rapport\')">'+
+        svg(I.stuur)+'Rapport versturen</button>';
+      return '<button class="btn primary" onclick="fwkActie(\'herstel\')">'+svg(I.kalender)+
+        'Herstel inplannen</button>';
     }
 
     // Op halte 5 staan de knoppen in het blok erboven.
     if (stap === 5) return '<span class="fwk-geen">Wachten op '+(S.eigenRisico?'de klant':'de verzekeraar')+'</span>';
-    if (stap === 6) return '<button class="btn primary" onclick="fwkHalte(7)">'+svg(I.kalender)+'Herstel inplannen</button>';
+    if (stap === 6) return '<button class="btn primary" onclick="fwkActie(\'herstel\')">'+svg(I.kalender)+
+      'Herstel inplannen</button>';
+    if (stap === 7) return '<button class="btn primary" onclick="fwkActie(\'herstel\')">'+svg(I.plus)+
+      'Nog een werkgang voorstellen</button>';
     if (stap === 8) return '<span class="fwk-geen">Opleveren doe je per adres</span>';
     if (stap === 9) return '<span class="fwk-geen">Factureren staat bij Financieel</span>';
     if (stap === 10) return '<button class="btn primary" onclick="fwkAfronden()">'+svg(I.vink)+'Dossier archiveren</button>';
@@ -5921,7 +6026,11 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
 
   function ververs(){
     return window.fwLaadDossiers().then(function(){
-      S = SCHADES.find(function(x){ return x.nr === window.__fwDossier; });
+      // Valt het dossier uit de lijst \u2014 gearchiveerd, gefilterd, of een
+      // haperende verbinding \u2014 dan houden we het dossier dat we al hadden.
+      // Anders wordt S ineens undefined en breekt elke knop erna.
+      var vers = SCHADES.filter(function(x){ return x.nr === window.__fwDossier; })[0];
+      if (vers) S = vers;
       return laadAlles(window.__fwDossier);
     });
   }
@@ -7084,9 +7193,14 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
       return '<div class="hd-cr">'+svg(ico)+'<span class="hd-crl">'+esc(label)+'</span>'+
         '<span class="hd-crv">'+w+(extra?' <span class="hd-crx">'+esc(extra)+'</span>':'')+'</span></div>';
     }
-    function cGroep(titel, inhoud, knop){
+    // Een groep met kopje. Geef je een functie mee, dan is het kopje aanklikbaar
+    // om die gegevens te wijzigen; het ziet er hetzelfde uit.
+    function cGroep(titel, inhoud, fn){
       if (!inhoud) return '';
-      return '<div class="hd-cg"><div class="hd-cgl">'+esc(titel)+(knop||'')+'</div>'+inhoud+'</div>';
+      var kop = (fn && !klant)
+        ? '<button class="hd-cgl" onclick="'+fn+'()" title="'+esc(titel)+' wijzigen">'+esc(titel)+'</button>'
+        : '<div class="hd-cgl">'+esc(titel)+'</div>';
+      return '<div class="hd-cg">'+kop+inhoud+'</div>';
     }
     var hoofdLoc = locaties.filter(function(l){ return l.hoofd; })[0] || locaties[0] || {};
     var vve = S.opdrachtgeverType === 'vve' || !!S.opdrachtgever;
@@ -7105,9 +7219,8 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
           cRij(I.huis,'Kantoor', S.opdrachtgever)+
           cRij(I.pen,'Contactpersoon', S.contactpersoon)+
           cRij(I.mail,'E-mail', S.beheerderEmail, null, 'mail')+
-          cRij(I.tel,'Telefoon', S.beheerderTel, null, 'tel')+
           cRij(I.info,'Ons opdrachtnummer', S.opdrachtnummer),
-          klant?'':'<button class="jbtn" onclick="fwkContact()">Wijzigen</button>')+
+          'fwkContact')+
 
         (eigen
           ? cGroep('Verzekering', cRij(I.info,'Dekking','Eigen risico, geen verzekeraar'))
@@ -7117,16 +7230,13 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
                cRij(I.info,'Schadenummer verzekeraar', S.verzSchadenummer)+
                cRij(I.tel,'Telefoon', S.verzekeraar ? S.verzekeraar.telefoon : '', null, 'tel')+
                cRij(I.mail,'E-mail', S.verzekeraar ? S.verzekeraar.email : '', null, 'mail')+
-               cRij(I.pen,'Contactpersoon', S.verzekeraar ? S.verzekeraar.contactpersoon : '')+
-               cRij(I.huis,'Tussenpersoon', S.tussenpersoonRel ? S.tussenpersoonRel.naam : S.tussenpersoon)+
-               cRij(I.mail,'E-mail tussenpersoon',
-                    S.tussenpersoonRel ? S.tussenpersoonRel.email : '', null, 'mail'))
+               cRij(I.huis,'Tussenpersoon', S.tussenpersoonRel ? S.tussenpersoonRel.naam : S.tussenpersoon))
               || '<div class="hd-cr"><span class="hd-crl hd-crlet">Nog geen verzekeraar gekoppeld</span></div>',
-              klant?'':'<button class="jbtn" onclick="fwkVerzekeraar()">Wijzigen</button>'))+
+              'fwkVerzekeraar'))+
 
         cGroep('Op het adres',
-          cRij(I.huis,'Adres', hoofdLoc.adres || S.adres,
-            [hoofdLoc.postcode||S.postcode, hoofdLoc.plaats||S.plaats].filter(Boolean).join('  '))+
+          cRij(I.huis,'Adres',
+            [hoofdLoc.adres || S.adres, hoofdLoc.plaats || S.plaats].filter(Boolean).join(', '))+
           cRij(I.pen,'Bewoner', hoofdLoc.bewoner,
             hoofdLoc.bewonerSoort || (S.bewonerSoort==='huurder'?'huurder':'eigenaar'))+
           cRij(I.tel,'Telefoon bewoner', hoofdLoc.telefoon, null, 'tel')+
@@ -7138,38 +7248,56 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
           '<div class="hd-nott'+(S.notitie?'':' leeg')+'">'+
             esc(S.notitie||'Nog niets vastgelegd.')+'</div></div>')+
 
-        '<div class="hd-cg"><div class="hd-cgl">Behandelaar'+
+        '<div class="hd-cg"><div class="hd-cgl">Behandelaar</div>'+
+          '<div class="hd-cr">'+svg(I.pen)+'<span class="hd-crl">Op brieven en bonnen</span>'+
+          '<span class="hd-crv">'+esc(behandelaarNaam())+
+            (S.behandelaar && S.behandelaar.role
+              ? ' <span class="hd-crx">'+esc(rolNaam(S.behandelaar.role))+'</span>' : '')+'</span>'+
           (klant?'':'<button class="jbtn" onclick="fwkBehandelaar()">Wijzigen</button>')+'</div>'+
-          cRij(I.pen,'Op brieven en bonnen', behandelaarNaam(),
-            S.behandelaar && S.behandelaar.role ? rolNaam(S.behandelaar.role) : '')+
         '</div>'+
       '</div></div>';
 
     if (S.magFin && S.fin) {
       var om = S.fin.herstel.omzet||S.amount||0, ik2 = S.fin.herstel.inkoop||0, ut = S.fin.herstel.uitbesteed||0;
       var exp = (S.fin.expertise && S.fin.expertise.omzet) || 0;
-      // De marge gaat over het herstel. Het rapport staat er los naast, want dat
-      // is omzet zonder inkoop -- daarom een tweede regel eronder.
       var marge = om-ik2-ut, pct = om>0?Math.round(marge/om*100):0;
-      var totaal = om + exp, margePlus = marge + exp;
-      var pctPlus = totaal>0?Math.round(margePlus/totaal*100):0;
+      var goed = marge > 0, basis = Math.max(om, ik2+ut, 1);
 
-      x += '<div class="fwk-kaart"><div class="fwk-kkop"><h4>Financieel</h4><div class="r">alleen directie</div></div>'+
-        '<div class="fwk-kbody"><div class="fwk-fg">'+eur(marge)+'</div>'+
-        '<div class="fwk-fl">marge op het herstel \u00b7 '+pct+'% van '+eur(om)+'</div>'+
-        '<div class="fwk-fr"><span>Herstelomzet</span><b>'+eur(om)+'</b></div>'+
-        '<div class="fwk-fr"><span>Inkoop materiaal</span><b class="min">\u2212'+eur(ik2)+'</b></div>'+
-        '<div class="fwk-fr"><span>Onderaanneming</span><b class="min">\u2212'+eur(ut)+'</b></div>'+
+      x += '<div class="fwk-kaart"><div class="fwk-kkop"><h4>Financieel</h4>'+
+        '<div class="r">alleen directie</div></div>'+
+        '<div class="fwk-kbody">'+
+        '<div class="hd-mg'+(goed?'':' min')+'">'+(marge<0?'\u2212':'')+eur(Math.abs(marge))+'</div>'+
+        '<div class="hd-mgl">'+(marge<0?'verlies op dit dossier':'netto marge')+
+          (om>0?' \u00b7 '+Math.abs(pct)+'% van de omzet':'')+'</div>'+
+        '<div class="hd-mgb">'+
+          '<span class="in" style="width:'+(ik2/basis*100)+'%"></span>'+
+          '<span class="ub" style="width:'+(ut/basis*100)+'%"></span>'+
+          '<span class="mg'+(goed?'':' min')+'" style="width:'+(Math.abs(marge)/basis*100)+'%"></span></div>'+
+        '<div class="hd-mr"><span class="t plus">+</span><span class="l">Omzet</span>'+
+          '<b class="plus">'+eur(om)+'</b></div>'+
+        '<div class="hd-mr"><span class="t min">\u2212</span><span class="l">Inkoop materiaal</span>'+
+          '<b class="min">'+eur(ik2)+'</b></div>'+
+        '<div class="hd-mr"><span class="t min">\u2212</span><span class="l">Onderaanneming</span>'+
+          '<b class="min">'+eur(ut)+'</b></div>'+
+        '<div class="hd-mr eind"><span class="t"></span><span class="l">Blijft over</span>'+
+          '<b class="'+(goed?'plus':'min')+'">'+(marge<0?'\u2212':'')+eur(Math.abs(marge))+'</b></div>'+
         (exp
-          ? '<div class="fwk-frap"><div class="fwk-fr"><span>Omzet schaderapport</span><b>'+eur(exp)+'</b></div>'+
-            '<div class="fwk-fnoot">Rapportage buiten de marge gehouden \u2014 hier staat geen inkoop tegenover.</div></div>'+
-            '<div class="fwk-fr eind"><span>Marge inclusief rapport</span><b>'+eur(margePlus)+'</b></div>'+
-            '<div class="fwk-fr"><span>Totale schadeomzet</span><b>'+eur(totaal)+'</b></div>'+
-            '<div class="fwk-fl" style="margin-top:4px">'+pctPlus+'% van de totale omzet</div>'
+          ? '<div class="hd-exp"><div><div class="hd-expl">Omzet expertise</div>'+
+            '<div class="hd-exps">schaderapport \u00b7 buiten de marge gehouden</div></div>'+
+            '<b>'+eur(exp)+'</b></div>'+
+            '<div class="hd-exptot"><span>Totale schadeomzet</span><b>'+eur(om + exp)+'</b></div>'+
+            (function(){
+              var mi = marge + exp, ot = om + exp;
+              return '<div class="hd-mr eind incl"><span class="t"></span>'+
+                '<span class="l">Marge inclusief rapport</span>'+
+                '<b class="'+(mi<0?'min':'plus')+'">'+(mi<0?'\u2212':'')+eur(Math.abs(mi))+'</b></div>'+
+                '<div class="hd-inclnoot">'+(ot>0?Math.round(mi/ot*100)+'% van de totale schadeomzet':'')+'</div>';
+            })()
           : '')+
-        (S.invoiced
-          ? '<div class="fwk-fmelding groen">Gefactureerd</div>'
-          : '<div class="fwk-fmelding">Nog niet gefactureerd \u00b7 '+eur(totaal)+' openstaand</div>')+
+        '<div class="hd-mstat '+(S.gefactureerd?'ok':'wacht')+'">'+svg(S.gefactureerd?I.vink:I.klok)+
+          '<span>'+(S.gefactureerd
+            ? 'Gefactureerd'+(S.gefactureerdAt?' op '+dag(S.gefactureerdAt):'')
+            : 'Nog niet gefactureerd \u00b7 '+eur(om + exp)+' openstaand')+'</span></div>'+
       '</div></div>';
     }
     x += '</div>';
@@ -7407,15 +7535,21 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
     var l = locaties.filter(function(x){ return x.id===locId; })[0] || {};
     window.fwVraag({
       titel:'Werkgang toevoegen',
-      uitleg:(l.adres||'') + ' \u2014 wanneer wordt er gewerkt en waaraan?',
+      uitleg:(l.adres||'') + ' \u2014 de datum staat vast; dit is geen voorstel aan de klant.',
       velden:[
-        {naam:'datum',label:'Datum',type:'datum',verplicht:'Kies een datum.'},
-        {naam:'start',label:'Starttijd',type:'keuze',waarde:'08.00',
+        {groep:'Wanneer', groepNoot:'datum staat vast',
+         naam:'datum',label:'Datum',type:'datum',verplicht:'Kies een datum.'},
+        {groep:'Wanneer',
+         naam:'start',label:'Starttijd',type:'keuze',waarde:'08.00',
          opties:['07.00','08.00','09.00','10.00','11.00','13.00','14.00'].map(function(t){return [t,t+' uur'];})},
-        {naam:'vak',label:'Type werk',type:'keuze',waarde:'stuc',
+        {groep:'Wanneer',
+         naam:'uren',label:'Hoe lang',type:'keuze',waarde:'8',opties:DUUR},
+
+        {groep:'Wat er gebeurt', groepNoot:'de bewoner leest dit',
+         naam:'vak',label:'Type werk',type:'keuze',waarde:'stuc',
          opties:Object.keys(VAKKEN).map(function(k){ return [k, VAKKEN[k]]; })},
-        {naam:'uren',label:'Hoe lang',type:'keuze',waarde:'8',opties:DUUR},
-        {naam:'wat',label:'Wat gebeurt er',type:'tekst',
+        {groep:'Wat er gebeurt',
+         naam:'wat',label:'Omschrijving',type:'tekst',
          plaats:'bijvoorbeeld: stucwerk plafond hal, uitvlakken en sausklaar',
          verplicht:'Beschrijf wat er die dag gebeurt.'}
       ],
@@ -7456,17 +7590,24 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
     var l = locaties.find(function(x){return x.id===id}) || {};
     var eerste = uitvoeringen.filter(function(u){ return u.locatieId===id && !u.afgerond; })[0];
     window.fwVraag({
-      titel: l.ingepland ? 'Datum wijzigen' : 'Herstel inplannen',
-      uitleg: (l.adres ? l.adres + ' \u2014 ' : '') + 'wat gebeurt er, wanneer, en hoe lang duurt het?',
+      titel: l.ingepland ? 'Werkgang wijzigen' : 'Werkgang inplannen',
+      uitleg: (l.adres ? l.adres + ' \u2014 ' : '') + 'de datum staat vast; dit is geen voorstel aan de klant. '+
+        'Wat gebeurt er, wanneer, en hoe lang duurt het?',
       velden:[
-        {naam:'vak',label:'Type werk',type:'keuze',waarde:(eerste&&eerste.vak)||'stuc',
-         opties:Object.keys(VAKKEN).map(function(k){ return [k, VAKKEN[k]]; })},
-        {naam:'datum',label:'Startdatum',type:'datum',waarde:l.ingepland?String(l.ingepland).slice(0,10):'',
+        {groep:'Wanneer', groepNoot:'datum staat vast',
+         naam:'datum',label:'Startdatum',type:'datum',waarde:l.ingepland?String(l.ingepland).slice(0,10):'',
          verplicht:'Kies een datum.'},
-        {naam:'start',label:'Starttijd',type:'keuze',waarde:(eerste&&eerste.starttijd)||'08.00',
+        {groep:'Wanneer',
+         naam:'start',label:'Starttijd',type:'keuze',waarde:(eerste&&eerste.starttijd)||'08.00',
          opties:['07.00','08.00','09.00','10.00','11.00','13.00','14.00'].map(function(t){return [t,t+' uur'];})},
-        {naam:'uren',label:'Hoe lang',type:'keuze',waarde:String((eerste&&eerste.uren)||8),opties:DUUR},
-        {naam:'wat',label:'Omschrijving van de werkzaamheden',type:'tekst',
+        {groep:'Wanneer',
+         naam:'uren',label:'Hoe lang',type:'keuze',waarde:String((eerste&&eerste.uren)||8),opties:DUUR},
+
+        {groep:'Wat er gebeurt', groepNoot:'de bewoner leest dit',
+         naam:'vak',label:'Type werk',type:'keuze',waarde:(eerste&&eerste.vak)||'stuc',
+         opties:Object.keys(VAKKEN).map(function(k){ return [k, VAKKEN[k]]; })},
+        {groep:'Wat er gebeurt',
+         naam:'wat',label:'Omschrijving',type:'tekst',
          waarde:(eerste&&eerste.omschrijving)||'',
          plaats:'bijvoorbeeld: plafond en wand hal uitvlakken en sausklaar opleveren',
          verplicht:'Beschrijf wat er gebeurt \u2014 de bewoner leest dit ook.'}
@@ -8236,17 +8377,84 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
       '</div>';
   }
 
-  /* \u2550\u2550 factuurscherm \u2550\u2550 */
+  /* ══ factuurscherm ══ */
+
+  var fSectie = null, factuurVoor = false;
+
+  function num(v){ return Number(String(v == null ? '' : v).replace(',', '.').replace(/[^0-9.\-]/g, '')) || 0; }
+  function eur2(n){ return '\u20ac\u00a0' + (Number(n)||0).toLocaleString('nl-NL',
+    {minimumFractionDigits:2, maximumFractionDigits:2}); }
+  // Vervaldatum uit factuurdatum plus termijn. Ontbreekt de datum, dan nemen
+  // we vandaag — anders geeft toISOString() 'Invalid time value' en breekt
+  // het hele scherm af.
+  function vervalDatum(f){
+    var d = new Date(f.datum);
+    if (isNaN(d.getTime())) d = new Date();
+    d.setDate(d.getDate() + (Number(f.termijn) || 14));
+    return d;
+  }
+  function maandNaam(mm){
+    if (!mm) return '';
+    var d = new Date(mm + '-01');
+    return isNaN(d.getTime()) ? '' : d.toLocaleDateString('nl-NL', {month:'long', year:'numeric'});
+  }
+
+  // Dezelfde berekening als op de server, zodat de bedragen meelopen terwijl
+  // je typt. De server blijft de baas over wat er wordt bewaard.
+  function rekenF(f){
+    var regels = f.regels || [], sub = 0, btw = {};
+    regels.forEach(function(r){
+      var bedrag = num(r.aantal) * num(r.prijs) * 100;
+      var tarief = f.btwVerlegd ? 0 : num(r.btw);
+      if (f.bedragenIncl && tarief) {
+        var netto = Math.round(bedrag / (1 + tarief/100));
+        sub += netto; btw[tarief] = (btw[tarief]||0) + (bedrag - netto);
+        return;
+      }
+      sub += bedrag; btw[tarief] = (btw[tarief]||0) + Math.round(bedrag * tarief / 100);
+    });
+    sub = Math.round(sub);
+    var k = f.korting || {}, korting = 0;
+    if (k.soort === 'procent') korting = Math.round(sub * Math.min(num(k.waarde), 100) / 100);
+    if (k.soort === 'bedrag') korting = Math.min(Math.round(num(k.waarde)*100), sub);
+    if (korting && sub) {
+      var deel = 1 - korting/sub;
+      sub -= korting;
+      Object.keys(btw).forEach(function(t){ btw[t] = Math.round(btw[t] * deel); });
+    }
+    delete btw[0];
+    var btwBedrag = Object.keys(btw).reduce(function(a,t){ return a + btw[t]; }, 0);
+    return { sub:sub, btw:btw, btwBedrag:btwBedrag, korting:korting, totaal:sub + btwBedrag };
+  }
+
+  function factuurMist(f){
+    var m = [];
+    if (!String(f.aanNaam||'').trim()) m.push('naam van de klant');
+    if ((f.aanSoort||'bedrijf') === 'bedrijf') {
+      if (!String(f.aanStraat||'').trim()) m.push('straat en huisnummer');
+      if (!String(f.aanPostcode||'').trim()) m.push('postcode');
+      if (!String(f.aanPlaats||'').trim()) m.push('plaats');
+    }
+    if (!String(f.aanLand||'').trim()) m.push('land');
+    if (!String(f.aanEmail||'').trim()) m.push('e-mailadres');
+    if (!(f.regels||[]).some(function(r){ return r.omschrijving && num(r.prijs); }))
+      m.push('minstens \u00e9\u00e9n factuurregel');
+    return m;
+  }
 
   window.fwkFactuurNieuw = function(){
     api('/api/schades/'+encodeURIComponent(S.nr)+'/facturen', {method:'POST',
       body:JSON.stringify({aan: S.opdrachtgever ? 'beheerder' : 'klant'})})
       .then(function(res){
-        return laadAlles(S.nr).then(function(){ factuurId = res.factuur.id; teken(); });
+        return laadAlles(S.nr).then(function(){
+          factuurId = res.factuur.id; fSectie = 'klant'; factuurVoor = false; teken();
+        });
       }).catch(function(e){ melden('Niet gelukt', e.message, 'err'); });
   };
-  window.fwkFactuurOpen = function(id){ factuurId = id; teken(); };
-  window.fwkFactuurSluiten = function(){ factuurId = null; teken(); };
+  window.fwkFactuurOpen = function(id){ factuurId = id; fSectie = null; factuurVoor = false; teken(); };
+  window.fwkFactuurSluiten = function(){ factuurId = null; fSectie = null; factuurVoor = false; teken(); };
+  window.fwkFSectie = function(k){ fSectie = (fSectie === k) ? null : k; teken(); };
+  window.fwkFVoorbeeld = function(){ factuurVoor = !factuurVoor; teken(); };
 
   function factuurNu(){ return facturen.filter(function(f){ return f.id===factuurId; })[0] || null; }
 
@@ -8255,36 +8463,40 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
     Object.keys(velden).forEach(function(k){ f[k] = velden[k]; });
     teken();
     api('/api/facturen/'+f.id, {method:'PATCH', body:JSON.stringify(velden)})
-      .then(function(res){
-        var i = facturen.map(function(x){return x.id}).indexOf(f.id);
-        if (i > -1 && res.factuur) { facturen[i] = res.factuur; facturen[i].mist = res.mist; teken(); }
-      })
       .catch(function(e){ melden('Niet opgeslagen', e.message, 'err'); });
   }
   window.fwkFVeld = function(veld, waarde){ var o={}; o[veld]=waarde; factuurZet(o); };
-  window.fwkFRegel = function(i, veld, waarde){
+  window.fwkRVeld = function(i, veld, waarde){
     var f = factuurNu(); if (!f) return;
     var r = (f.regels||[]).slice();
     r[i] = Object.assign({}, r[i]); r[i][veld] = waarde;
     factuurZet({regels:r});
   };
-  window.fwkFRegelErbij = function(){
+  window.fwkFRegel = function(){
     var f = factuurNu(); if (!f) return;
     factuurZet({regels:(f.regels||[]).concat([{omschrijving:'', aantal:1, prijs:'0', btw:21}])});
   };
-  window.fwkFRegelWeg = function(i){
+  window.fwkRWeg = function(i){
     var f = factuurNu(); if (!f) return;
     var r = (f.regels||[]).slice(); r.splice(i,1);
     factuurZet({regels:r});
   };
+  window.fwkKorting = function(soort){
+    factuurZet({korting: soort==='geen' ? null : {soort:soort, waarde:'', omschrijving:''}});
+  };
+  window.fwkKortingVeld = function(veld, waarde){
+    var f = factuurNu(); if (!f || !f.korting) return;
+    var k = Object.assign({}, f.korting); k[veld] = waarde;
+    factuurZet({korting:k});
+  };
   window.fwkFactuurVersturen = function(){
     var f = factuurNu(); if (!f) return;
     window.fwBevestig('Factuur versturen via jortt?',
-      'Jortt kent het nummer toe, maakt de pdf en stuurt hem naar '+(f.aanEmail||'de klant')+'.',
-      'Ja, versturen').then(function(ja){
+      'Jortt kent het nummer toe, maakt de pdf op ons briefpapier en mailt hem naar '+
+      (f.aanEmail||'de klant')+'.', 'Ja, versturen').then(function(ja){
       if (!ja) return;
       api('/api/facturen/'+f.id+'/versturen', {method:'POST'})
-        .then(function(){ melden('Verstuurd','De factuur staat in jortt.'); factuurId = null; return laadAlles(S.nr); })
+        .then(function(){ melden('Verstuurd','De factuur staat in jortt.'); return laadAlles(S.nr); })
         .catch(function(e){ melden('Niet gelukt', e.message, 'err'); });
     });
   };
@@ -8299,91 +8511,311 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
     });
   };
 
+  // Eén blok in de samenvatting. Leeg blok toont wat er nog moet gebeuren.
+  function blokSam(sleutel, titel, inhoud, lees){
+    var aan = fSectie === sleutel;
+    return '<div class="hd-samblok'+(aan?' aan':'')+'"'+
+      (lees?'':' onclick="fwkFSectie(\''+sleutel+'\')"')+'>'+
+      '<div class="hd-samkop">'+esc(titel)+(lees?'':'<span>'+(inhoud?'wijzigen':'invullen')+'</span>')+'</div>'+
+      (inhoud
+        ? '<div class="hd-saminh">'+inhoud+'</div>'
+        : '<div class="hd-samleeg">Nog niets ingevuld</div>')+
+    '</div>';
+  }
+
+  function totalenF(f, t){
+    return '<div class="hd-ftot">'+
+      (t.korting
+        ? '<div class="hd-ftr"><span>Subtotaal voor korting</span><b>'+eur2((t.sub+t.korting)/100)+'</b></div>'+
+          '<div class="hd-ftr"><span>'+esc((f.korting&&f.korting.omschrijving)||'Korting')+
+          (f.korting.soort==='procent'?' ('+num(f.korting.waarde)+'%)':'')+'</span>'+
+          '<b>\u2212'+eur2(t.korting/100)+'</b></div>'
+        : '')+
+      '<div class="hd-ftr"><span>Subtotaal</span><b>'+eur2(t.sub/100)+'</b></div>'+
+      (f.btwVerlegd
+        ? '<div class="hd-ftr"><span>Btw</span><b>verlegd</b></div>'
+        : Object.keys(t.btw).sort().reverse().map(function(k){
+            return '<div class="hd-ftr"><span>Btw '+k+'%</span><b>'+eur2(t.btw[k]/100)+'</b></div>'; }).join(''))+
+      '<div class="hd-ftr eind"><span>Totaal</span><b>'+eur2(t.totaal/100)+'</b></div></div>';
+  }
+
+  function klantVelden(f){
+    var zakelijk = (f.aanSoort||'bedrijf') === 'bedrijf';
+    return '<div class="hd-fgrid" style="margin-top:14px">'+
+      (zakelijk
+        ? '<label>Ter attentie van<input type="text" value="'+esc(f.aanTav||'')+'" '+
+          'placeholder="'+esc(S.contactpersoon||'')+'" onchange="fwkFVeld(\'aanTav\',this.value)"></label>'
+        : '')+
+      '<label>Straat en huisnummer<input type="text" value="'+esc(f.aanStraat||'')+'" '+
+        'onchange="fwkFVeld(\'aanStraat\',this.value)"></label>'+
+      '<label>Postcode<input type="text" value="'+esc(f.aanPostcode||'')+'" '+
+        'onchange="fwkFVeld(\'aanPostcode\',this.value)"></label>'+
+      '<label>Plaats<input type="text" value="'+esc(f.aanPlaats||'')+'" '+
+        'onchange="fwkFVeld(\'aanPlaats\',this.value)"></label>'+
+      '<label>Land<input type="text" value="'+esc(f.aanLand||'Nederland')+'" '+
+        'onchange="fwkFVeld(\'aanLand\',this.value)"></label>'+
+      '<label>Extra adresinformatie <span style="color:var(--muted-2)">optioneel</span>'+
+        '<input type="text" value="'+esc(f.aanExtra||'')+'" placeholder="bv. postbus of afdeling" '+
+        'onchange="fwkFVeld(\'aanExtra\',this.value)"></label>'+
+      (zakelijk
+        ? '<label>KvK-nummer <span style="color:var(--muted-2)">voor Peppol</span>'+
+          '<input type="text" value="'+esc(f.aanKvk||'')+'" placeholder="12345678" '+
+          'onchange="fwkFVeld(\'aanKvk\',this.value)"></label>' : '')+
+      '<label>Aanhef in de e-mail<input type="text" value="'+esc(f.aanhef||'')+'" '+
+        'placeholder="Geachte heer, mevrouw," onchange="fwkFVeld(\'aanhef\',this.value)"></label>'+
+      '<label>Factuur-e-mail<input type="text" value="'+esc(f.aanEmail||'')+'" '+
+        'placeholder="nog niet bekend" onchange="fwkFVeld(\'aanEmail\',this.value)"></label>'+
+      '<label>In cc <span style="color:var(--muted-2)">optioneel</span>'+
+        '<input type="text" value="'+esc(f.ccEmails||'')+'" placeholder="komma\u2019s ertussen" '+
+        'onchange="fwkFVeld(\'ccEmails\',this.value)"></label>'+
+    '</div>';
+  }
+
+  function paneelFactuur(f, t){
+    if (fSectie === 'klant') {
+      return '<div class="fwk-kkop"><h4>Klant</h4>'+
+        '<button class="jbtn" onclick="fwkFSectie(\'klantnieuw\')">Nieuwe klant</button></div>'+
+        '<div class="fwk-kbody">'+
+        '<div class="hd-cgl">Uit dit dossier</div><div class="hd-chips">'+
+          [['klant', S.owner, S.opdrachtgeverType==='vve'?'VvE':'particulier'],
+           ['beheerder', S.opdrachtgever, 'beheerder'],
+           ['verzekeraar', S.verzekeraar?S.verzekeraar.naam:'', 'verzekeraar']]
+            .filter(function(o){ return o[1]; })
+            .map(function(o){
+              return '<button class="hd-chip'+(f.aan===o[0]?' aan':'')+'" onclick="fwkFVeld(\'aan\',\''+o[0]+'\')">'+
+                esc(o[1])+'<span>'+esc(o[2])+'</span></button>';
+            }).join('')+'</div>'+
+        '<div class="hd-fnoot" style="margin-top:9px">Wat we van deze partij weten is alvast ingevuld. '+
+          'Ontbreekt er iets, vul het hieronder aan \u2014 dan onthouden we het voor de volgende factuur.</div>'+
+        klantVelden(f)+
+      '</div>';
+    }
+
+    if (fSectie === 'klantnieuw') {
+      return '<div class="fwk-kkop"><h4>Nieuwe klant</h4>'+
+        '<button class="jbtn" onclick="fwkFSectie(\'klant\')">Terug</button></div>'+
+        '<div class="fwk-kbody">'+
+        '<div class="hd-chips">'+
+          [['bedrijf','Bedrijf'],['particulier','Particulier']].map(function(o){
+            return '<button class="hd-chip'+((f.aanSoort||'bedrijf')===o[0]?' aan':'')+'" '+
+              'onclick="fwkFVeld(\'aanSoort\',\''+o[0]+'\')">'+o[1]+'</button>';
+          }).join('')+'</div>'+
+        '<div class="hd-fgrid" style="margin-top:14px">'+
+          '<label>'+((f.aanSoort||'bedrijf')==='bedrijf'?'Naam klant':'Naam op factuur')+
+            '<input type="text" value="'+esc(f.aanNaam||'')+'" '+
+            'placeholder="'+((f.aanSoort||'bedrijf')==='bedrijf'?'bedrijfsnaam':'voor- en achternaam')+'" '+
+            'onchange="fwkFVeld(\'aanNaam\',this.value)"></label>'+
+        '</div>'+
+        klantVelden(f)+
+      '</div>';
+    }
+
+    if (fSectie === 'regels') {
+      return '<div class="fwk-kkop"><h4>Factuurregels</h4>'+
+        '<button class="jbtn" onclick="fwkFSectie(null)">Sluiten</button></div><div class="fwk-kbody">'+
+        '<div class="hd-chips" style="margin-bottom:12px">'+
+          [[false,'Bedragen exclusief btw'],[true,'Bedragen inclusief btw']].map(function(o){
+            return '<button class="hd-chip'+(!!f.bedragenIncl===o[0]?' aan':'')+'" '+
+              'onclick="fwkFVeld(\'bedragenIncl\','+o[0]+')">'+o[1]+'</button>';
+          }).join('')+'</div>'+
+        '<div class="hd-fnoot" style="margin:0 0 11px">Arbeid aan woningen ouder dan twee jaar valt '+
+          'onder 9%, materiaal blijft 21%. Zet ze daarom op aparte regels.</div>'+
+        (f.regels||[]).map(function(r,i){
+          var hoog = Math.max(3, String(r.omschrijving||'').split('\n').length + 1);
+          return '<div class="hd-reg">'+
+            '<div class="hd-regkop"><span>Regel '+(i+1)+'</span>'+
+              ((f.regels||[]).length>1?'<button class="jbtn" onclick="fwkRWeg('+i+')">Verwijderen</button>':'')+'</div>'+
+            '<label class="hd-regoms">Omschrijving'+
+              '<textarea rows="'+hoog+'" placeholder="Wat er is gedaan. Enter voor een nieuwe regel \u2014 '+
+              'bijvoorbeeld het adres, de ruimte en de uitgevoerde werkzaamheden." '+
+              'onchange="fwkRVeld('+i+',\'omschrijving\',this.value)">'+esc(r.omschrijving||'')+'</textarea></label>'+
+            '<div class="hd-regrij">'+
+              '<label>Aantal<input type="text" value="'+esc(r.aantal)+'" '+
+                'onchange="fwkRVeld('+i+',\'aantal\',this.value)"></label>'+
+              '<label>Bedrag '+(f.bedragenIncl?'incl. btw':'ex. btw')+
+                '<input type="text" value="'+esc(r.prijs)+'" onchange="fwkRVeld('+i+',\'prijs\',this.value)"></label>'+
+              '<label>Btw<select onchange="fwkRVeld('+i+',\'btw\',this.value)"'+(f.btwVerlegd?' disabled':'')+'>'+
+                [21,9,0].map(function(p){
+                  return '<option value="'+p+'"'+(String(r.btw)===String(p)?' selected':'')+'>'+p+'%</option>'; }).join('')+
+              '</select></label>'+
+              '<div class="hd-regbed"><span>Totaal</span><b>'+eur2(num(r.aantal)*num(r.prijs))+'</b></div>'+
+            '</div>'+
+          '</div>';
+        }).join('')+
+        '<button class="btn lijn" onclick="fwkFRegel()" style="margin-top:2px">'+svg(I.plus)+'Regel erbij</button>'+
+        '<div class="hd-cgl" style="margin-top:16px">Korting</div>'+
+        '<div class="hd-chips">'+
+          [['geen','Geen kortingen'],['bedrag','Bedrag in euro'],['procent','Percentage']].map(function(o){
+            return '<button class="hd-chip'+(((f.korting&&f.korting.soort)||'geen')===o[0]?' aan':'')+'" '+
+              'onclick="fwkKorting(\''+o[0]+'\')">'+o[1]+'</button>';
+          }).join('')+'</div>'+
+        ((f.korting && f.korting.soort !== 'geen')
+          ? '<div class="hd-fgrid" style="margin-top:11px">'+
+            '<label>Omschrijving<input type="text" value="'+esc(f.korting.omschrijving||'')+'" '+
+              'placeholder="bv. korting vaste relatie" onchange="fwkKortingVeld(\'omschrijving\',this.value)"></label>'+
+            '<label>'+(f.korting.soort==='procent'?'Percentage':'Bedrag in euro')+
+              '<input type="text" value="'+esc(f.korting.waarde||'')+'" '+
+              'onchange="fwkKortingVeld(\'waarde\',this.value)"></label>'+
+          '</div>' : '')+
+        totalenF(f, t)+
+        '<label class="fwk-hr" style="margin-top:14px"><input type="checkbox"'+(f.btwVerlegd?' checked':'')+
+          ' onchange="fwkFVeld(\'btwVerlegd\',this.checked)"><span>Btw verlegd \u2014 alleen als wij '+
+          'onderaannemer zijn voor een ander bouwbedrijf</span></label>'+
+      '</div>';
+    }
+
+    if (fSectie === 'ref') {
+      return '<div class="fwk-kkop"><h4>Referentie en opmerking</h4>'+
+        '<button class="jbtn" onclick="fwkFSectie(null)">Sluiten</button></div><div class="fwk-kbody">'+
+        '<div class="hd-fgrid">'+
+          '<label>Onze referentie <span style="color:var(--muted-2)">verkooporder</span>'+
+            '<input type="text" value="'+esc(f.verkooporder||'')+'" onchange="fwkFVeld(\'verkooporder\',this.value)"></label>'+
+          '<label>Kenmerk van de klant <span style="color:var(--muted-2)">inkooporder</span>'+
+            '<input type="text" value="'+esc(f.inkooporder||'')+'" placeholder="'+
+            esc(S.opdrachtnummer||'bv. VV-2026-3391')+'" onchange="fwkFVeld(\'inkooporder\',this.value)"></label>'+
+        '</div>'+
+        '<label style="display:block;margin-top:14px;font-size:11.5px;color:var(--muted)">'+
+          'Opmerking boven de regels <span style="color:var(--muted-2)">inleiding</span>'+
+          '<textarea onchange="fwkFVeld(\'intro\',this.value)" placeholder="bv. Hierbij de factuur voor het '+
+          'herstel van de waterschade, uitgevoerd in augustus." style="width:100%;margin-top:5px;min-height:64px;'+
+          'border:1px solid var(--line);border-radius:11px;padding:10px 12px;font-family:inherit;font-size:13.5px">'+
+          esc(f.intro||'')+'</textarea></label>'+
+        '<label style="display:block;margin-top:12px;font-size:11.5px;color:var(--muted)">Opmerking onder de regels'+
+          '<textarea onchange="fwkFVeld(\'notitie\',this.value)" placeholder="bv. betalingsvoorwaarden of '+
+          'een verwijzing naar het dossier" style="width:100%;margin-top:5px;min-height:64px;'+
+          'border:1px solid var(--line);border-radius:11px;padding:10px 12px;font-family:inherit;font-size:13.5px">'+
+          esc(f.notitie||'')+'</textarea></label>'+
+      '</div>';
+    }
+
+    if (fSectie === 'datum') {
+      return '<div class="fwk-kkop"><h4>Factuur- en leverdatum</h4>'+
+        '<button class="jbtn" onclick="fwkFSectie(null)">Sluiten</button></div><div class="fwk-kbody">'+
+        '<div class="hd-fgrid">'+
+          '<label>Factuurdatum<input type="date" value="'+esc(String(f.datum||'').slice(0,10))+'" '+
+            'onchange="fwkFVeld(\'datum\',this.value)"></label>'+
+          '<label>Betalingstermijn in dagen<input type="number" min="0" max="120" value="'+
+            esc(f.termijn)+'" onchange="fwkFVeld(\'termijn\',this.value)"></label>'+
+          '<label>Leverdatum<input type="month" value="'+esc(f.leverMaand||'')+'" '+
+            'onchange="fwkFVeld(\'leverMaand\',this.value)"></label>'+
+          '<label>Tot en met <span style="color:var(--muted-2)">bij levering over meer maanden</span>'+
+            '<input type="month" value="'+esc(f.leverTot||'')+'" onchange="fwkFVeld(\'leverTot\',this.value)"></label>'+
+        '</div>'+
+      '</div>';
+    }
+
+    return '<div class="fwk-kbody hd-kies">'+svg(I.pen)+
+      '<div><b>Kies links een blok om in te vullen</b>'+
+      '<span>Klant, regels, referenties of datums \u2014 net als in jortt, maar dan hier.</span></div></div>';
+  }
+
   function tekenFactuur(){
     var f = factuurNu();
     if (!f) { factuurId = null; teken(); return; }
-    var lees = f.status !== 'concept';
-    var regels = f.regels || [];
+    var t = rekenF(f), lees = f.status !== 'concept', mist = factuurMist(f);
     var x = '<div class="fwk-wrap">' + terugKnop('fwkFactuurSluiten');
 
-    var st = f.status==='betaald' ? ['groen','Betaald']
-           : f.status==='verstuurd' ? ['amber','Openstaand'] : ['grijs','Concept'];
+    var JS = {concept:['grijs','Concept'], verstuurd:['groen','Verstuurd'],
+      betaald:['groen','Betaald']}[f.status] || ['grijs','Concept'];
 
     x += '<div class="fwk-kop"><div><div class="fwk-nr">'+
-      (f.nummer?esc(f.nummer):'nummer volgt uit jortt')+
-      ' <span class="fwk-pil '+st[0]+'">'+st[1]+'</span></div>'+
-      '<h1>Factuur</h1><div class="sub">'+esc(f.aanNaam||'\u2014')+' \u00b7 '+esc(hoofdAdres())+'</div></div>'+
+      (f.nummer ? '<span class="mono">'+esc(f.nummer)+'</span>' : 'nummer volgt uit jortt')+
+      ' <span class="fwk-pil '+JS[0]+'">'+JS[1]+'</span></div>'+
+      '<h1>Factuur '+esc(S.nr)+'</h1>'+
+      '<div class="sub">'+esc(f.aanNaam||'\u2014')+' \u00b7 '+esc(hoofdAdres())+'</div></div>'+
       '<div style="display:flex;gap:8px;flex-wrap:wrap">'+
-        (lees
-          ? '<span class="hd-geen">Verstuurd \u2014 de pdf staat in jortt</span>'
-          : '<button class="btn primary" onclick="fwkFactuurVersturen()">'+svg(I.stuur)+'Versturen via jortt</button>')+
+        '<button class="btn lijn" onclick="fwkFVoorbeeld()">'+svg(I.oog)+
+          (factuurVoor?'Sluit voorbeeld':'Voorbeeld')+'</button>'+
+        (f.status==='concept'
+          ? '<button class="btn primary'+(mist.length?' uit':'')+'" '+
+            (mist.length
+              ? 'onclick="melden(\'Nog niet compleet\',\'Vul eerst aan wat er nog ontbreekt.\',\'info\')"'
+              : 'onclick="fwkFactuurVersturen()"')+'>'+svg(I.stuur)+'Versturen</button>'
+          : '<span class="hd-geen">Verstuurd \u2014 de pdf staat in jortt</span>')+
       '</div></div>';
 
-    if ((f.mist||[]).length && !lees) {
-      x += '<div class="fwk-blok amber">'+svg(I.klok)+'<span><b>Nog niet compleet.</b> '+
-        'Ontbreekt: '+esc(f.mist.join(', '))+'.</span></div>';
+    if (f.status === 'concept')
+      x += '<div class="fwk-blok" style="background:var(--teal-soft);color:var(--teal-ink)">'+svg(I.info)+
+        '<span><b>Voorbeeld</b> is voor jezelf, om te zien wat er straks uitgaat. '+
+        '<b>Versturen</b> doet het echte werk: de factuur gaat via jortt de deur uit, jortt kent het nummer toe '+
+        'en mailt de pdf op jullie briefpapier naar de klant.</span></div>';
+
+    if (f.status === 'verstuurd') {
+      var verv = vervalDatum(f);
+      var over = Math.ceil((verv - Date.now())/864e5);
+      x += '<div class="fwk-blok '+(over<0?'rood':'amber')+'">'+svg(over<0?I.stop:I.klok)+
+        '<span><b>'+eur2((f.totaal||0)/100)+' openstaand.</b> Vervalt '+dag(verv.toISOString())+
+        (over<0?' \u2014 '+Math.abs(over)+' dagen te laat. Jortt stuurt de herinneringen.'
+               :' \u00b7 nog '+over+' dagen. Jortt bewaakt de betaling.')+'</span></div>';
     }
+    if (f.status === 'betaald')
+      x += '<div class="fwk-blok" style="background:var(--green-soft);color:#12704A">'+svg(I.vink)+
+        '<span><b>Betaald</b>'+(f.betaaldAt?' op '+dag(f.betaaldAt):'')+'.</span></div>';
 
-    x += '<div class="fwk-kaart"><div class="fwk-kkop"><h4>Aan wie</h4></div><div class="fwk-kbody">'+
-      '<div class="hd-fgrid">'+
-        '<label>Naam<input type="text" value="'+esc(f.aanNaam||'')+'"'+(lees?' disabled':'')+
-          ' onchange="fwkFVeld(\'aanNaam\',this.value)"></label>'+
-        '<label>Ter attentie van<input type="text" value="'+esc(f.aanTav||'')+'"'+(lees?' disabled':'')+
-          ' onchange="fwkFVeld(\'aanTav\',this.value)"></label>'+
-        '<label>E-mail<input type="text" value="'+esc(f.aanEmail||'')+'"'+(lees?' disabled':'')+
-          ' onchange="fwkFVeld(\'aanEmail\',this.value)"></label>'+
-        '<label>Straat en huisnummer<input type="text" value="'+esc(f.aanStraat||'')+'"'+(lees?' disabled':'')+
-          ' onchange="fwkFVeld(\'aanStraat\',this.value)"></label>'+
-        '<label>Postcode<input type="text" value="'+esc(f.aanPostcode||'')+'"'+(lees?' disabled':'')+
-          ' onchange="fwkFVeld(\'aanPostcode\',this.value)"></label>'+
-        '<label>Plaats<input type="text" value="'+esc(f.aanPlaats||'')+'"'+(lees?' disabled':'')+
-          ' onchange="fwkFVeld(\'aanPlaats\',this.value)"></label>'+
-        '<label>Uw referentie<input type="text" value="'+esc(f.inkooporder||'')+'"'+(lees?' disabled':'')+
-          ' onchange="fwkFVeld(\'inkooporder\',this.value)"></label>'+
-        '<label>Betaaltermijn in dagen<input type="text" value="'+esc(f.termijn||14)+'"'+(lees?' disabled':'')+
-          ' onchange="fwkFVeld(\'termijn\',this.value)"></label>'+
-      '</div></div></div>';
+    /* ── links de samenvatting, rechts het invulpaneel ── */
+    x += '<div class="hd-fbouw">';
 
-    x += '<div class="fwk-kaart"><div class="fwk-kkop"><h4>Wat factureren we</h4>'+
-      (lees?'':'<button class="jbtn" onclick="fwkFRegelErbij()">Regel erbij</button>')+
-      '</div><div class="fwk-kbody">'+
-      (regels.length
-        ? regels.map(function(r, i){
-            return '<div class="hd-doc"><div style="flex:1;min-width:0">'+
-              '<input type="text" value="'+esc(r.omschrijving||'')+'" placeholder="Omschrijving"'+
-                (lees?' disabled':'')+' onchange="fwkFRegel('+i+',\'omschrijving\',this.value)" '+
-                'style="width:100%;border:1px solid var(--line);border-radius:9px;padding:8px 10px;'+
-                'font-family:inherit;font-size:13.5px">'+
-              '<div class="hd-fgrid" style="margin-top:6px">'+
-                '<label>Aantal<input type="text" value="'+esc(r.aantal||1)+'"'+(lees?' disabled':'')+
-                  ' onchange="fwkFRegel('+i+',\'aantal\',this.value)"></label>'+
-                '<label>Prijs per stuk<input type="text" value="'+esc(r.prijs||'')+'"'+(lees?' disabled':'')+
-                  ' onchange="fwkFRegel('+i+',\'prijs\',this.value)"></label>'+
-                '<label>Btw<select'+(lees?' disabled':'')+' onchange="fwkFRegel('+i+',\'btw\',this.value)">'+
-                  [0,9,21].map(function(t){
-                    return '<option value="'+t+'"'+(Number(r.btw)===t?' selected':'')+'>'+t+'%</option>';
-                  }).join('')+'</select></label>'+
-              '</div></div>'+
-              (lees?'':'<button class="jbtn" onclick="fwkFRegelWeg('+i+')">\u2715</button>')+
-            '</div>';
-          }).join('')
-        : '<div class="fwk-leeg">Nog geen regels.</div>')+
-      '<div class="fwk-som"><span class="l">Totaal inclusief btw</span>'+
-        '<span class="v">'+eur((f.totaal||0)/100)+'</span></div>'+
-      '<div class="hd-fnoot">Arbeid aan een woning ouder dan twee jaar valt onder 9%, '+
-        'materiaal onder 21%.</div>'+
-    '</div></div>';
+    x += '<div class="fwk-kaart"><div class="fwk-kkop"><h4>Factuur '+
+      (f.nummer?esc(f.nummer):'in opbouw')+'</h4></div><div class="fwk-kbody hd-sam">';
 
-    if (!lees) {
-      x += '<div class="hd-ok" style="margin-top:14px">'+
+    x += blokSam('klant', 'Klant', f.aanNaam
+      ? esc(f.aanNaam)+(f.aanTav?'<br>t.a.v. '+esc(f.aanTav):'')+
+        (f.aanStraat?'<br>'+esc(f.aanStraat):'')+
+        ((f.aanPostcode||f.aanPlaats)?'<br>'+esc(((f.aanPostcode||'')+' '+(f.aanPlaats||'')).trim()):'')+
+        (f.aanEmail?'<br><span class="hd-samm">'+esc(f.aanEmail)+'</span>':'')+
+        (f.ccEmails?'<br><span class="hd-samm">cc '+esc(f.ccEmails)+'</span>':'')
+      : null, lees);
+
+    var regels = (f.regels||[]).filter(function(r){ return r.omschrijving || num(r.prijs); });
+    x += blokSam('regels', 'Factuurregels', regels.length
+      ? '<table class="hd-samtab"><tbody>'+regels.map(function(r){
+          return '<tr><td>'+esc(r.omschrijving||'\u2014')+'</td><td>'+esc(r.aantal)+'</td>'+
+            '<td>'+(f.btwVerlegd?'verlegd':num(r.btw)+'%')+'</td>'+
+            '<td>'+eur2(num(r.aantal)*num(r.prijs))+'</td></tr>';
+        }).join('')+'</tbody></table>'+
+        '<div class="hd-samtot">'+
+          '<div><span>Subtotaal</span><b>'+eur2(t.sub/100)+'</b></div>'+
+          (f.btwVerlegd
+            ? '<div><span>Btw</span><b>verlegd</b></div>'
+            : Object.keys(t.btw).sort().reverse().map(function(k){
+                return '<div><span>Btw '+k+'%</span><b>'+eur2(t.btw[k]/100)+'</b></div>'; }).join(''))+
+          '<div class="eind"><span>Totaal</span><b>'+eur2(t.totaal/100)+'</b></div></div>'
+      : null, lees);
+
+    x += blokSam('ref', 'Referentie en opmerking',
+      (f.verkooporder||f.inkooporder||f.intro||f.notitie)
+        ? (f.verkooporder?'<span class="hd-samm">Onze referentie</span> '+esc(f.verkooporder)+'<br>':'')+
+          (f.inkooporder?'<span class="hd-samm">Kenmerk klant</span> '+esc(f.inkooporder)+'<br>':'')+
+          (f.intro?'<span class="hd-samm">Boven de regels</span> '+esc(f.intro.slice(0,60))+'<br>':'')+
+          (f.notitie?'<span class="hd-samm">Onder de regels</span> '+esc(f.notitie.slice(0,60)):'')
+        : null, lees);
+
+    var verv2 = vervalDatum(f);
+    x += blokSam('datum', 'Factuur- en leverdatum',
+      '<table class="hd-samtab"><tbody><tr>'+
+        '<td><span class="hd-samm">Factuurdatum</span><br>'+dag(f.datum)+'</td>'+
+        '<td><span class="hd-samm">Vervaldatum</span><br>'+dag(verv2.toISOString())+'</td>'+
+        '<td><span class="hd-samm">Leverdatum</span><br>'+(maandNaam(f.leverMaand)||'\u2014')+
+          (f.leverTot?'<br>t/m '+maandNaam(f.leverTot):'')+'</td>'+
+      '</tr></tbody></table>', lees);
+
+    if (!lees && mist.length)
+      x += '<div class="hd-mist">'+svg(I.info)+'<span><b>Deze factuur kan nog niet verstuurd worden.</b><br>'+
+        mist.map(function(m){ return 'Nog geen '+esc(m)+'.'; }).join('<br>')+'</span></div>';
+
+    if (!lees)
+      x += '<div class="hd-ok" style="margin-top:12px">'+
         '<button class="btn lijn" onclick="fwkFactuurWeg()">Concept weggooien</button></div>';
-    }
 
-    x += '</div>';
+    x += '</div></div>';
+
+    if (!lees) x += '<div class="fwk-kaart hd-inv">'+paneelFactuur(f, t)+'</div>';
+
+    x += '</div></div>';
     document.getElementById('view-detail').innerHTML = x;
   }
 
-  /* \u2500\u2500 slepen \u2500\u2500 */  /* ── slepen ── */
+  /* ── slepen ── */
   function haakSleep(){
     var z = document.getElementById('fwkZone'), f = document.getElementById('fwkFile');
     if (!z || !f) return;
