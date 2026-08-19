@@ -6357,9 +6357,105 @@ sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
     });
   };
 
-  window.fwkBonNieuw = function(){
-    if (typeof window.fwkBonForm === 'function') return window.fwkBonForm();
-    melden('Nog niet beschikbaar','Het formulier voor opdrachtbonnen volgt.','info');
+  window.fwkBonNieuw = function(){ window.fwkBonForm(); };
+
+  // Een bedrag zoals de mens het typt ('1.850,00') wordt hier een getal.
+  function getal(v){
+    var t = String(v == null ? '' : v).replace(/[^0-9,.-]/g, '');
+    if (t.indexOf(',') > -1) t = t.replace(/\./g, '').replace(',', '.');
+    return Number(t) || 0;
+  }
+
+  // De opdrachtbon in twee stappen. Eerst wat er moet gebeuren en door wie,
+  // daarna pas het geld en de planning \u2014 anders wordt het \u00e9\u00e9n lang formulier
+  // waarin niemand meer ziet wat er toe doet.
+  window.fwkBonForm = function(){
+    var levOpties = [['', 'Nog niet bekend']].concat(levs.map(function(l){
+      return [l.id, l.naam + (l.soort === 'LEVERANCIER' ? ' \u00b7 materiaal' : '')];
+    }));
+    var vakOpties = [['', 'Niet nodig']].concat(Object.keys(VAKKEN).map(function(k){
+      return [k, VAKKEN[k]];
+    }));
+
+    window.fwVraag({
+      titel: 'Opdrachtbon maken',
+      uitleg: 'Stap 1 van 2 \u2014 wat er moet gebeuren en wie het uitvoert.',
+      velden: [
+        {naam:'lev', label:'Wie voert het uit?', type:'keuze', opties:levOpties},
+        {naam:'werk', label:'Wat moet er gebeuren?', type:'tekst',
+         plaats:'Zet elke regel apart, bijvoorbeeld:\nPlafond woonkamer opnieuw stucen, 24 m2\nInclusief voorstrijken en afplakken',
+         verplicht:'Omschrijf wat er moet gebeuren.'},
+        {naam:'vak', label:'Vakgebied', type:'keuze', opties:vakOpties},
+        {naam:'vorm', label:'Hoe is de prijs afgesproken?', type:'keuze', waarde:'vast',
+         opties:[['vast','Vaste aanneemsom'],
+                 ['mandaat','Mandaat tot maximaal'],
+                 ['regie','Regie met plafondbedrag']]}
+      ],
+      ok: 'Volgende'
+    }).then(function(r){
+      if (!r) return;
+
+      var lev = levs.find(function(l){ return l.id === r.lev; });
+      // Onderaannemers verleggen de btw naar ons; een materiaalleverancier niet.
+      var verlegd = lev ? lev.btwVerlegd !== false : true;
+
+      var velden = [];
+      if (r.vorm === 'vast') {
+        velden.push({naam:'bedrag', label:'Afgesproken aanneemsom', plaats:'bijvoorbeeld 1850,00',
+          verplicht:'Vul de afgesproken som in.'});
+      } else if (r.vorm === 'mandaat') {
+        velden.push({naam:'max', label:'Mandaat tot maximaal', plaats:'bijvoorbeeld 2500,00',
+          verplicht:'Vul het mandaat in.'});
+      } else {
+        velden.push({naam:'tarief', label:'Uurtarief', plaats:'bijvoorbeeld 52,50',
+          verplicht:'Vul het uurtarief in.'});
+        velden.push({naam:'max', label:'Plafondbedrag', plaats:'bijvoorbeeld 3000,00',
+          verplicht:'Vul het plafond in \u2014 daarboven werkt niemand door zonder onze opdracht.'});
+      }
+
+      velden.push({naam:'btw', label:'Btw', type:'keuze', waarde: verlegd ? 'verlegd' : 'excl',
+        opties:[['verlegd','Btw verlegd naar ons'],
+                ['excl','Bedragen exclusief btw'],
+                ['incl','Bedragen inclusief btw']]});
+      velden.push({naam:'datum', label:'Uitvoeren op', type:'datum'});
+      velden.push({naam:'tijdvak', label:'Tijdvak', plaats:'bijvoorbeeld: ochtend',
+        snel:['ochtend','middag','hele dag','in overleg']});
+      velden.push({naam:'bewoner', label:'Toegang tot de woning', type:'keuze', waarde:'ja',
+        opties:[['ja','De bewoner is aanwezig \u2014 zet de gegevens op de bon'],
+                ['nee','Eerst met ons overleggen over de toegang']]});
+
+      window.fwVraag({
+        titel: 'Opdrachtbon maken',
+        uitleg: 'Stap 2 van 2 \u2014 ' + ({vast:'de prijs', mandaat:'het mandaat', regie:'tarief en plafond'}[r.vorm]) +
+                ', de planning en de toegang.',
+        velden: velden,
+        ok: 'Bon aanmaken'
+      }).then(function(g){
+        if (!g) return;
+
+        var body = {
+          leverancierId: r.lev || null,
+          werk: r.werk,
+          vak: r.vak || null,
+          prijsvorm: r.vorm,
+          btwVorm: g.btw,
+          bedrag: r.vorm === 'vast' ? getal(g.bedrag) : 0,
+          uurtarief: r.vorm === 'regie' ? getal(g.tarief) : null,
+          maxBedrag: (r.vorm === 'mandaat' || r.vorm === 'regie') ? getal(g.max) : null,
+          uitvoerenOp: g.datum || null,
+          tijdvak: g.tijdvak || null,
+          bewonerMee: g.bewoner !== 'nee'
+        };
+
+        api('/api/schades/' + encodeURIComponent(S.nr) + '/opdrachtbonnen',
+          {method:'POST', body: JSON.stringify(body)})
+          .then(function(res){
+            melden('Aangemaakt', 'Opdrachtbon ' + res.bon.nummer + ' staat klaar als concept.');
+            tab = 'onder';
+            return laadAlles(S.nr);
+          }).catch(function(e){ melden('Niet gelukt', e.message, 'err'); });
+      });
+    });
   };
   window.fwkBonStatus = function(id, st){
     api('/api/opdrachtbonnen/'+id,{method:'PATCH',body:JSON.stringify({status:st})})
