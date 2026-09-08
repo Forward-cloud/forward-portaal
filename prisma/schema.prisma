@@ -514,11 +514,11 @@ model Afspraak {
   @@index([schadeId, status])
 }
 
-/* Binnengekomen post uit de gekoppelde mailbox.
-
-   Alles wat binnenkomt wordt hier vastgelegd, ook wat we niet tonen. Zo kun je
-   later nakijken waarom iets niet in het postvak stond, in plaats van je af te
-   vragen of er een bericht is zoekgeraakt. */
+// Binnengekomen post uit de gekoppelde mailbox.
+//
+// Alles wat binnenkomt wordt hier vastgelegd, ook wat we niet tonen. Zo kun je
+// later nakijken waarom iets niet in het postvak stond, in plaats van je af te
+// vragen of er een bericht is zoekgeraakt.
 model Inkomend {
   id          String   @id @default(cuid())
   // Het Message-ID van de afzender; hiermee halen we dubbele berichten eruit.
