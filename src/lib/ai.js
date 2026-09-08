@@ -1,7 +1,9 @@
 // Herschrijft brieftekst op basis van een aanwijzing in gewone taal.
 
-const MODEL = process.env.AI_MODEL || 'claude-sonnet-4-6';
-const SLEUTEL = process.env.ANTHROPIC_API_KEY || '';
+// Trim: bij het plakken in Coolify sluipt er makkelijk een spatie of een
+// regeleinde mee. Een header met een spatie erin wordt geweigerd.
+const MODEL = (process.env.AI_MODEL || 'claude-sonnet-4-6').trim();
+const SLEUTEL = (process.env.ANTHROPIC_API_KEY || '').trim();
 
 const HUISREGELS = `Je redigeert brieven voor Forward Schadeherstel, een schadeherstelbedrijf dat
 waterschade afhandelt voor VvE-beheerders, verzekeraars en particulieren.
