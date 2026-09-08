@@ -32,8 +32,10 @@ async function testAnthropic() {
   // Bij het plakken in Coolify sluipt er makkelijk een spatie of regeleinde in.
   const sleutel = (process.env.ANTHROPIC_API_KEY || '').trim();
   const model = (process.env.AI_MODEL || 'claude-sonnet-4-6').trim();
+  const werkruimte = (process.env.ANTHROPIC_WORKSPACE_ID || '').trim();
   const uit = { naam: 'Brieven opstellen (Anthropic)', instelling: 'ANTHROPIC_API_KEY',
-    ingesteld: !!sleutel, sleutel: sleutelHint(sleutel), model };
+    ingesteld: !!sleutel, sleutel: sleutelHint(sleutel), model,
+    werkruimte: werkruimte || null };
 
   if (!sleutel) {
     uit.stand = 'uit';
@@ -43,8 +45,11 @@ async function testAnthropic() {
 
   try {
     // De modellenlijst opvragen kost niets en zegt meteen of de sleutel deugt.
+    const koppen = { 'x-api-key': sleutel, 'anthropic-version': '2023-06-01' };
+    if (werkruimte) koppen['anthropic-workspace-id'] = werkruimte;
+
     const r = await metTijdslimiet((signal) => fetch('https://api.anthropic.com/v1/models', {
-      headers: { 'x-api-key': sleutel, 'anthropic-version': '2023-06-01' }, signal,
+      headers: koppen, signal,
     }), 8000);
 
     if (!r.ok) {
@@ -57,9 +62,16 @@ async function testAnthropic() {
       } catch (e) { /* geen json terug */ }
 
       uit.stand = 'fout';
-      uit.melding = r.status === 401
-        ? `De sleutel wordt geweigerd${reden ? `: ${reden}` : '. Controleer of hij volledig is gekopieerd.'}`
-        : `Anthropic antwoordde met ${r.status}${reden ? `: ${reden}` : '.'}`;
+      if (/workspace/i.test(reden)) {
+        // Deze fout komt vaak voor en de oplossing is niet vanzelfsprekend.
+        uit.melding = 'Deze sleutel hangt aan de organisatie, niet aan een werkruimte. '
+          + 'Maak in console.anthropic.com een sleutel aan binnen een werkruimte, '
+          + 'of zet ANTHROPIC_WORKSPACE_ID in Coolify met het ID van de werkruimte.';
+      } else {
+        uit.melding = r.status === 401
+          ? `De sleutel wordt geweigerd${reden ? `: ${reden}` : '. Controleer of hij volledig is gekopieerd.'}`
+          : `Anthropic antwoordde met ${r.status}${reden ? `: ${reden}` : '.'}`;
+      }
       return uit;
     }
 
@@ -250,6 +262,7 @@ router.get('/zelftest', requireDirectie, async (req, res) => {
       <div class="rij"><span>Instelling</span><code>${escH(u.instelling)}</code></div>
       ${u.sleutel ? `<div class="rij"><span>Sleutel</span>${escH(u.sleutel)}</div>` : ''}
       ${u.model ? `<div class="rij"><span>${u.naam.indexOf('Anthropic') > -1 ? 'Model' : 'Adres'}</span><code>${escH(u.model)}</code></div>` : ''}
+      ${u.werkruimte ? `<div class="rij"><span>Werkruimte</span><code>${escH(u.werkruimte)}</code></div>` : ''}
       <div class="melding">${escH(u.melding)}</div>
       ${u.beschikbaar ? `<details><summary>Beschikbare modellen (${u.beschikbaar.length})</summary>
         <div class="lijst">${u.beschikbaar.map((m) => `<code>${escH(m)}</code>`).join(' ')}</div></details>` : ''}
