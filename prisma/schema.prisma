@@ -566,11 +566,15 @@ model Verzending {
   fout        String?
   // Het Message-ID waarmee wij dit bericht hebben verstuurd. Een antwoord
   // verwijst hiernaar, en zo weten wij bij welk dossier het hoort.
-  messageId   String?  @unique
+  // Bewust geen @unique: bestaande rijen hebben hier niets staan, en wij
+  // zoeken er met findFirst op. Een unieke index zou alleen een waarschuwing
+  // bij het bijwerken opleveren zonder iets toe te voegen.
+  messageId   String?
   doorNaam    String?
   createdAt   DateTime @default(now())
 
   @@index([schadeId])
+  @@index([messageId])
 }
 
 model Offerte {
