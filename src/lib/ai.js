@@ -5,6 +5,22 @@
 const MODEL = (process.env.AI_MODEL || 'claude-sonnet-4-6').trim();
 const SLEUTEL = (process.env.ANTHROPIC_API_KEY || '').trim();
 
+/* Een sleutel die aan de organisatie hangt in plaats van aan een werkruimte,
+   moet erbij vertellen welke werkruimte hij moet gebruiken. Zet dan
+   ANTHROPIC_WORKSPACE_ID in Coolify. Hangt de sleutel al aan een werkruimte,
+   dan laat je die leeg en gebeurt er niets. */
+const WERKRUIMTE = (process.env.ANTHROPIC_WORKSPACE_ID || '').trim();
+
+function koppen() {
+  const h = {
+    'Content-Type': 'application/json',
+    'x-api-key': SLEUTEL,
+    'anthropic-version': '2023-06-01',
+  };
+  if (WERKRUIMTE) h['anthropic-workspace-id'] = WERKRUIMTE;
+  return h;
+}
+
 const HUISREGELS = `Je redigeert brieven voor Forward Schadeherstel, een schadeherstelbedrijf dat
 waterschade afhandelt voor VvE-beheerders, verzekeraars en particulieren.
 
@@ -64,11 +80,7 @@ async function herschrijf({ tekst, aanwijzing, context }) {
 
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': SLEUTEL,
-      'anthropic-version': '2023-06-01',
-    },
+    headers: koppen(),
     body: JSON.stringify({
       model: MODEL,
       max_tokens: 2000,
@@ -123,11 +135,7 @@ async function opstellen({ notitie, ontvanger, context }) {
 
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': SLEUTEL,
-      'anthropic-version': '2023-06-01',
-    },
+    headers: koppen(),
     body: JSON.stringify({
       model: MODEL,
       max_tokens: 1500,
