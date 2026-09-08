@@ -4,6 +4,7 @@ const prisma = require('../db');
 const { requireAuth } = require('../auth/middleware');
 const { BEDRIJF, PORTAAL } = require('../lib/brieven');
 const { isZakelijk, soortOpdrachtgever } = require('../lib/haltes');
+const mail = require('../lib/mail');
 
 const router = express.Router();
 
@@ -30,19 +31,46 @@ const langeDatum = (d) =>
 
 // Een machtiging is ook post. Leg hem vast als verzending, zodat hij in het
 // tabblad Correspondentie staat naast de brieven en de bonnen.
+/* De machtiging vastleggen \u00e9n versturen. De klant krijgt een korte brief
+   met de link; de volledige tekst staat op de pagina achter die link, niet in
+   de mail zelf \u2014 daar tekent hij hem tenslotte. */
 async function alsCorrespondentie(m, schadeId, doorNaam, wat) {
-  await prisma.verzending.create({
+  const link = `${PORTAAL}/machtiging/${m.token}`;
+  const getekend = m.status === 'getekend';
+
+  const tekst = getekend
+    ? m.tekst
+    : [
+        `Geachte ${m.naarNaam || 'heer, mevrouw'},`,
+        '',
+        'Om de schade voor u te kunnen melden en behandelen hebben wij uw akkoord nodig. '
+        + 'Via onderstaande link leest u waarvoor u ons machtigt en kunt u digitaal tekenen. '
+        + 'Dat duurt ongeveer twee minuten.',
+        '',
+        link,
+        '',
+        'Heeft u vragen over de inhoud, belt of mailt u ons dan gerust; wij lopen hem graag met u door.',
+        '',
+        'Met vriendelijke groet,',
+        BEDRIJF.naam,
+      ].join('\n');
+
+  const rij = await prisma.verzending.create({
     data: {
       schadeId,
       soort: 'machtiging',
       naar: [m.naarEmail].filter(Boolean),
       onderwerp: wat || 'Machtiging ter ondertekening',
-      tekst: m.tekst,
+      tekst,
       documentIds: [],
       status: 'klaar',
       doorNaam: doorNaam || 'Portaal',
     },
-  }).catch(() => {});
+  }).catch(() => null);
+
+  // Een getekende machtiging is een bevestiging voor onszelf, geen post.
+  if (rij && !getekend) await mail.verstuurVerzending(rij).catch(() => {});
+  return rij;
 }
 
 async function log(user, text, schadeId, detail) {
@@ -985,12 +1013,35 @@ async function herinnerRonde() {
       const vanaf = m.herinnerdAt || m.verstuurdAt;
       const dagen = Math.floor((Date.now() - new Date(vanaf).getTime()) / 864e5);
       if (dagen < (m.herinnerDagen || 3)) continue;
-      await prisma.machtiging.update({
+      const bij = await prisma.machtiging.update({
         where: { id: m.id },
         data: { herinneringen: { increment: 1 }, herinnerdAt: new Date() },
       });
-      await log(null, `${m.herinneringen + 1}e herinnering machtiging verstuurd`, m.schadeId,
-        `${m.naarNaam} \u00b7 automatisch na ${dagen} dagen`);
+      const post = await mail.stuurLos({
+        schadeId: m.schadeId,
+        soort: 'machtiging',
+        naar: m.naarEmail,
+        onderwerp: 'Herinnering: uw machtiging is nog niet getekend',
+        tekst: [
+          `Geachte ${m.naarNaam || 'heer, mevrouw'},`,
+          '',
+          `Wij stuurden u ${dagen} dagen geleden een machtiging ter ondertekening. `
+          + 'Die is nog niet getekend, en zolang dat niet is gebeurd kunnen wij de schade '
+          + 'niet bij de verzekeraar melden.',
+          '',
+          `${PORTAAL}/machtiging/${m.token}`,
+          '',
+          'Heeft u de eerdere mail niet ontvangen of zijn er vragen, laat het ons weten.',
+          '',
+          'Met vriendelijke groet,',
+          BEDRIJF.naam,
+        ].join('\n'),
+        doorNaam: 'Portaal',
+      }).catch(() => ({ verstuurd: false }));
+
+      await log(null, `${bij.herinneringen}e herinnering machtiging`, m.schadeId,
+        `${m.naarNaam} \u00b7 automatisch na ${dagen} dagen`
+        + (post.verstuurd ? ' \u00b7 verstuurd' : ' \u00b7 nog niet verstuurd'));
     }
   } catch (e) {
     console.error('herinnerronde machtigingen mislukt:', e.message);

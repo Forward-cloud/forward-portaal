@@ -217,18 +217,101 @@ async function testVies() {
   }
 }
 
-// ── e-mail ─────────────────────────────────────────────────────────────
-function testMail() {
-  const sleutel = process.env.RESEND_API_KEY;
-  return {
-    naam: 'E-mail versturen (Resend)', instelling: 'RESEND_API_KEY',
-    ingesteld: !!sleutel, sleutel: sleutelHint(sleutel), model: null,
-    stand: sleutel ? 'goed' : 'uit',
-    melding: sleutel
-      ? 'Sleutel aanwezig.'
-      : 'Nog niet ingericht. Verzendingen worden vastgelegd in het logboek en de '
-        + 'correspondentie, maar er gaat nog geen e-mail de deur uit.',
+// ── e-mail versturen ───────────────────────────────────────────────────
+async function testMail() {
+  const mail = require('../lib/mail');
+  const weg = mail.wegNaarBuiten();
+  const uit = {
+    naam: 'E-mail versturen',
+    instelling: weg === 'smtp' ? 'MAIL_GEBRUIKER + MAIL_WACHTWOORD' : 'RESEND_API_KEY',
+    ingesteld: !!weg,
+    sleutel: null,
+    model: mail.AFZENDER,
   };
+
+  if (!weg) {
+    uit.stand = 'uit';
+    uit.melding = 'Nog niet ingericht. Verzendingen worden vastgelegd in het logboek en de '
+      + 'correspondentie, maar er gaat nog geen e-mail de deur uit. '
+      + 'Zet MAIL_GEBRUIKER en MAIL_WACHTWOORD in Coolify.';
+    return uit;
+  }
+
+  if (weg === 'resend') {
+    uit.melding = 'Verstuurt via Resend. Verzonden post staat dan niet in een mailbox; '
+      + 'via Google Workspace zou dat wel zo zijn.';
+    uit.stand = 'let op';
+    return uit;
+  }
+
+  // Bij SMTP echt verbinden en inloggen \u2014 dat is de enige manier om te
+  // weten of het app-wachtwoord klopt.
+  try {
+    const nodemailer = require('nodemailer');
+    const t = nodemailer.createTransport({
+      host: mail.SMTP_HOST,
+      port: mail.SMTP_POORT,
+      secure: mail.SMTP_POORT === 465,
+      auth: { user: mail.SMTP_GEBRUIKER, pass: (process.env.MAIL_WACHTWOORD || '').replace(/\s+/g, '') },
+      connectionTimeout: 8000,
+      greetingTimeout: 8000,
+    });
+    await t.verify();
+    t.close();
+    uit.stand = 'goed';
+    uit.melding = `Ingelogd op ${mail.SMTP_HOST} als ${mail.SMTP_GEBRUIKER}. `
+      + 'Verzonden post komt in die mailbox te staan.';
+  } catch (e) {
+    uit.stand = 'fout';
+    uit.melding = /invalid login|username and password/i.test(e.message)
+      ? 'Inloggen mislukt. Gebruik een app-wachtwoord van Google, niet het gewone wachtwoord; '
+        + 'daarvoor moet tweestapsverificatie aanstaan op dat account.'
+      : `Kon niet inloggen op de mailserver: ${e.message}`;
+  }
+  return uit;
+}
+
+// ── postvak ────────────────────────────────────────────────────────────
+async function testPostvak() {
+  const postvak = require('../lib/postvak');
+  const uit = {
+    naam: 'Postvak (binnenkomende post)',
+    instelling: 'MAIL_GEBRUIKER + MAIL_WACHTWOORD',
+    ingesteld: postvak.ingesteld(),
+    sleutel: null,
+    model: postvak.ingesteld() ? `${postvak.HOST} \u00b7 ${postvak.MAP}` : null,
+  };
+
+  if (!postvak.ingesteld()) {
+    uit.stand = 'uit';
+    uit.melding = 'Geen mailbox gekoppeld. Zonder dit blijft het postvak leeg.';
+    return uit;
+  }
+
+  try {
+    const { ImapFlow } = require('imapflow');
+    const client = new ImapFlow({
+      host: postvak.HOST, port: 993, secure: true,
+      auth: { user: postvak.GEBRUIKER, pass: (process.env.MAIL_WACHTWOORD || '').replace(/\s+/g, '') },
+      logger: false,
+    });
+    await client.connect();
+    const slot = await client.getMailboxLock(postvak.MAP);
+    const aantal = client.mailbox && client.mailbox.exists;
+    slot.release();
+    await client.logout();
+
+    uit.stand = 'goed';
+    uit.melding = `Verbonden met ${postvak.MAP} van ${postvak.GEBRUIKER}`
+      + (aantal ? ` \u2014 ${aantal} berichten in de map.` : '.');
+  } catch (e) {
+    uit.stand = 'fout';
+    uit.melding = /invalid credentials|authentication/i.test(e.message)
+      ? 'Inloggen mislukt. Controleer het app-wachtwoord, en of IMAP aanstaat in Gmail '
+        + '(Instellingen \u2192 Doorsturen en POP/IMAP).'
+      : `Kon de mailbox niet openen: ${e.message}`;
+  }
+  return uit;
 }
 
 const KLEUR = { goed: ['#12704A', '#E6F4EC'], 'let op': ['#8A5A0B', '#FDF3E0'],
@@ -245,7 +328,8 @@ router.get('/zelftest', requireDirectie, async (req, res) => {
     await testVies(),
     await testKvk(),
     await testPdok(),
-    testMail(),
+    await testMail(),
+    await testPostvak(),
   ];
 
   if (String(req.query.formaat || '') === 'json' || /application\/json/.test(req.headers.accept || '')) {
@@ -261,9 +345,15 @@ router.get('/zelftest', requireDirectie, async (req, res) => {
       </div>
       <div class="rij"><span>Instelling</span><code>${escH(u.instelling)}</code></div>
       ${u.sleutel ? `<div class="rij"><span>Sleutel</span>${escH(u.sleutel)}</div>` : ''}
-      ${u.model ? `<div class="rij"><span>${u.naam.indexOf('Anthropic') > -1 ? 'Model' : 'Adres'}</span><code>${escH(u.model)}</code></div>` : ''}
+      ${u.model ? `<div class="rij"><span>${
+        u.naam.indexOf('Anthropic') > -1 ? 'Model'
+        : u.naam.indexOf('versturen') > -1 ? 'Afzender'
+        : u.naam.indexOf('Postvak') > -1 ? 'Mailbox' : 'Adres'
+      }</span><code>${escH(u.model)}</code></div>` : ''}
       ${u.werkruimte ? `<div class="rij"><span>Werkruimte</span><code>${escH(u.werkruimte)}</code></div>` : ''}
       <div class="melding">${escH(u.melding)}</div>
+      ${u.domeinen ? `<details><summary>Domeinen in Resend (${u.domeinen.length})</summary>
+        <div class="lijst">${u.domeinen.map((m) => `<code>${escH(m)}</code>`).join(' ')}</div></details>` : ''}
       ${u.beschikbaar ? `<details><summary>Beschikbare modellen (${u.beschikbaar.length})</summary>
         <div class="lijst">${u.beschikbaar.map((m) => `<code>${escH(m)}</code>`).join(' ')}</div></details>` : ''}
     </div>`;

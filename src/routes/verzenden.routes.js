@@ -3,6 +3,7 @@ const prisma = require('../db');
 const { requireAuth } = require('../auth/middleware');
 const { SOORTEN, AANLEIDINGEN, POLISVORMEN, soortenVoor, BIJLAGE_NAAM, stelOp, alsTekst, briefHtml, eur, datumNL } = require('../lib/brieven');
 const ai = require('../lib/ai');
+const mail = require('../lib/mail');
 const { veiligeOntvangers, veiligOnderwerp, omleidingsregel } = require('../lib/testmodus');
 
 const router = express.Router();
@@ -428,6 +429,22 @@ router.post('/schades/:nummer/verzenden', async (req, res) => {
     });
   }
 
+  // Nu gaat hij echt weg. Lukt dat niet, dan blijft de rij staan met de reden
+  // erbij \u2014 je moet kunnen zien dat er niets is aangekomen.
+  const post = await mail.verstuurVerzending(verzending, { antwoordNaar: req.user.email || null });
+  await prisma.logEntry.create({
+    data: {
+      text: post.verstuurd
+        ? `${(SOORTEN[soort] && SOORTEN[soort].label) || soort} verstuurd aan ${veilig.naar.join(', ')}`
+        : post.geenSleutel
+          ? `Post klaargezet voor ${veilig.naar.join(', ')} \u2014 e-mail staat nog niet aan`
+          : `Verzenden mislukt aan ${veilig.naar.join(', ')}`,
+      detail: post.fout || (post.overgeslagen && post.overgeslagen.length
+        ? `Bijlage niet meegestuurd: ${post.overgeslagen.join(', ')}` : null),
+      schadeId: s.id, byUserId: req.user.id, byName: req.user.naam,
+    },
+  });
+
   // Meesturen: beheerder en eigenaar krijgen elk hun eigen bericht.
   const kopieen = Array.isArray(b.kopieen) ? b.kopieen : [];
   const extra = [];
@@ -452,7 +469,8 @@ router.post('/schades/:nummer/verzenden', async (req, res) => {
         doorNaam: req.user.naam,
       },
     });
-    extra.push(rij);
+    const kPost = await mail.verstuurVerzending(rij, { antwoordNaar: req.user.email || null });
+    extra.push({ ...rij, verstuurd: !!kPost.verstuurd, fout: kPost.fout || null });
   }
 
   // Bij een claim schuift het dossier mee naar 'ingediend'.
