@@ -4385,7 +4385,16 @@ body.fwm-open{overflow:hidden}
           '<input type="text" id="fwrNaam" value="' + esc(r.naam || '') + '"></div>' +
 
         (werkt
-          ? '<div><label>KvK-nummer</label>' +
+          ? '<div><label>Btw-nummer</label>' +
+              '<div style="display:flex;gap:7px">' +
+                '<input type="text" id="fwrBtwNr" value="' + esc(r.btwNummer || '') + '" ' +
+                  'placeholder="NL123456789B01" style="flex:1">' +
+                '<button type="button" class="btn" onclick="fwrBtwZoek()" ' +
+                  'style="font-size:12.5px;padding:8px 13px;min-height:auto;flex:none">Ophalen</button>' +
+              '</div>' +
+              '<div id="fwrBtwMelding" style="font-size:11.5px;color:var(--muted);margin-top:4px">' +
+              'Gratis opzoeken bij de Europese btw-controle. Vult naam en adres in.</div></div>' +
+            '<div><label>KvK-nummer</label>' +
               '<div style="display:flex;gap:7px">' +
                 '<input type="text" id="fwrKvk" value="' + esc(r.kvk || '') + '" placeholder="8 cijfers" style="flex:1">' +
                 '<button type="button" class="btn" onclick="fwrKvkZoek()" ' +
@@ -4547,6 +4556,35 @@ body.fwm-open{overflow:hidden}
 
   // Gegevens ophalen bij de KvK. Staat de sleutel er niet, dan zegt de server
   // dat en vul je het met de hand in.
+  /* Bedrijfsgegevens via het btw-nummer. Gratis, en het zegt meteen of de
+     partij btw-plichtig is \u2014 dat wil je weten voordat je btw verlegt. */
+  window.fwrBtwZoek = function(){
+    var nr = String(waarde('fwrBtwNr')).replace(/[^0-9A-Za-z]/g, '');
+    var m = $$('fwrBtwMelding');
+    if (nr.length < 4) {
+      m.style.color = 'var(--red)';
+      m.textContent = 'Vul een volledig btw-nummer in, bijvoorbeeld NL123456789B01.';
+      return;
+    }
+    m.style.color = 'var(--muted)'; m.textContent = 'Bezig met opzoeken\u2026';
+    window.fwApi('/api/btw/' + encodeURIComponent(nr)).then(function(d){
+      function zet(id, v){ var e = $$(id); if (e && v) e.value = v; }
+      zet('fwrNaam', d.naam); zet('fwrAdres', d.adres);
+      zet('fwrPc', d.postcode); zet('fwrPlaats', d.plaats);
+
+      var erbij = [];
+      if (d.naam) erbij.push('naam');
+      if (d.adres) erbij.push('adres');
+      m.style.color = 'var(--green)';
+      m.textContent = 'Geldig btw-nummer'
+        + (erbij.length ? ' \u2014 ' + erbij.join(' en ') + ' ingevuld.' : '.')
+        + ' Gecontroleerd bij de Europese btw-controle.';
+    }).catch(function(e){
+      m.style.color = '#8A5A0B';
+      m.textContent = e.message;
+    });
+  };
+
   window.fwrKvkZoek = function(){
     var nr = String(waarde('fwrKvk')).replace(/[^0-9]/g, '');
     var m = $$('fwrKvkMelding');
@@ -4558,8 +4596,24 @@ body.fwm-open{overflow:hidden}
       zet('fwrPlaats', d.plaats); zet('fwrPostAdres', d.postAdres);
       zet('fwrPostPc', d.postPostcode); zet('fwrPostPlaats', d.postPlaats);
       zet('fwrWeb', d.website);
-      m.style.color = 'var(--green)';
-      m.textContent = 'Gegevens opgehaald bij de KvK. Loop ze na en vul aan.';
+
+      // Zeggen wat er is gevonden, niet alleen dat er iets is gevonden. Komt
+      // alleen de naam terug, dan is het adres bij de KvK afgeschermd.
+      var erbij = [];
+      if (d.adres) erbij.push('bezoekadres');
+      if (d.postAdres) erbij.push('correspondentieadres');
+      if (d.website) erbij.push('website');
+      m.style.color = erbij.length ? 'var(--green)' : '#8A5A0B';
+      m.textContent = d.naam
+        ? (erbij.length
+            ? d.naam + ' \u2014 ' + erbij.join(', ') + ' ingevuld. Loop ze na en vul aan.'
+            : d.naam + ' gevonden, maar zonder adres. Bij de KvK is dat afgeschermd; '
+              + 'vul het met de hand in.')
+        : 'Gevonden bij de KvK, maar zonder naam. Vul de gegevens met de hand in.';
+      if (d.uitgeschreven) {
+        m.style.color = '#8A5A0B';
+        m.textContent += ' Let op: dit bedrijf staat als uitgeschreven geregistreerd.';
+      }
     }).catch(function(e){
       m.style.color = '#8A5A0B';
       m.textContent = e.message;
