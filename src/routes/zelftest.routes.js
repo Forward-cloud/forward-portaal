@@ -29,8 +29,9 @@ async function metTijdslimiet(fn, ms) {
 
 // ── Anthropic ──────────────────────────────────────────────────────────
 async function testAnthropic() {
-  const sleutel = process.env.ANTHROPIC_API_KEY;
-  const model = process.env.AI_MODEL || 'claude-sonnet-4-6';
+  // Bij het plakken in Coolify sluipt er makkelijk een spatie of regeleinde in.
+  const sleutel = (process.env.ANTHROPIC_API_KEY || '').trim();
+  const model = (process.env.AI_MODEL || 'claude-sonnet-4-6').trim();
   const uit = { naam: 'Brieven opstellen (Anthropic)', instelling: 'ANTHROPIC_API_KEY',
     ingesteld: !!sleutel, sleutel: sleutelHint(sleutel), model };
 
@@ -46,14 +47,19 @@ async function testAnthropic() {
       headers: { 'x-api-key': sleutel, 'anthropic-version': '2023-06-01' }, signal,
     }), 8000);
 
-    if (r.status === 401) {
-      uit.stand = 'fout';
-      uit.melding = 'De sleutel wordt geweigerd. Controleer of hij volledig is gekopieerd.';
-      return uit;
-    }
     if (!r.ok) {
+      // Anthropic stuurt de reden mee in het antwoord. Die is veel bruikbaarder
+      // dan alleen een statuscode, dus laten we hem zien.
+      let reden = '';
+      try {
+        const j = await r.json();
+        if (j && j.error && j.error.message) reden = j.error.message;
+      } catch (e) { /* geen json terug */ }
+
       uit.stand = 'fout';
-      uit.melding = `Anthropic antwoordde met ${r.status}.`;
+      uit.melding = r.status === 401
+        ? `De sleutel wordt geweigerd${reden ? `: ${reden}` : '. Controleer of hij volledig is gekopieerd.'}`
+        : `Anthropic antwoordde met ${r.status}${reden ? `: ${reden}` : '.'}`;
       return uit;
     }
 
@@ -82,7 +88,7 @@ async function testAnthropic() {
 
 // ── KvK ────────────────────────────────────────────────────────────────
 async function testKvk() {
-  const sleutel = process.env.KVK_API_KEY;
+  const sleutel = (process.env.KVK_API_KEY || '').trim();
   const basis = process.env.KVK_API_URL || 'https://api.kvk.nl/api/v1';
   // Ons eigen KvK-nummer: een echte opvraging, en wij weten wat eruit moet komen.
   const proefnummer = process.env.KVK_PROEFNUMMER || '76164144';
