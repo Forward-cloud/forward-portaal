@@ -214,6 +214,7 @@ model Schade {
   locaties       Locatie[]
   documenten     Document[]
   verzendingen   Verzending[]
+  inkomend       Inkomend[]
   offertes       Offerte[]
   afspraken      Afspraak[]
   opdrachtbonnen Opdrachtbon[]
@@ -513,6 +514,45 @@ model Afspraak {
   @@index([schadeId, status])
 }
 
+/* Binnengekomen post uit de gekoppelde mailbox.
+
+   Alles wat binnenkomt wordt hier vastgelegd, ook wat we niet tonen. Zo kun je
+   later nakijken waarom iets niet in het postvak stond, in plaats van je af te
+   vragen of er een bericht is zoekgeraakt. */
+model Inkomend {
+  id          String   @id @default(cuid())
+  // Het Message-ID van de afzender; hiermee halen we dubbele berichten eruit.
+  messageId   String   @unique
+  // Waar dit bericht een antwoord op is; hiermee vinden we het dossier terug.
+  inReplyTo   String?
+  refs        String[] @default([])
+
+  van         String
+  vanNaam     String?
+  aan         String[] @default([])
+  onderwerp   String   @default("")
+  tekst       String   @default("")
+  ontvangenAt DateTime @default(now())
+
+  // nieuw | gekoppeld | afgehandeld | genegeerd
+  stand       String   @default("nieuw")
+  // Waarom het niet in het postvak staat: reclame, automatisch antwoord, spam.
+  wegreden    String?
+  // Hoe het aan het dossier is gekoppeld: antwoord, kenmerk, adres, handmatig.
+  koppelwijze String?
+
+  schade      Schade?  @relation(fields: [schadeId], references: [id], onDelete: SetNull)
+  schadeId    String?
+
+  bijlagen    Json     @default("[]")
+  doorNaam    String?
+  createdAt   DateTime @default(now())
+
+  @@index([stand])
+  @@index([schadeId])
+  @@index([ontvangenAt])
+}
+
 model Verzending {
   id          String   @id @default(cuid())
   schade      Schade   @relation(fields: [schadeId], references: [id], onDelete: Cascade)
@@ -524,6 +564,9 @@ model Verzending {
   documentIds String[]
   status      String   @default("klaar")
   fout        String?
+  // Het Message-ID waarmee wij dit bericht hebben verstuurd. Een antwoord
+  // verwijst hiernaar, en zo weten wij bij welk dossier het hoort.
+  messageId   String?  @unique
   doorNaam    String?
   createdAt   DateTime @default(now())
 
