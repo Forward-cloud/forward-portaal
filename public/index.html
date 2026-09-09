@@ -646,7 +646,7 @@
       <section class="view active" id="view-dashboard">
         <div class="page-head"><div class="eyebrow" id="todayLabel">Overzicht</div><h1 id="dashGroet">Welkom</h1><p id="dashIntro"></p></div>
         <div class="kpis" id="kpis"></div>
-        <div class="card" id="finCard" style="margin-bottom:18px;display:none"><div class="card-head"><h3><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M4 19V5m0 14h16M8 15l3-3 2 2 5-5" stroke="var(--teal)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Dossiers &amp; omzet <span class="tag grey" style="font-size:9px">alleen intern</span></h3><button class="modal-close" onclick="toggleFinChart()"><svg viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button></div><div style="padding:14px 18px" id="finDash"></div></div>
+        <div class="card" id="finCard" style="margin-bottom:18px;display:none"><div class="card-head"><h3><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M4 19V5m0 14h16M8 15l3-3 2 2 5-5" stroke="var(--teal)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Dossiers &amp; omzet <span class="tag grey" style="font-size:9px">excl. btw · alleen intern</span></h3><button class="modal-close" onclick="toggleFinChart()"><svg viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button></div><div style="padding:14px 18px" id="finDash"></div></div>
         <div class="grid-2">
           <div class="card">
             <div class="card-head"><h3><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M13 2L3 14h7l-1 8 10-12h-7l1-8z" stroke="var(--teal)" stroke-width="1.8" stroke-linejoin="round"/></svg>Acties · opvolging <span class="cnt" id="actCnt"></span></h3></div>
@@ -937,8 +937,8 @@ function renderDash(){
   $('#kpis').innerHTML=`
     ${kpi('var(--teal-soft)','var(--teal-ink)','<path d="M4 6h16M4 12h16M4 18h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>','Open schades',open,'<span class="flat">in behandeling</span>')}
     ${kpi('var(--red-soft)','var(--red)',IC['bell'],'Nieuwe meldingen',news,'<span class="down">afspraak inplannen</span>')}
-    ${can('omzet')?kpi('var(--green-soft)','var(--green)','<path d="M12 2v20M17 6H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>','Omzet · dit jaar',money(omzetJaar),'<span class="up">bekijk grafiek ▸</span>','toggleFinChart()'):''}
-    ${can('omzet')?kpi('var(--amber-soft)','var(--amber)','<path d="M3 17l5-5 4 3 8-8M16 4h4v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>','Winstpotentie open',money(winst),`<span class="up">marge ≈ ${margePct}% · reëel waar ingevuld</span>`):''}`;
+    ${can('omzet')?kpi('var(--green-soft)','var(--green)','<path d="M12 2v20M17 6H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>','Omzet · dit jaar · excl. btw',money(omzetJaar),'<span class="up">bekijk grafiek ▸</span>','toggleFinChart()'):''}
+    ${can('omzet')?kpi('var(--amber-soft)','var(--amber)','<path d="M3 17l5-5 4 3 8-8M16 4h4v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>','Winstpotentie open · excl. btw',money(winst),`<span class="up">marge ≈ ${margePct}% · reëel waar ingevuld</span>`):''}`;
   if(!can('omzet')){const c=$('#finCard');if(c)c.style.display='none';}
   renderActions();renderPipe();renderNew();renderReady();
   if($('#finCard')&&$('#finCard').style.display!=='none')renderFinDash();
@@ -2150,7 +2150,8 @@ function renderFinDash(){
 
     ${FINGELD?`
       <div class="fin-row" style="margin-top:10px"><div class="fin-cell"><span>Omzet expertise · ${escT(scope)}</span><b>${money(v.ex)}</b></div><div class="fin-cell"><span>Omzet herstel · ${escT(scope)}</span><b>${money(v.ho)}</b></div></div>
-      <div class="fin-net"><span>Netto winst voor Forward · ${escT(scope)}</span><b>${money(netto)}</b></div>`
+      <div class="fin-net"><span>Netto winst voor Forward · ${escT(scope)}</span><b>${money(netto)}</b></div>
+      <div style="font-size:11px;color:var(--muted-2);margin-top:6px">Alle bedragen exclusief btw.</div>`
     :''}
 
     <div style="font-size:11px;color:var(--muted-2);margin-top:8px">Alleen zichtbaar op dit interne dashboard.${FINGELD?'':' Bedragen staan uit.'}</div>`;
@@ -6544,6 +6545,11 @@ button.hd-cgl:hover .w{text-decoration:underline}
 .fwk-da button:hover,.fwk-da a:hover{color:var(--teal-ink);border-color:var(--teal)}
 .fwk-da .weg:hover{color:var(--red);border-color:var(--red)}
 .fwk-da svg{width:16px;height:16px}
+/* Het bedrag bij een offerte of factuur, met een kopje erboven zodat het geen
+   naamloos tekstvak is. */
+.fwk-bedwrap{display:flex;flex-direction:column;gap:3px;flex:none}
+.fwk-bedwrap span{font-size:10px;font-weight:600;letter-spacing:.03em;text-transform:uppercase;
+  color:var(--muted-2);white-space:nowrap}
 .fwk-bed{width:96px;text-align:right;font-variant-numeric:tabular-nums;min-height:34px;padding:6px 9px;
   border:1px solid var(--line);border-radius:9px;font-family:inherit;font-size:12.5px;
   background:var(--surface);color:var(--text)}
@@ -6942,6 +6948,34 @@ button.hd-cgl:hover .w{text-decoration:underline}
     return api('/api/schades/'+encodeURIComponent(S.nr), {method:'PATCH', body:JSON.stringify(body)});
   }
   window.fwkHalte = function(n){
+    /* Zet je de halte handmatig op 'Dossier ingediend bij verzekeraar', dan
+       moet de status daar ook op staan \u2014 anders loopt de teller niet en
+       verschijnt de herinneringsknop niet. Vaak is het dossier al eerder
+       ingediend, dus vragen we naar de echte datum. */
+    if (Number(n) === 5 && S.verzStatus !== 'ingediend' && !S.eigenRisico) {
+      return window.fwVraag({
+        titel:'Dossier ingediend bij de verzekeraar',
+        uitleg:'Vanaf deze datum loopt de reactietermijn en gaan de herinneringen tellen. '+
+               'Heb je eerder ingediend, zet dan die datum.',
+        velden:[
+          {naam:'datum',label:'Wanneer is het dossier ingediend?',type:'datum',
+           waarde:isoDate(new Date()), verplicht:'Vul de datum van indienen in.'},
+          {naam:'schadenr',label:'Schadenummer van de verzekeraar',
+           waarde:S.verzSchadenummer||'', plaats:'leeg laten als je dat nog niet hebt'},
+          {naam:'dagen',label:'Herinneren na hoeveel dagen zonder reactie',type:'keuze',
+           waarde:String(S.herinnerDagen||7),
+           opties:[['5','5 dagen'],['7','een week'],['10','10 dagen'],['14','twee weken']]}
+        ],
+        ok:'Vastleggen'
+      }).then(function(r){
+        if (!r) return;
+        return patch({step:5, verzStatus:'ingediend', verzIngediendAt:r.datum,
+          verzSchadenummer:r.schadenr||null, herinnerDagen:Number(r.dagen)})
+          .then(function(){ melden('Bijgewerkt','Dossier staat op ingediend; de teller loopt.'); return ververs(); })
+          .catch(function(e){ melden('Niet gelukt', e.message, 'err'); });
+      });
+    }
+
     patch({step:Number(n)}).then(function(){ melden('Bijgewerkt', HALTES[n-1]); return ververs(); })
       .catch(function(e){
         if (/bron/i.test(e.message)) {
@@ -7432,7 +7466,7 @@ button.hd-cgl:hover .w{text-decoration:underline}
                : zak?'bijvoorbeeld crediteuren@bedrijfsnaam.nl':''},
         {groep:'Facturen',
          naam:'opdrachtnr',
-         label: zak?'Ons opdrachtnummer bij de opdrachtgever':'Uw kenmerk',
+         label: zak?'Opdrachtnummer opdrachtgever':'Kenmerk van de opdrachtgever',
          waarde:S.opdrachtnummer||'', plaats:'komt op de factuur als uw kenmerk'}
       ];
     }
@@ -8202,7 +8236,12 @@ button.hd-cgl:hover .w{text-decoration:underline}
           ? '<div class="fwk-verzknoppen">'+
             (S.verzStatus==='ingediend'
               ? '<button class="btn primary'+(S.termijnOver?'':' lijn')+'" onclick="fwkHerinnering()">'+
-                svg(I.klok)+((S.herinnerAantal||0)+1)+'e herinnering sturen</button>' : '')+
+                svg(I.klok)+((S.herinnerAantal||0)+1)+'e herinnering sturen</button>'
+              : (stap>=5
+                  // Is de halte al op 5 gezet zonder dat de status volgde, dan
+                  // kun je toch herinneren; wij zetten de status er dan bij.
+                  ? '<button class="btn lijn" onclick="fwkHalte(5)">'+svg(I.klok)+
+                    'Ingediend vastleggen om te kunnen herinneren</button>' : ''))+
             (S.verzStatus==='informatie'
               ? '<button class="btn primary" onclick="fwkAangeleverd()">'+svg(I.stuur)+
                 'Informatie aangeleverd</button>' : '')+
@@ -8324,7 +8363,7 @@ button.hd-cgl:hover .w{text-decoration:underline}
           cRij(I.mail,'E-mail contactpersoon', S.email, null, 'mail')+
           cRij(I.mail,'Algemeen e-mailadres', S.algemeenEmail, null, 'mail')+
           cRij(I.euro,'Facturen naar', S.factuurEmail, null, 'mail')+
-          cRij(I.info,'Ons opdrachtnummer', S.opdrachtnummer),
+          cRij(I.info,'Opdrachtnummer opdrachtgever', S.opdrachtnummer),
           'fwkOpdrachtgever')+
 
         // Bij een VvE loopt het vaak via een beheerkantoor. Staat dat er niet,
@@ -8428,11 +8467,11 @@ button.hd-cgl:hover .w{text-decoration:underline}
 
       var rapport = heeftRapport();
       x += '<div class="fwk-kaart"><div class="fwk-kkop"><h4>Financieel</h4>'+
-        '<div class="r">alleen directie</div></div>'+
+        '<div class="r">excl. btw \u00b7 alleen directie</div></div>'+
         '<div class="fwk-kbody">'+
         '<div class="hd-mg'+(goed?'':' min')+'">'+(marge<0?'\u2212':'')+eur(Math.abs(marge))+'</div>'+
         '<div class="hd-mgl">'+(marge<0?'verlies op dit dossier':'netto marge')+
-          (om>0?' \u00b7 '+Math.abs(pct)+'% van de omzet':'')+'</div>'+
+          (om>0?' \u00b7 '+Math.abs(pct)+'% van de omzet':'')+' \u00b7 excl. btw</div>'+
         '<div class="hd-mgb">'+
           '<span class="in" style="width:'+(ik2/basis*100)+'%"></span>'+
           '<span class="ub" style="width:'+(ut/basis*100)+'%"></span>'+
@@ -9086,8 +9125,14 @@ button.hd-cgl:hover .w{text-decoration:underline}
           }).join('')+'</select>')+
         '</div>'+
         (geld && !klant
-          ? '<input class="fwk-bed'+(d.bedrag!=null&&!d.bedragBevestigd?' sug':'')+'" type="text" value="'+
-            (d.bedrag!=null?d.bedrag:'')+'" placeholder="bedrag" onchange="fwkDocBedrag(this,\''+d.id+'\')">'
+          // Zonder label lijkt dit een willekeurig tekstvak. Zeg waar het over
+          // gaat: dit bedrag wordt gebruikt bij het claimen en factureren.
+          ? '<label class="fwk-bedwrap" title="Het bedrag van dit stuk, exclusief btw. '+
+            'Wordt gebruikt bij het claimen en op de factuur.">'+
+            '<span>'+(d.soort==='offerte'?'Offertebedrag':'Factuurbedrag')+' excl. btw</span>'+
+            '<input class="fwk-bed'+(d.bedrag!=null&&!d.bedragBevestigd?' sug':'')+'" type="text" value="'+
+            (d.bedrag!=null?d.bedrag:'')+'" placeholder="\u20ac 0,00" onchange="fwkDocBedrag(this,\''+d.id+'\')">'+
+            '</label>'
           : '')+
         (klant?''
           : '<button class="hd-oog'+(d.gedeeld?' aan':'')+'" onclick="fwkDeel(\''+d.id+'\','+(!d.gedeeld)+')" '+
@@ -9593,7 +9638,7 @@ button.hd-cgl:hover .w{text-decoration:underline}
     return kop +
       '<div class="fwk-hero"><div class="v" style="color:'+(marge<0?'var(--red)':'var(--green)')+'">'+
         (marge<0?'\u2212':'')+eur(Math.abs(marge))+'</div>'+
-      '<div class="l">'+(marge<0?'verlies op dit dossier':'netto marge')+
+      '<div class="l">'+(marge<0?'verlies op dit dossier':'netto marge')+' \u00b7 excl. btw'+
         (om>0?' \u00b7 '+Math.abs(pct)+'% van de omzet':'')+'</div></div>'+
       '<div class="fwk-staaf">'+
         '<span style="width:'+Math.max(0,marge/tot*100)+'%;background:'+
@@ -9633,7 +9678,8 @@ button.hd-cgl:hover .w{text-decoration:underline}
           '</div>'
         : '')+
       '<div class="fwk-bewerk"><div style="font-size:10.5px;font-weight:700;color:var(--muted-2);'+
-        'letter-spacing:.05em;text-transform:uppercase;margin-bottom:10px">Bedragen aanpassen</div>'+
+        'letter-spacing:.05em;text-transform:uppercase;margin-bottom:10px">Bedragen aanpassen '+
+        '<span style="text-transform:none;letter-spacing:0;color:var(--muted-2)">\u00b7 alles excl. btw</span></div>'+
         '<div class="fwk-geld">'+
           '<label>Offertesom herstel<input type="text" id="fwkOmzet" value="'+om+'"></label>'+
           (heeftRapport()
