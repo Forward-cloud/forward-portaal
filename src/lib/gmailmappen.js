@@ -107,6 +107,45 @@ async function verzondenMap(client) {
   return opNaam ? opNaam.path : null;
 }
 
+/* ─────────── een bericht terugvinden ───────────
+   Zoeken op Message-ID is de betrouwbaarste manier om een bericht terug te
+   vinden als het nummer niet meer klopt. Gmail doet daar alleen lastig over:
+   de gewone IMAP-zoekopdracht op de kop MESSAGE-ID levert er vaak niets op,
+   omdat Gmail zijn eigen zoekmachine gebruikt en die kop niet indexeert.
+
+   Daarom twee pogingen: eerst de gewone weg -- die werkt bij elke andere
+   mailserver -- en anders Gmail's eigen zoektaal met rfc822msgid.
+
+   Geeft beide niets terug, dan staat het bericht er echt niet. Gaat er iets
+   mis, dan geven we dat door als fout; 'niet gevonden' en 'kon niet zoeken'
+   mogen nooit door elkaar lopen, want op het eerste verwijderen we.        */
+async function zoekOpMessageId(client, messageId) {
+  const id = String(messageId || '').trim();
+  if (!id) return { gevonden: [], gelukt: true };
+
+  let gewoon = null;
+  try {
+    gewoon = await client.search({ header: { 'message-id': id } }, { uid: true });
+  } catch (e) {
+    gewoon = null;
+  }
+  if (gewoon && gewoon.length) return { gevonden: gewoon, gelukt: true };
+
+  // Gmail: rfc822msgid werkt zonder punthaken eromheen.
+  const kaal = id.replace(/^</, '').replace(/>$/, '');
+  try {
+    const viaGmail = await client.search({ gmraw: `rfc822msgid:${kaal}` }, { uid: true });
+    if (viaGmail && viaGmail.length) return { gevonden: viaGmail, gelukt: true };
+  } catch (e) {
+    // Geen Gmail, of de zoekopdracht werd geweigerd. Was de gewone weg ook al
+    // stuk, dan weten we niets en mogen we niets concluderen.
+    if (gewoon === null) return { gevonden: [], gelukt: false, reden: e.message };
+  }
+
+  if (gewoon === null) return { gevonden: [], gelukt: false, reden: 'zoeken mislukte' };
+  return { gevonden: [], gelukt: true };
+}
+
 /* ─────────── inkomende post ───────────
    Verplaatsen, niet kopiëren: het bericht krijgt het dossierlabel en verlaat
    het Postvak IN. Dat is de afspraak — post die bij een dossier hoort staat in
@@ -127,14 +166,10 @@ async function verplaatsInkomend(client, rij, label) {
        in deze map. Zit hij er niet, dan staat hij al niet meer in het Postvak
        IN en hoeven we niets te verplaatsen -- dat is de bedoelde eindstand. */
     if (!bestaat && rij.messageId) {
-      let treffers = null;
-      try {
-        treffers = await client.search({ header: { 'message-id': rij.messageId } }, { uid: true });
-      } catch (e) {
-        return { gelukt: false, reden: `zoeken mislukte: ${e.message}` };
-      }
-      if (treffers && treffers.length) {
-        uid = String(treffers[treffers.length - 1]);
+      const uitZoek = await zoekOpMessageId(client, rij.messageId);
+      if (!uitZoek.gelukt) return { gelukt: false, reden: `zoeken mislukte: ${uitZoek.reden}` };
+      if (uitZoek.gevonden.length) {
+        uid = String(uitZoek.gevonden[uitZoek.gevonden.length - 1]);
         bestaat = true;
       } else {
         return { gelukt: true, uid: null, alWeg: true };
@@ -163,9 +198,10 @@ async function verplaatsInkomend(client, rij, label) {
 async function labelVerzonden(client, map, messageId, label) {
   const lock = await client.getMailboxLock(map);
   try {
-    const treffers = await client.search({ header: { 'message-id': messageId } }, { uid: true });
-    if (!treffers || !treffers.length) return { gelukt: false, reden: 'nog niet in Verzonden' };
-    await client.messageCopy(treffers.map(String).join(','), label.split('/'), { uid: true });
+    const uitZoek = await zoekOpMessageId(client, messageId);
+    if (!uitZoek.gelukt) return { gelukt: false, reden: uitZoek.reden };
+    if (!uitZoek.gevonden.length) return { gelukt: false, reden: 'nog niet in Verzonden' };
+    await client.messageCopy(uitZoek.gevonden.map(String).join(','), label.split('/'), { uid: true });
     return { gelukt: true };
   } finally {
     lock.release();
@@ -280,13 +316,9 @@ async function verdwenenOpsporen(client, rijen) {
       // Een mislukte zoekopdracht is iets anders dan 'niet gevonden'. Bij een
       // hapering laten we het bericht met rust; anders gooien we post weg
       // omdat de verbinding even stokte.
-      let treffers = null; let mislukt = false;
-      try {
-        treffers = await client.search({ header: { 'message-id': r.messageId } }, { uid: true });
-      } catch (e) {
-        mislukt = true;
-      }
-      if (mislukt) continue;
+      const uitZoek = await zoekOpMessageId(client, r.messageId);
+      if (!uitZoek.gelukt) continue;   // hapering: met rust laten
+      const treffers = uitZoek.gevonden;
 
       if (treffers && treffers.length) {
         await prisma.inkomend.update({
@@ -521,11 +553,9 @@ async function naarPrullenbak(rijen) {
             const gevonden = [];
             for (let i = nogTeVinden.length - 1; i >= 0; i--) {
               const r = nogTeVinden[i];
-              const treffers = await client
-                .search({ header: { 'message-id': r.messageId } }, { uid: true })
-                .catch(() => null);
-              if (treffers && treffers.length) {
-                gevonden.push(...treffers);
+              const uitZoek = await zoekOpMessageId(client, r.messageId);
+              if (uitZoek.gelukt && uitZoek.gevonden.length) {
+                gevonden.push(...uitZoek.gevonden);
                 nogTeVinden.splice(i, 1);
               }
             }
@@ -573,7 +603,61 @@ async function naarPrullenbak(rijen) {
   return { gelukt: true, weg, fouten };
 }
 
+/* ─────────── terug in het Postvak IN, of er juist uit ───────────
+   Zet je een bericht in het portaal terug op de werklijst, dan hoort het ook
+   in Gmail weer in je Postvak IN te staan. En handel je het af, dan hoort het
+   daar weer uit.
+
+   In Gmail zijn dat labels, geen mappen: het bericht erbij kopiëren voegt
+   INBOX toe zonder het dossierlabel weg te halen. Eruit halen doen we door het
+   vanuit INBOX naar het dossierlabel te verplaatsen -- dan verdwijnt alleen
+   INBOX. Is er geen dossierlabel, dan laten we het staan; post zonder dossier
+   zomaar uit iemands inbox halen is te ver.                                 */
+async function zetInbox(rij, label, terug) {
+  if (!(GEBRUIKER && WACHTWOORD)) return { gelukt: false, reden: 'geen mailbox' };
+  if (!terug && !label) return { gelukt: true, gedaan: false };
+
+  try {
+    return await metMailbox(async (client) => {
+      const bron = terug ? (rij.mailbox || label || INKOMEND_MAP) : INKOMEND_MAP;
+      let lock;
+      try {
+        lock = await client.getMailboxLock(bron);
+      } catch (e) {
+        return { gelukt: false, reden: `map ${bron} niet te openen` };
+      }
+      try {
+        // Waar staat het bericht in deze map?
+        let uid = rij.uid ? String(rij.uid) : null;
+        let bestaat = uid
+          ? await client.fetchOne(uid, { uid: true }, { uid: true }).catch(() => null)
+          : null;
+        if (!bestaat) {
+          const uitZoek = await zoekOpMessageId(client, rij.messageId);
+          if (!uitZoek.gelukt) return { gelukt: false, reden: uitZoek.reden };
+          if (!uitZoek.gevonden.length) return { gelukt: true, gedaan: false };
+          uid = String(uitZoek.gevonden[uitZoek.gevonden.length - 1]);
+        }
+
+        if (terug) {
+          await client.messageCopy(uid, INKOMEND_MAP, { uid: true });
+        } else {
+          await client.messageMove(uid, label.split('/'), { uid: true });
+        }
+        return { gelukt: true, gedaan: true };
+      } catch (e) {
+        return { gelukt: false, reden: e.message };
+      } finally {
+        lock.release();
+      }
+    });
+  } catch (e) {
+    return { gelukt: false, reden: e.message };
+  }
+}
+
 module.exports = {
   ingesteld, gelezenMee, labelVoor, archiveerRonde, archiveerNu, zetGelezen, naarPrullenbak,
+  zetInbox,
   HOOFDMAP, AAN, GEBRUIKER,
 };
