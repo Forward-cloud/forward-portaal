@@ -11032,6 +11032,9 @@ body.fwq-open{overflow:hidden}
         if (r.verplaatst) s.push(r.verplaatst + (r.verplaatst===1?' bericht':' berichten') + ' verplaatst');
         if (r.gelabeld) s.push(r.gelabeld + (r.gelabeld===1?' verzonden brief':' verzonden brieven') + ' gelabeld');
         if (r.gelijkgezet) s.push(r.gelijkgezet + (r.gelijkgezet===1?' vinkje':' vinkjes') + ' gelijkgezet');
+        if (r.verhuisd) s.push(r.verhuisd + ' teruggevonden op een nieuwe plek');
+        if (r.verdwenen) s.push(r.verdwenen + (r.verdwenen===1?' bericht':' berichten') +
+          ' uit het portaal \u2014 in Gmail weggegooid');
         melden('Mailbox opgeruimd', s.length ? s.join(' \u00b7 ') : 'Alles stond al goed.',
           s.length ? 'ok' : 'info');
         if (r.fouten && r.fouten.length) {
@@ -11423,6 +11426,7 @@ body.fwq-open{overflow:hidden}
             '/</b> en verlaat je Postvak IN' : '') +
           (GELEZENMEE ? (ARCHIVEREN ? ' \u00b7 ' : '') +
             'Gelezen en ongelezen loopt gelijk met Gmail' : '') +
+          ' \u00b7 Wat je in Gmail weggooit verdwijnt hier ook' +
           '<button class="pv-knop" onclick="pvArchiveren(this)">Mailbox opruimen</button></span>'
         : '<span class="pv-arch uit">Archiveren per dossier staat uit ' +
           '\u2014 zet GMAIL_ARCHIVEREN=aan in Coolify</span>') +
