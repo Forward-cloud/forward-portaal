@@ -11146,9 +11146,14 @@ body.fwq-open{overflow:hidden}
   };
   window.pvStand = function(id, stand){
     var woord = { afgehandeld:'Afgehandeld', genegeerd:'Genegeerd', nieuw:'Teruggezet' }[stand] || 'Bijgewerkt';
+    // Vertel er ook bij wat er in Gmail gebeurt, anders is dat onzichtbaar.
+    var erbij = ARCHIVEREN
+      ? (stand === 'nieuw' ? 'Staat ook weer in je Postvak IN.'
+                           : 'Ook uit je Postvak IN gehaald.')
+      : 'Het bericht is bijgewerkt.';
     OPEN = null;
     doe('/api/postvak/' + encodeURIComponent(id) + '/stand', { stand: stand }, function(){
-      melden(woord, 'Het bericht is bijgewerkt.');
+      melden(woord, erbij);
     });
   };
   window.pvGelezen = function(id, gelezen){
@@ -11445,6 +11450,7 @@ body.fwq-open{overflow:hidden}
           (GELEZENMEE ? (ARCHIVEREN ? ' \u00b7 ' : '') +
             'Gelezen en ongelezen loopt gelijk met Gmail' : '') +
           ' \u00b7 Wat je in Gmail weggooit verdwijnt hier ook' +
+          ' \u00b7 Terugzetten brengt het bericht terug in je Postvak IN' +
           '<button class="pv-knop" onclick="pvArchiveren(this)">Mailbox opruimen</button></span>'
         : '<span class="pv-arch uit">Archiveren per dossier staat uit ' +
           '\u2014 zet GMAIL_ARCHIVEREN=aan in Coolify</span>') +
