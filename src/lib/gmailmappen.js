@@ -364,8 +364,14 @@ function archiveerNu(inkomendId) {
    onherstelbare stap; wel is het weg uit je zicht.                          */
 async function naarPrullenbak(rijen) {
   if (!(GEBRUIKER && WACHTWOORD)) return { gelukt: false, reden: 'geen mailbox', weg: 0 };
-  const teDoen = (rijen || []).filter((r) => r.uid);
-  if (!teDoen.length) return { gelukt: true, weg: 0 };
+
+  const alles = rijen || [];
+  const teDoen = alles.filter((r) => r.uid);
+  // Post die binnenkwam voordat het portaal het berichtnummer bijhield heeft
+  // geen uid. Die zoeken we straks op Message-ID op, anders blijft hij in Gmail
+  // staan terwijl hij in het portaal al weg is.
+  const zoeken = alles.filter((r) => !r.uid && r.messageId).slice(0, 200);
+  if (!teDoen.length && !zoeken.length) return { gelukt: true, weg: 0, fouten: [] };
 
   let weg = 0; const fouten = [];
 
@@ -375,6 +381,47 @@ async function naarPrullenbak(rijen) {
       const bak = (lijst.find((m) => m.specialUse === '\\Trash')
         || lijst.find((m) => /^\[Gmail\]\/(Trash|Prullenbak)$/i.test(m.path)) || {}).path;
       if (!bak) { fouten.push('prullenbak niet gevonden'); return; }
+
+      /* Zoeken op Message-ID. Eerst in het Postvak IN, en anders in Alle
+         berichten -- daar staat bij Gmail alles wat niet in de prullenbak zit,
+         ook als het al een label heeft gekregen. */
+      if (zoeken.length) {
+        const allesMap = (lijst.find((m) => m.specialUse === '\\All')
+          || lijst.find((m) => /^\[Gmail\]\/(All Mail|Alle berichten)$/i.test(m.path)) || {}).path;
+        const mappen = [INKOMEND_MAP, allesMap].filter(Boolean);
+        const nogTeVinden = zoeken.slice();
+
+        for (const map of mappen) {
+          if (!nogTeVinden.length) break;
+          let lock;
+          try { lock = await client.getMailboxLock(map); } catch (e) { continue; }
+          try {
+            const gevonden = [];
+            for (let i = nogTeVinden.length - 1; i >= 0; i--) {
+              const r = nogTeVinden[i];
+              const treffers = await client
+                .search({ header: { 'message-id': r.messageId } }, { uid: true })
+                .catch(() => null);
+              if (treffers && treffers.length) {
+                gevonden.push(...treffers);
+                nogTeVinden.splice(i, 1);
+              }
+            }
+            if (gevonden.length) {
+              await client.messageMove(gevonden.map(String).join(','), bak, { uid: true });
+              weg += gevonden.length;
+            }
+          } catch (e) {
+            fouten.push(`${map}: ${e.message}`);
+          } finally {
+            lock.release();
+          }
+        }
+
+        if (nogTeVinden.length) {
+          fouten.push(`${nogTeVinden.length} bericht(en) niet meer in de mailbox gevonden`);
+        }
+      }
 
       const perMap = new Map();
       teDoen.forEach((r) => {
