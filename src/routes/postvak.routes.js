@@ -341,6 +341,21 @@ router.post('/postvak/:id/stand', async (req, res) => {
       wegreden: stand === 'genegeerd' ? (r.wegreden || `handmatig door ${req.user.naam}`) : null,
     },
   });
+
+  /* En in Gmail hetzelfde. Terugzetten betekent: weer in mijn Postvak IN.
+     Afhandelen of negeren betekent: er weer uit, het staat onder het
+     dossierlabel. Niet afwachten -- het scherm hoeft daar niet op te wachten. */
+  if (mappen.ingesteld() && r.schadeId) {
+    const schade = await prisma.schade.findUnique({
+      where: { id: r.schadeId },
+      select: { nummer: true, adres: true, owner: true },
+    });
+    const label = schade ? mappen.labelVoor(schade) : null;
+    if (label) {
+      mappen.zetInbox(r, label, stand === 'nieuw' || stand === 'gekoppeld').catch(() => {});
+    }
+  }
+
   res.json({ bericht: uit });
 });
 

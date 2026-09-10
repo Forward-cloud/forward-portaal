@@ -470,6 +470,19 @@ router.post('/schades/:nummer/verzenden', async (req, res) => {
           stand: 'afgehandeld',
         },
       }).catch(() => {});
+
+      // Beantwoord is afgehandeld: dan hoort de post ook uit het Postvak IN.
+      const mappen = require('../lib/gmailmappen');
+      if (mappen.ingesteld()) {
+        const label = mappen.labelVoor(s);
+        const afgedaan = await prisma.inkomend.findMany({
+          where: { schadeId: s.id, stand: 'afgehandeld', van: { in: schoon, mode: 'insensitive' } },
+          take: 50,
+        }).catch(() => []);
+        for (const rij of afgedaan) {
+          await mappen.zetInbox(rij, label, false).catch(() => {});
+        }
+      }
     }
   }
 
