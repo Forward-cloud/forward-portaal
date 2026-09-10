@@ -163,4 +163,79 @@ async function opstellen({ notitie, ontvanger, context }) {
     : { onderwerp: '', tekst: uit };
 }
 
-module.exports = { herschrijf, opstellen, beschikbaar, MODEL };
+
+/* ─────────── binnengekomen post beoordelen ───────────
+   Vraagt dit bericht iets van ons, of is het een mededeling? De uitkomst wordt
+   een actiepunt op het dossier, dus we houden het streng: liever een keer te
+   veel een actiepunt dan een vraag van een verzekeraar die blijft liggen.
+
+   Geeft de AI geen bruikbaar antwoord, dan gaan we uit van 'ja, actie nodig'.
+   Een gemiste vraag kost meer dan een overbodig regeltje op de lijst.        */
+const POST_REGELS = `Je beoordeelt binnengekomen e-mail van een schadeherstelbedrijf dat waterschade
+afhandelt voor VvE-beheerders, verzekeraars en bewoners.
+
+Bepaal twee dingen:
+1. Vraagt dit bericht een handeling van ons? Een vraag, een verzoek, een termijn,
+   een afwijzing, een verzoek om stukken, een klacht, een afspraak die bevestigd
+   moet worden. Een enkele ontvangstbevestiging of een mededeling zonder verzoek
+   vraagt niets.
+2. Zo ja: wat moet er gebeuren, in één korte zin, in gewone taal, actief
+   geschreven en beginnend met een werkwoord. Bijvoorbeeld "Polisblad opsturen
+   naar Achmea" of "Bewoner terugbellen over de hersteldatum".
+
+Kies ook een soort uit deze lijst, en niets anders:
+- info      een verzoek om stukken of aanvullende informatie
+- bellen    er moet iemand gebeld worden
+- herstel   het gaat over de planning of uitvoering van herstel
+- offerte   het gaat over een offerte of een prijs
+- machtiging het gaat over een machtiging
+- klant     iets anders dat een reactie aan de klant vraagt
+
+Antwoord uitsluitend met JSON, zonder uitleg eromheen:
+{"actie": true of false, "soort": "info", "tekst": "korte zin", "termijn": "wat er over een termijn wordt gezegd, of leeg"}
+
+Verzin niets. Noem geen bedragen of data die niet in het bericht staan.`;
+
+async function beoordeelPost({ van, onderwerp, tekst, dossier }) {
+  if (!SLEUTEL) return { gelukt: false, reden: 'geen sleutel' };
+
+  const kort = String(tekst || '').replace(/\s+/g, ' ').slice(0, 6000);
+  const bericht =
+    `Afzender: ${van || 'onbekend'}\n` +
+    `Onderwerp: ${onderwerp || '(geen onderwerp)'}\n` +
+    (dossier ? `Hoort bij dossier: ${dossier}\n` : 'Hoort nog bij geen enkel dossier.\n') +
+    `\nBericht:\n---\n${kort}\n---`;
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: koppen(),
+      body: JSON.stringify({
+        model: MODEL,
+        max_tokens: 400,
+        system: POST_REGELS,
+        messages: [{ role: 'user', content: bericht }],
+      }),
+    });
+    if (!res.ok) return { gelukt: false, reden: `AI gaf ${res.status} terug` };
+
+    const data = await res.json();
+    const uit = (data.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('').trim();
+    // Soms komt er een codeblok omheen; dat halen we eraf.
+    const schoon = uit.replace(/^```(?:json)?/i, '').replace(/```$/, '').trim();
+    const j = JSON.parse(schoon);
+
+    const SOORTEN = ['info', 'bellen', 'herstel', 'offerte', 'machtiging', 'klant'];
+    return {
+      gelukt: true,
+      actie: j.actie === true,
+      soort: SOORTEN.indexOf(j.soort) > -1 ? j.soort : 'klant',
+      tekst: String(j.tekst || '').trim().slice(0, 300),
+      termijn: String(j.termijn || '').trim().slice(0, 200),
+    };
+  } catch (e) {
+    return { gelukt: false, reden: e.message };
+  }
+}
+
+module.exports = { herschrijf, opstellen, beoordeelPost, beschikbaar, MODEL };
