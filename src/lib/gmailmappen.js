@@ -13,7 +13,10 @@
 // dat is niet met een knop terug te draaien. Zet GMAIL_ARCHIVEREN=aan in Coolify
 // zodra je het wilt.
 
+const fs = require('fs');
+const path = require('path');
 const prisma = require('../db');
+const { OPSLAG } = require('./documentsoorten');
 
 const HOST = (process.env.IMAP_HOST || 'imap.gmail.com').trim();
 const POORT = Number(process.env.IMAP_POORT || 993);
@@ -112,16 +115,40 @@ async function verplaatsInkomend(client, rij, label) {
   const bron = rij.mailbox || INKOMEND_MAP;
   const lock = await client.getMailboxLock(bron);
   try {
+    let uid = rij.uid ? String(rij.uid) : null;
+
     // Staat het bericht er nog? Iemand kan het met de hand hebben verplaatst.
-    const bestaat = await client.fetchOne(String(rij.uid), { uid: true }, { uid: true }).catch(() => null);
+    let bestaat = uid
+      ? await client.fetchOne(uid, { uid: true }, { uid: true }).catch(() => null)
+      : null;
+
+    /* Geen nummer, of het klopt niet meer. Post die binnenkwam voordat het
+       portaal die nummers bijhield heeft er geen. Zoek hem dan op Message-ID
+       in deze map. Zit hij er niet, dan staat hij al niet meer in het Postvak
+       IN en hoeven we niets te verplaatsen -- dat is de bedoelde eindstand. */
+    if (!bestaat && rij.messageId) {
+      let treffers = null;
+      try {
+        treffers = await client.search({ header: { 'message-id': rij.messageId } }, { uid: true });
+      } catch (e) {
+        return { gelukt: false, reden: `zoeken mislukte: ${e.message}` };
+      }
+      if (treffers && treffers.length) {
+        uid = String(treffers[treffers.length - 1]);
+        bestaat = true;
+      } else {
+        return { gelukt: true, uid: null, alWeg: true };
+      }
+    }
+
     if (!bestaat) return { gelukt: false, reden: 'niet meer in deze map' };
-    const uit = await client.messageMove(String(rij.uid), label.split('/'), { uid: true });
+    const uit = await client.messageMove(uid, label.split('/'), { uid: true });
     // Na het verplaatsen heeft het bericht een nieuw nummer in de nieuwe map.
     // Dat bewaren we, zodat we het later nog kunnen verplaatsen -- bijvoorbeeld
     // als het adres van het dossier wijzigt en de labelnaam meeverandert.
     let nieuwUid = null;
     if (uit && uit.uidMap && typeof uit.uidMap.get === 'function') {
-      nieuwUid = uit.uidMap.get(Number(rij.uid)) || null;
+      nieuwUid = uit.uidMap.get(Number(uid)) || null;
     }
     return { gelukt: true, uid: nieuwUid };
   } finally {
@@ -182,21 +209,28 @@ async function synchroniseerGelezen(client, rijen) {
     perMap.get(m).push(r);
   });
 
-  let bijgewerkt = 0;
+  let vinkjes = 0; const zoek = [];
 
   for (const [map, lijst] of perMap) {
     let lock;
     try {
       lock = await client.getMailboxLock(map);
     } catch (e) {
-      continue; // map bestaat niet meer; volgende
+      // De map bestaat niet meer -- dan staan die berichten ergens anders.
+      zoek.push(...lijst);
+      continue;
     }
     try {
       const opUid = new Map(lijst.map((r) => [Number(r.uid), r]));
+      const gezien = new Set();
       const reeks = lijst.map((r) => r.uid).join(',');
+
       for await (const bericht of client.fetch(reeks, { flags: true }, { uid: true })) {
         const rij = opUid.get(Number(bericht.uid));
         if (!rij) continue;
+        gezien.add(rij.id);
+
+        if (!GELEZEN_MEE) continue;
         const inGmail = !!(bericht.flags && typeof bericht.flags.has === 'function'
           && bericht.flags.has('\\Seen'));
         const hier = !!rij.gelezenAt;
@@ -207,14 +241,80 @@ async function synchroniseerGelezen(client, rijen) {
             ? { gelezenAt: new Date(), gelezenDoor: rij.gelezenDoor || 'gelezen in Gmail' }
             : { gelezenAt: null, gelezenDoor: null },
         }).catch(() => {});
-        bijgewerkt++;
+        vinkjes++;
       }
+
+      // Wat de mailbox niet teruggeeft staat er niet meer: verplaatst of weg.
+      lijst.forEach((r) => { if (!gezien.has(r.id)) zoek.push(r); });
     } finally {
       lock.release();
     }
   }
 
-  return bijgewerkt;
+  return { vinkjes, zoek };
+}
+
+/* ─────────── kwijt in de mailbox? ───────────
+   Een bericht dat niet meer staat waar wij het achterlieten is met de hand
+   verplaatst of weggegooid. Zoek het op Message-ID in Alle berichten -- daar
+   staat bij Gmail alles behalve de prullenbak.
+
+   Gevonden  : het is verplaatst of gelabeld. Wij noteren de nieuwe plek en
+               laten het bericht in het portaal staan.
+   Niet meer : het zit in de prullenbak of is definitief weg. Dan hoort het ook
+               hier niet meer te staan; anders blijf je in het portaal post zien
+               die je in Gmail al hebt opgeruimd.                             */
+async function verdwenenOpsporen(client, rijen) {
+  if (!rijen.length) return { verhuisd: 0, verdwenen: 0 };
+
+  const lijst = await client.list();
+  const allesMap = (lijst.find((m) => m.specialUse === '\\All')
+    || lijst.find((m) => /^\[Gmail\]\/(All Mail|Alle berichten)$/i.test(m.path)) || {}).path;
+  if (!allesMap) return { verhuisd: 0, verdwenen: 0 };
+
+  let verhuisd = 0; const weg = [];
+  const lock = await client.getMailboxLock(allesMap);
+  try {
+    for (const r of rijen.slice(0, 200)) {
+      if (!r.messageId) continue;
+      // Een mislukte zoekopdracht is iets anders dan 'niet gevonden'. Bij een
+      // hapering laten we het bericht met rust; anders gooien we post weg
+      // omdat de verbinding even stokte.
+      let treffers = null; let mislukt = false;
+      try {
+        treffers = await client.search({ header: { 'message-id': r.messageId } }, { uid: true });
+      } catch (e) {
+        mislukt = true;
+      }
+      if (mislukt) continue;
+
+      if (treffers && treffers.length) {
+        await prisma.inkomend.update({
+          where: { id: r.id },
+          data: { mailbox: allesMap, uid: treffers[treffers.length - 1] },
+        }).catch(() => {});
+        verhuisd++;
+      } else {
+        weg.push(r);
+      }
+    }
+  } finally {
+    lock.release();
+  }
+
+  // Uit het portaal halen, inclusief de bijlagen die we hadden bewaard.
+  for (const r of weg) {
+    for (const a of (Array.isArray(r.bijlagen) ? r.bijlagen : [])) {
+      if (!a || !a.opslagnaam) continue;
+      try { fs.unlinkSync(path.join(OPSLAG, path.basename(a.opslagnaam))); }
+      catch (e) { /* al weg */ }
+    }
+  }
+  if (weg.length) {
+    await prisma.inkomend.deleteMany({ where: { id: { in: weg.map((r) => r.id) } } }).catch(() => {});
+  }
+
+  return { verhuisd, verdwenen: weg.length };
 }
 
 /* ─────────── één ronde ───────────
@@ -231,7 +331,6 @@ async function archiveerRonde(opties = {}) {
   const inkomend = await prisma.inkomend.findMany({
     where: {
       schadeId: { not: null },
-      uid: { not: null },
       stand: { not: 'genegeerd' },
       ...(opties.id ? { id: opties.id } : {}),
     },
@@ -251,30 +350,38 @@ async function archiveerRonde(opties = {}) {
   });
 
   // Alleen wat er nog niet goed staat.
+  // Alles wat nog niet onder het juiste label hangt. Ook zonder berichtnummer:
+  // verplaatsInkomend zoekt hem dan op Message-ID op.
   const teVerplaatsen = ingesteld() ? inkomend.filter((r) => {
     const doel = labelVoor(r.schade);
-    return doel && r.gearchiveerd !== doel;
+    return doel && r.gearchiveerd !== doel && (r.uid || r.messageId);
   }) : [];
 
   // Alles wat nog in de mailbox te vinden is, om de vinkjes gelijk te zetten.
-  const teVergelijken = gelezenMee()
-    ? await prisma.inkomend.findMany({
-        where: {
-          uid: { not: null },
-          stand: { not: 'genegeerd' },
-          ...(opties.id ? { id: opties.id } : {}),
-        },
-        select: { id: true, uid: true, mailbox: true, gelezenAt: true, gelezenDoor: true },
-        orderBy: { ontvangenAt: 'desc' },
-        take: 300,
-      })
-    : [];
+  // Alles wat we in de mailbox kunnen terugvinden: om de vinkjes gelijk te
+  // zetten, en om te zien of het er nog staat. Dat laatste hoort er ook bij
+  // als de vinkjes niet meelopen -- anders blijft post in het portaal staan die
+  // je in Gmail allang hebt weggegooid.
+  const teVergelijken = await prisma.inkomend.findMany({
+    where: {
+      uid: { not: null },
+      ...(opties.id ? { id: opties.id } : {}),
+    },
+    select: {
+      id: true, uid: true, mailbox: true, messageId: true,
+      gelezenAt: true, gelezenDoor: true, bijlagen: true,
+    },
+    orderBy: { ontvangenAt: 'desc' },
+    take: 300,
+  });
 
   if (!teVerplaatsen.length && !uitgaand.length && !teVergelijken.length) {
-    return { gelukt: true, verplaatst: 0, gelabeld: 0, gelijkgezet: 0, fouten: [] };
+    return { gelukt: true, verplaatst: 0, gelabeld: 0, gelijkgezet: 0,
+      verhuisd: 0, verdwenen: 0, fouten: [] };
   }
 
-  let verplaatst = 0; let gelabeld = 0; let gelijkgezet = 0; const fouten = [];
+  let verplaatst = 0; let gelabeld = 0; let gelijkgezet = 0;
+  let verhuisd = 0; let verdwenen = 0; const fouten = [];
 
   try {
     await metMailbox(async (client) => {
@@ -290,7 +397,9 @@ async function archiveerRonde(opties = {}) {
               where: { id: rij.id },
               data: { gearchiveerd: label, mailbox: label, uid: uit.uid || null },
             });
-            verplaatst++;
+            // Stond hij al niet meer in het Postvak IN, dan is er niets
+            // verplaatst; wel is de eindstand nu goed vastgelegd.
+            if (!uit.alWeg) verplaatst++;
           } else {
             // Niet meer te vinden: niet elke ronde opnieuw proberen.
             await prisma.inkomend.update({ where: { id: rij.id }, data: { uid: null } });
@@ -304,15 +413,18 @@ async function archiveerRonde(opties = {}) {
       // Eerst verplaatsen, dan pas vergelijken: anders kijken we naar berichten
       // die net van map zijn gewisseld en klopt het nummer niet meer.
       if (teVergelijken.length) {
-        const vers = teVergelijken.map((r) => {
-          const bij = teVerplaatsen.find((v) => v.id === r.id);
-          return bij ? { ...r, uid: null } : r;
-        }).filter((r) => r.uid);
+        // Wat we net hebben verplaatst slaan we over: dat heeft een nieuw
+        // nummer gekregen en klopt al.
+        const vers = teVergelijken.filter((r) => !teVerplaatsen.some((v) => v.id === r.id));
         if (vers.length) {
           try {
-            gelijkgezet = await synchroniseerGelezen(client, vers);
+            const uitkomst = await synchroniseerGelezen(client, vers);
+            gelijkgezet = uitkomst.vinkjes;
+            const kwijt = await verdwenenOpsporen(client, uitkomst.zoek);
+            verhuisd = kwijt.verhuisd;
+            verdwenen = kwijt.verdwenen;
           } catch (e) {
-            fouten.push(`gelezen-stand: ${e.message}`);
+            fouten.push(`gelijkzetten: ${e.message}`);
           }
         }
       }
@@ -341,10 +453,11 @@ async function archiveerRonde(opties = {}) {
       }
     });
   } catch (e) {
-    return { gelukt: false, reden: e.message, verplaatst, gelabeld, gelijkgezet, fouten };
+    return { gelukt: false, reden: e.message, verplaatst, gelabeld, gelijkgezet,
+      verhuisd, verdwenen, fouten };
   }
 
-  return { gelukt: true, verplaatst, gelabeld, gelijkgezet, fouten };
+  return { gelukt: true, verplaatst, gelabeld, gelijkgezet, verhuisd, verdwenen, fouten };
 }
 
 /* Meteen na het koppelen, zodat het bericht direct uit de inbox verdwijnt in
