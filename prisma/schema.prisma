@@ -208,6 +208,17 @@ model Schade {
   finHerstelInkoop     Int @default(0)
   finHerstelUitbesteed Int @default(0)
 
+  // Toetsing van een door de klant aangeleverde herstelofferte. Hoort bij de
+  // route 'eigenbeheer': de klant laat het herstel door een eigen partij doen,
+  // wij beoordelen alleen of het geoffreerde bedrag marktconform is. Deze
+  // velden gaan mee in het dossier naar de verzekeraar.
+  toetsPartij      String?   // wie de offerte heeft opgesteld
+  toetsBedrag      Int?      // geoffreerd bedrag inclusief btw
+  toetsOordeel     String?   // marktconform | afwijkingen
+  toetsToelichting String?
+  toetsDatum       DateTime?
+  toetsDoorNaam    String?   // wie van ons de toetsing heeft gedaan
+
   ingediendAt DateTime?
   docVisible  Json      @default("{}")
 
@@ -546,6 +557,15 @@ model Inkomend {
 
   bijlagen    Json     @default("[]")
   doorNaam    String?
+
+  // Waar dit bericht in de mailbox staat. Nodig om het later nog te kunnen
+  // verplaatsen naar het label van het dossier -- of naar een ander label als
+  // de koppeling verandert.
+  uid         Int?
+  mailbox     String?
+  // Het Gmail-label waar het nu onder hangt; leeg zolang het nog in de inbox staat.
+  gearchiveerd String?
+
   createdAt   DateTime @default(now())
 
   @@index([stand])
@@ -571,6 +591,9 @@ model Verzending {
   // bij het bijwerken opleveren zonder iets toe te voegen.
   messageId   String?
   doorNaam    String?
+  // Onder welk Gmail-label deze verzonden post is opgeborgen. Leeg betekent:
+  // nog niet gedaan, de volgende ronde probeert het.
+  gearchiveerd String?
   createdAt   DateTime @default(now())
 
   @@index([schadeId])
