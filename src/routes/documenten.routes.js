@@ -8,47 +8,17 @@ const { requireAuth, requireDirectie } = require('../auth/middleware');
 const router = express.Router();
 router.use(requireAuth);
 
-// Map buiten de container-image, gekoppeld aan een schijf in Coolify.
-const OPSLAG = process.env.UPLOAD_DIR || '/data/uploads';
+// De lijst van soorten en toegestane bestandstypen staat in één module, zodat
+// het postvak dezelfde regels aanhoudt als een handmatige upload.
+const {
+  SOORTEN, TOEGESTAAN, MAX_BYTES, OPSLAG, veiligeNaam,
+} = require('../lib/documentsoorten');
 
-const SOORTEN = {
-  schaderapport: 'Schaderapport',
-  offerte: 'Offerte herstel',
-  factuur_onder: 'Onderaannemersfactuur',
-  offerte_lev: 'Offerte van leverancier',
-  factuur_bron: 'Bronherstel · ter info',
-  factuur_expertise: 'Factuur schade-expertise',
-  machtiging: 'Getekende machtiging',
-  polis: 'Polisblad',
-  foto: "Foto's",
-  uitkeringsbericht: 'Uitkeringsbericht',
-  overig: 'Overig',
-};
-
-const TOEGESTAAN = {
-  'application/pdf': '.pdf',
-  'image/jpeg': '.jpg',
-  'image/png': '.png',
-  'image/heic': '.heic',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx',
-  'application/msword': '.doc',
-  'application/vnd.ms-excel': '.xls',
-};
-
-const MAX_BYTES = 20 * 1024 * 1024; // 20 MB per bestand
 
 function zorgVoorMap() {
   fs.mkdirSync(OPSLAG, { recursive: true });
 }
 
-function veiligeNaam(naam) {
-  return String(naam || 'bestand')
-    .replace(/[/\\?%*:|"<>]/g, '-')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, 120);
-}
 
 async function log(user, text) {
   await prisma.logEntry.create({ data: { text, byUserId: user.id, byName: user.naam } });
