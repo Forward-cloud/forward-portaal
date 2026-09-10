@@ -10837,6 +10837,17 @@ body.fwq-open{overflow:hidden}
   .pv-prul.zacht{background:transparent;border-style:dashed;box-shadow:none;
     color:var(--muted-2);font-size:11.5px}
   .pv-prul.zacht b{color:var(--muted)}
+  .pv-verslag{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+    padding:13px 17px;margin-bottom:12px;box-shadow:var(--shadow-s);font-size:12px;color:var(--muted)}
+  .pv-verslag .kop{display:flex;align-items:center;gap:9px;flex-wrap:wrap;color:var(--text);
+    font-size:12.5px}
+  .pv-verslag .kop b{font-weight:600}
+  .pv-verslag .kop svg{width:16px;height:16px;color:var(--muted-2)}
+  .pv-verslag .kop .pv-knop{margin-left:auto}
+  .pv-verslag ul{margin:10px 0 0;padding:0 0 0 18px;line-height:1.7;max-height:220px;overflow-y:auto}
+  .pv-verslag li{word-break:break-word}
+  .pv-verslag li.fout{color:#8E3A34}
+  .pv-verslag .leeg{margin-top:8px;color:var(--muted-2)}
 
   .pv-leeg{padding:48px 20px;text-align:center;color:var(--muted);font-size:13px}
   .pv-leeg .ico{width:52px;height:52px;margin:0 auto 14px;border-radius:15px;display:flex;
@@ -10888,7 +10899,7 @@ body.fwq-open{overflow:hidden}
   var KIES = null;           // bij welk bericht staat de dossierkiezer open
   var BIJL = null;           // bij welke bijlage staat het opbergvenster open
   var TEKSTEN = {};          // volledige tekst per bericht, eenmaal opgehaald
-  var FOUT = null, BEZIG = false, OPGEHAALD = null;
+  var FOUT = null, BEZIG = false, OPGEHAALD = null, VERSLAG = null;
 
   function $$(id){ return document.getElementById(id); }
   function esc(v){ return String(v==null?'':v).replace(/[&<>"]/g, function(c){
@@ -11037,8 +11048,13 @@ body.fwq-open{overflow:hidden}
           ' uit het portaal \u2014 in Gmail weggegooid');
         melden('Mailbox opgeruimd', s.length ? s.join(' \u00b7 ') : 'Alles stond al goed.',
           s.length ? 'ok' : 'info');
+        // Wat er per bericht is gebeurd, blijft staan zolang je op dit scherm
+        // bent. Anders weet je bij 'niets verplaatst' niet waar het aan lag.
+        VERSLAG = r;
         if (r.fouten && r.fouten.length) {
-          setTimeout(function(){ melden('Niet alles lukte', r.fouten[0], 'err'); }, 700);
+          setTimeout(function(){
+            melden('Niet alles lukte', r.fouten.length + ' bericht(en) \u2014 zie het verslag onderin', 'err');
+          }, 700);
         }
         return laad(true);
       })
@@ -11073,6 +11089,8 @@ body.fwq-open{overflow:hidden}
       .catch(function(e){ melden('Opruimen mislukt', e.message, 'err'); })
       .then(function(){ if (knop) knop.disabled = false; });
   };
+
+  window.pvVerslagWeg = function(){ VERSLAG = null; teken(); };
 
   window.pvTab = function(stand){
     STAND = stand; OPEN = null; KIES = null; BIJL = null; laad();
@@ -11475,6 +11493,22 @@ body.fwq-open{overflow:hidden}
           '</span>'
         : '') +
       '</div>';
+
+    // Verslag van de laatste opruimronde: per bericht wat er is gebeurd.
+    if (VERSLAG) {
+      var v = VERSLAG;
+      x += '<div class="pv-verslag"><div class="kop">' + svg(IPAPER) +
+        '<b>Laatste opruimronde</b> \u00b7 ' + (v.bekeken || 0) + ' bericht(en) bekeken \u00b7 ' +
+        (v.verplaatst || 0) + ' verplaatst \u00b7 ' + (v.gelabeld || 0) + ' gelabeld \u00b7 ' +
+        (v.gelijkgezet || 0) + ' vinkjes' +
+        '<button class="pv-knop" onclick="pvVerslagWeg()">Sluiten</button></div>' +
+        ((v.regels || []).concat((v.fouten || []).map(function(f){ return '\u26a0 ' + f; })).length
+          ? '<ul>' + (v.regels || []).map(function(t){ return '<li>' + esc(t) + '</li>'; }).join('') +
+            (v.fouten || []).map(function(t){ return '<li class="fout">' + esc(t) + '</li>'; }).join('') +
+            '</ul>'
+          : '<div class="leeg">Er was niets te doen \u2014 alles stond al goed.</div>') +
+        '</div>';
+    }
 
     if (BEZIG) {
       x += '<div class="pv-lijst"><div class="pv-leeg">Postvak laden\u2026</div></div>';
