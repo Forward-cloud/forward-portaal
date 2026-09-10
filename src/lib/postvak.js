@@ -1,4 +1,8 @@
+const fs = require('fs');
+const path = require('path');
+const crypto = require('crypto');
 const prisma = require('../db');
+const { OPSLAG, bepaalMime, veiligeNaam } = require('./documentsoorten');
 
 /* ─────────── binnengekomen post ───────────
    Leest de mailbox van schade@ uit en zet berichten in het postvak. Twee dingen
@@ -20,6 +24,13 @@ const MAP = (process.env.IMAP_MAP || 'INBOX').trim();
 
 // Hoe ver terug we kijken bij de eerste keer. Daarna alleen wat nieuw is.
 const DAGEN_TERUG = Number(process.env.IMAP_DAGEN || 14);
+
+// Bijlagen bewaren we op schijf, zodat je een polisblad of offerte uit de mail
+// met één klik als dossierstuk kunt opslaan. Twee grenzen: niets groter dan dit
+// per bestand, en niet meer dan dit bij elkaar per bericht. Een mailbox vol
+// foto's mag de schijf niet laten vollopen.
+const BIJLAGE_MAX = Number(process.env.POSTVAK_BIJLAGE_MAX || 20 * 1024 * 1024);
+const BIJLAGE_MAX_TOTAAL = Number(process.env.POSTVAK_BIJLAGE_TOTAAL || 40 * 1024 * 1024);
 
 function ingesteld() {
   return !!(GEBRUIKER && WACHTWOORD);
@@ -126,6 +137,50 @@ async function zoekDossier(bericht) {
 }
 
 /* ─────────── één bericht opslaan ─────────── */
+/* ─────────── bijlagen op schijf zetten ───────────
+   Pas nadat vaststaat dat het bericht nieuw is; anders schrijven we bij elke
+   ronde dezelfde bestanden opnieuw weg. Lukt één bijlage niet, dan gaat de rest
+   gewoon door — liever een bericht met één ontbrekende bijlage dan geen bericht. */
+function bewaarBijlagen(lijst, kenmerk) {
+  const uit = [];
+  let totaal = 0;
+
+  for (const a of lijst || []) {
+    // Wat er alleen staat om een logo in de handtekening te tonen, slaan we
+    // over; anders staat het postvak vol met bedrijfslogo's van drie kilobyte.
+    if (a.related) continue;
+
+    const naam = veiligeNaam(a.naam || 'bijlage');
+    const mime = String(a.mime || '');
+    const inhoud = a.content;
+    const grootte = inhoud ? inhoud.length : Number(a.grootte || 0);
+    const regel = { naam, mime, grootte };
+
+    if (!inhoud || !inhoud.length) { uit.push(regel); continue; }
+    if (grootte > BIJLAGE_MAX) { regel.reden = 'te groot om te bewaren'; uit.push(regel); continue; }
+    if (totaal + grootte > BIJLAGE_MAX_TOTAAL) {
+      regel.reden = 'samen te groot om te bewaren'; uit.push(regel); continue;
+    }
+
+    try {
+      fs.mkdirSync(OPSLAG, { recursive: true });
+      const punt = naam.lastIndexOf('.');
+      const ext = punt > 0 ? naam.slice(punt).toLowerCase().slice(0, 8) : '';
+      const opslagnaam = `post-${kenmerk}-${crypto.randomBytes(6).toString('hex')}${ext}`;
+      fs.writeFileSync(path.join(OPSLAG, opslagnaam), inhoud);
+      regel.opslagnaam = opslagnaam;
+      // Kan dit stuk zo als dossierstuk worden opgeslagen?
+      regel.bruikbaar = !!bepaalMime(mime, naam);
+      totaal += grootte;
+    } catch (e) {
+      regel.reden = `niet opgeslagen: ${e.message}`;
+    }
+    uit.push(regel);
+  }
+
+  return uit;
+}
+
 async function bewaar(bericht) {
   if (!bericht.messageId) return { overgeslagen: 'geen Message-ID' };
 
@@ -146,11 +201,26 @@ async function bewaar(bericht) {
       onderwerp: (bericht.onderwerp || '').slice(0, 500),
       tekst: (bericht.tekst || '').slice(0, 100000),
       ontvangenAt: bericht.datum || new Date(),
+      // Waar het bericht in de mailbox staat. Nodig om het later te kunnen
+      // verplaatsen naar het label van het dossier.
+      uid: bericht.uid || null,
+      mailbox: bericht.mailbox || MAP,
       stand: reden ? 'genegeerd' : (koppel.schadeId ? 'gekoppeld' : 'nieuw'),
       wegreden: reden,
       koppelwijze: koppel.wijze,
       schadeId: koppel.schadeId,
-      bijlagen: bericht.bijlagen || [],
+      // Reclame en automatische antwoorden krijgen geen plek op de schijf;
+      // daarvan bewaren we alleen dat er een bijlage bij zat.
+      bijlagen: reden
+        ? (bericht.bijlagen || []).map((a) => ({
+            naam: veiligeNaam(a.naam || 'bijlage'),
+            mime: a.mime || '',
+            grootte: a.grootte || 0,
+          }))
+        : bewaarBijlagen(
+            bericht.bijlagen,
+            new Date(bericht.datum || Date.now()).toISOString().slice(0, 10)
+          ),
     },
   });
 
@@ -195,7 +265,7 @@ async function haalOp({ dagen } = {}) {
     const slot = await client.getMailboxLock(MAP);
     try {
       const sinds = new Date(Date.now() - (dagen || DAGEN_TERUG) * 864e5);
-      for await (const bericht of client.fetch({ since: sinds }, { source: true })) {
+      for await (const bericht of client.fetch({ since: sinds }, { source: true, uid: true })) {
         gezien++;
         const p = await simpleParser(bericht.source);
 
@@ -206,6 +276,8 @@ async function haalOp({ dagen } = {}) {
         }
 
         const uit = await bewaar({
+          uid: bericht.uid || null,
+          mailbox: MAP,
           messageId: p.messageId,
           inReplyTo: p.inReplyTo || null,
           refs: Array.isArray(p.references) ? p.references : (p.references ? [p.references] : []),
@@ -215,10 +287,14 @@ async function haalOp({ dagen } = {}) {
           onderwerp: p.subject || '',
           tekst: p.text || (p.html ? String(p.html).replace(/<[^>]+>/g, ' ') : ''),
           datum: p.date || new Date(),
+          // De inhoud gaat mee; bewaar() zet hem pas op schijf zodra vaststaat
+          // dat dit bericht nog niet binnen was.
           bijlagen: (p.attachments || []).map((a) => ({
             naam: a.filename || 'bijlage',
             mime: a.contentType || '',
-            grootte: a.size || 0,
+            grootte: a.size || (a.content ? a.content.length : 0),
+            related: !!a.related,
+            content: a.content || null,
           })),
           koppen,
         });
@@ -236,4 +312,5 @@ async function haalOp({ dagen } = {}) {
   }
 }
 
-module.exports = { ingesteld, haalOp, bewaar, wegreden, zoekDossier, GEBRUIKER, HOST, MAP };
+module.exports = { ingesteld, haalOp, bewaar, wegreden, zoekDossier, bewaarBijlagen,
+  GEBRUIKER, HOST, MAP };
