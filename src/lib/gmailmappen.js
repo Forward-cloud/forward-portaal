@@ -381,7 +381,10 @@ async function archiveerRonde(opties = {}) {
   }
 
   let verplaatst = 0; let gelabeld = 0; let gelijkgezet = 0;
-  let verhuisd = 0; let verdwenen = 0; const fouten = [];
+  let verhuisd = 0; let verdwenen = 0; const fouten = []; const regels = [];
+
+  // Korte aanduiding van een bericht, voor in de terugkoppeling.
+  const kort = (r) => String(r.onderwerp || r.id).slice(0, 60);
 
   try {
     await metMailbox(async (client) => {
@@ -399,11 +402,16 @@ async function archiveerRonde(opties = {}) {
             });
             // Stond hij al niet meer in het Postvak IN, dan is er niets
             // verplaatst; wel is de eindstand nu goed vastgelegd.
-            if (!uit.alWeg) verplaatst++;
+            if (uit.alWeg) {
+              regels.push(`${kort(rij)}: stond al niet meer in het Postvak IN`);
+            } else {
+              verplaatst++;
+              regels.push(`${kort(rij)}: verplaatst naar ${label}`);
+            }
           } else {
-            // Niet meer te vinden: niet elke ronde opnieuw proberen.
-            await prisma.inkomend.update({ where: { id: rij.id }, data: { uid: null } });
-            fouten.push(`${rij.onderwerp || rij.id}: ${uit.reden}`);
+            // Wel blijven proberen: een hapering mag geen bericht permanent
+            // buiten beeld zetten. Het staat in de lijst met redenen.
+            fouten.push(`${kort(rij)}: ${uit.reden}`);
           }
         } catch (e) {
           fouten.push(`${rij.onderwerp || rij.id}: ${e.message}`);
@@ -454,10 +462,11 @@ async function archiveerRonde(opties = {}) {
     });
   } catch (e) {
     return { gelukt: false, reden: e.message, verplaatst, gelabeld, gelijkgezet,
-      verhuisd, verdwenen, fouten };
+      verhuisd, verdwenen, fouten, regels, bekeken: teVerplaatsen.length };
   }
 
-  return { gelukt: true, verplaatst, gelabeld, gelijkgezet, verhuisd, verdwenen, fouten };
+  return { gelukt: true, verplaatst, gelabeld, gelijkgezet, verhuisd, verdwenen,
+    fouten, regels, bekeken: teVerplaatsen.length };
 }
 
 /* Meteen na het koppelen, zodat het bericht direct uit de inbox verdwijnt in
