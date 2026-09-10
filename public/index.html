@@ -11055,10 +11055,15 @@ body.fwq-open{overflow:hidden}
     if (knop) knop.disabled = true;
     api('/api/postvak/opruimen', { method:'POST', body: JSON.stringify(id ? { id: id } : {}) })
       .then(function(r){
-        melden('Opgeruimd', r.verwijderd + (r.verwijderd===1?' bericht':' berichten') + ' weg' +
-          (r.uitMailbox ? ' \u00b7 ' + r.uitMailbox + ' naar de prullenbak in Gmail' : ''));
+        // Altijd melden wat er in Gmail is gebeurd, ook als dat niets was --
+        // anders denk je dat je mailbox is opgeruimd terwijl dat niet zo is.
+        var gmail = r.uitMailbox
+          ? r.uitMailbox + ' naar de prullenbak in Gmail'
+          : (ARCHIVEREN || GELEZENMEE ? 'niets in Gmail verplaatst' : 'Gmail ongemoeid gelaten');
+        melden('Opgeruimd', r.verwijderd + (r.verwijderd===1?' bericht':' berichten') +
+          ' uit het portaal \u00b7 ' + gmail, r.uitMailbox || !r.verwijderd ? 'ok' : 'info');
         if (r.fouten && r.fouten.length) {
-          setTimeout(function(){ melden('Niet alles lukte', r.fouten[0], 'err'); }, 700);
+          setTimeout(function(){ melden('Niet alles lukte', r.fouten[0], 'err'); }, 900);
         }
         return laad(true);
       })
