@@ -683,8 +683,8 @@
       </section>
 
       <section class="view" id="view-postvak">
-        <div class="page-head" style="display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap"><div><div class="eyebrow">Outlook-mailbox</div><h1>Postvak — opdrachtbonnen</h1><p>Inkomende opdrachtbonnen en schademeldingen uit de gekoppelde mailbox. Maak er met één klik een schadekaart van.</p></div><button class="btn ghost" onclick="openMailboxSettings()"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" stroke-width="1.7"/><path d="M4 7l8 6 8-6" stroke="currentColor" stroke-width="1.7"/></svg>Mailboxen koppelen</button></div>
-        <div class="card"><div class="card-body" id="inboxList"></div></div>
+        <div class="page-head" style="display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap"><div><div class="eyebrow" id="pvEyebrow">Gekoppelde mailbox</div><h1>Postvak</h1><p>Post die binnenkomt in de gekoppelde mailbox. Wat het portaal herkent wordt zelf aan een dossier gehangen; de rest wijs je hier toe.</p></div><button class="btn ghost" id="pvOphaalBtn" onclick="pvOphalen(this)"><svg viewBox="0 0 24 24" fill="none"><path d="M20 11a8 8 0 10-2.3 5.7M20 5v6h-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Nu ophalen</button></div>
+        <div id="pvPane"></div>
       </section>
 
       <section class="view" id="view-facturen">
@@ -745,7 +745,6 @@
 <div class="modal-overlay" id="bonView" onclick="if(event.target===this)closeBonView()"></div>
 <div class="modal-overlay" id="newSchadeModal" onclick="if(event.target===this)closeNewSchade()"></div>
 <div class="modal-overlay" id="submitModal" onclick="if(event.target===this)closeSubmitDossier()"></div>
-<div class="modal-overlay" id="mailboxModal" onclick="if(event.target===this)closeMailboxSettings()"></div>
 <div class="modal-overlay" id="verzModal" onclick="if(event.target===this)closeVerzModal()"></div>
 <div class="modal-overlay" id="machtModal" onclick="if(event.target===this)closeMachtModal()"></div>
 <div class="modal-overlay" id="apptModal" onclick="if(event.target===this)closeApptModal()"></div>
@@ -921,7 +920,7 @@ const IC/*small icons*/={
 
 /* ---------- nav ---------- */
 document.querySelectorAll('.nav-item[data-view]').forEach(b=>b.onclick=()=>setView(b.dataset.view,b));
-function setView(v,btn){document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));$('#view-'+v).classList.add('active');document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));if(btn)btn.classList.add('active');if(v==='team')renderTeam();window.scrollTo({top:0,behavior:'smooth'});}
+function setView(v,btn){document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));$('#view-'+v).classList.add('active');document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));if(btn)btn.classList.add('active');if(v==='team')renderTeam();if(v==='postvak'&&window.pvLaad)window.pvLaad();window.scrollTo({top:0,behavior:'smooth'});}
 
 /* ---------- dashboard ---------- */
 function renderDash(){
@@ -1732,7 +1731,8 @@ async function submitDraft(send){
 }
 
 /* ================= VERZEKERAAR: dossier indienen + herinneringen ================= */
-let MAILBOXEN=[{adres:'schade@forwardschadeherstel.nl',label:'Algemene schade-mailbox',aan:true},{adres:'dossiers@forwardschadeherstel.nl',label:'Ingediende dossiers',aan:true}];
+// De mailboxlijst is vervallen: de server leest \u00e9\u00e9n mailbox uit via IMAP
+// (MAIL_GEBRUIKER). Wat daaruit komt staat op het scherm Postvak.
 function ensureVerz(s){if(!s.verz)s.verz={ref:'',ingediend:null,ontvangst:null,reminders:[],auto:false,next:null,docs:[]};if(!s.updates)s.updates=[];return s.verz;}
 function ensureMachtiging(s){if(!s.machtiging)s.machtiging={status:'geen',verstuurd:null,ondertekend:null,ondertekenaar:'',doc:''};return s.machtiging;}
 function requestMachtiging(nr){const s=SCHADES.find(x=>x.nr===nr);const m=ensureMachtiging(s);m.status='verstuurd';m.verstuurd=isoNow();pushUpdate(s,'Wij hebben u een machtiging ter ondertekening gestuurd, zodat wij het dossier namens u bij de verzekeraar kunnen indienen.');toast('Machtiging opgevraagd',s.owner+' — ter ondertekening verstuurd','mail');
@@ -1827,7 +1827,7 @@ function insPaneHTML(s){ const v=ensureVerz(s); const gestopt=s.payout; const m=
       ${!gestopt?`<div class="appt-actions" style="margin-top:10px"><button class="btn ghost" onclick="sendReminder('${s.nr}','manual')"><svg viewBox="0 0 24 24" fill="none">${IC['send']}</svg>Nu herinnering sturen</button></div>`:''}
       ${v.reminders.length?`<div style="margin-top:12px"><div class="mini-label">Verzonden herinneringen</div>${v.reminders.map(r=>`<div style="display:flex;justify-content:space-between;font-size:12px;padding:5px 0;border-bottom:1px solid var(--line-2)"><span>${fmtD(r.date)} · ${r.type==='auto'?'automatisch':'handmatig'}</span><span style="color:var(--muted)">${r.metNr?'met schadenr.':'zonder schadenr.'}</span></div>`).join('')}</div>`:''}
     </div></div>`:'';
-  const mailboxNote=`<div style="font-size:11.5px;color:var(--muted);margin-top:12px">Doorzocht: ${MAILBOXEN.filter(m=>m.aan).map(m=>escT(m.adres)).join(', ')||'geen mailboxen gekoppeld'} · <span onclick="openMailboxSettings()" style="color:var(--teal);cursor:pointer;text-decoration:underline">mailboxen koppelen</span></div>`;
+  const mailboxNote='';
   const rc=dossierRecipient(s);
   const recipientBlok=`<div class="card" style="box-shadow:none;margin-bottom:14px;border-left:3px solid ${rc.viaTp?'var(--amber)':'var(--teal)'}"><div style="padding:12px 15px;font-size:12.5px;line-height:1.5">${rc.found||rc.viaTp
     ?`Aanmelden bij: <b>${escT(rc.label)}</b> ${rc.viaTp?`<span class="tag prog" style="font-size:10px">via tussenpersoon</span> <span style="color:var(--muted)">namens ${escT(s.ins)}</span>`:'<span class="tag teal" style="font-size:10px">rechtstreeks</span>'}<br>${rc.email?`<span style="color:var(--muted)">${escT(rc.email)}</span>`:'<span style="color:var(--amber)">geen e-mail bekend — vul aan</span>'}${rc.polis?` · <span style="color:var(--muted)">polis ${escT(rc.polis)}</span>`:''}`
@@ -1856,13 +1856,7 @@ function checkDossierMail(nr){const s=SCHADES.find(x=>x.nr===nr);const v=ensureV
     else if(!s.payout){receiveUitkering(s);openDetail(nr);}
     else{toast('Geen nieuwe mail','Niets gerelateerd aan dit dossier gevonden','info');openDetail(nr);} };
   if(!BACKEND.url){setTimeout(sim,500);return;}
-  fetch(`${BACKEND.url}/api/schades/${encodeURIComponent(nr)}/insurer-mail?ref=${encodeURIComponent(v.ref||'')}&mailboxes=${encodeURIComponent(MAILBOXEN.filter(m=>m.aan).map(m=>m.adres).join(','))}`,{headers:{...(BACKEND.apiKey?{'x-api-key':BACKEND.apiKey}:{})}}).then(r=>r.json()).then(j=>{const d=j.data||{};if(d.schadenummer&&!v.ref){v.ref=d.schadenummer;v.ontvangst=isoNow();pushUpdate(s,'De verzekeraar heeft uw dossier ontvangen en een schadenummer toegekend.');toast('Mail gevonden','Schadenr. '+d.schadenummer,'check');openDetail(nr);}else if(d.uitkering){receiveUitkering(s);openDetail(nr);}else {toast('Geen nieuwe mail','Niets gevonden','info');openDetail(nr);}}).catch(sim);}
-// mailboxinstellingen
-function openMailboxSettings(){renderMailboxSettings();document.getElementById('mailboxModal').classList.add('open');}
-function closeMailboxSettings(){document.getElementById('mailboxModal').classList.remove('open');}
-function renderMailboxSettings(){document.getElementById('mailboxModal').innerHTML=`<div class="modal" onclick="event.stopPropagation()" style="max-width:560px"><div class="modal-head"><div><h3>Gekoppelde mailboxen</h3><div class="mh-sub">Hierin zoekt het systeem naar dossier-gerelateerde mail</div></div><button class="modal-close" onclick="closeMailboxSettings()"><svg viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button></div><div style="padding:20px 22px">${MAILBOXEN.map((m,i)=>`<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line-2)"><label class="pchk" style="flex:1"><input type="checkbox" ${m.aan?'checked':''} onchange="MAILBOXEN[${i}].aan=this.checked"><span><b>${escT(m.adres)}</b><br><span style="font-size:11px;color:var(--muted)">${escT(m.label)}</span></span></label><button class="del-line" onclick="removeMailbox(${i})">verwijderen</button></div>`).join('')}<div style="display:flex;gap:8px;margin-top:14px"><input class="inp" id="nmAdres" placeholder="mailbox@forwardschadeherstel.nl"><button class="btn ghost" style="white-space:nowrap" onclick="addMailbox()">Toevoegen</button></div></div><div class="modal-foot"><div class="note">De backend doorzoekt deze mailboxen (Microsoft Graph) op dossier-gerelateerde berichten.</div><button class="btn primary" onclick="closeMailboxSettings()">Klaar</button></div></div>`;}
-function addMailbox(){const a=($('#nmAdres').value||'').trim();if(!a)return;MAILBOXEN.push({adres:a,label:'Handmatig toegevoegd',aan:true});renderMailboxSettings();}
-function removeMailbox(i){MAILBOXEN.splice(i,1);renderMailboxSettings();}
+  fetch(`${BACKEND.url}/api/schades/${encodeURIComponent(nr)}/insurer-mail?ref=${encodeURIComponent(v.ref||'')}&mailboxes=${encodeURIComponent('')}`,{headers:{...(BACKEND.apiKey?{'x-api-key':BACKEND.apiKey}:{})}}).then(r=>r.json()).then(j=>{const d=j.data||{};if(d.schadenummer&&!v.ref){v.ref=d.schadenummer;v.ontvangst=isoNow();pushUpdate(s,'De verzekeraar heeft uw dossier ontvangen en een schadenummer toegekend.');toast('Mail gevonden','Schadenr. '+d.schadenummer,'check');openDetail(nr);}else if(d.uitkering){receiveUitkering(s);openDetail(nr);}else {toast('Geen nieuwe mail','Niets gevonden','info');openDetail(nr);}}).catch(sim);}
 
 /* ============ VERZEKERAARS + TUSSENPERSONEN (adresboeken) ============ */
 // De aanmeldroute (rechtstreeks of via tussenpersoon) hoort bij de schade/polis —
@@ -2278,20 +2272,8 @@ function sendContact(mode){const c=CONTACT;if(!c.to){toast('Geen adres','Vul een
   fetch(`${BACKEND.url}/api/schades/${encodeURIComponent(c.nr)}/request-contact`,{method:'POST',headers:{'Content-Type':'application/json',...(BACKEND.apiKey?{'x-api-key':BACKEND.apiKey}:{})},body:JSON.stringify({email:c.to,locatie:c.locatie,mode})}).then(r=>{if(!r.ok)throw 0;finish();}).catch(()=>{toast('Demo','Gesimuleerd','info');finish();});}
 
 // ---- postvak / opdrachtbonnen ----
-let INBOX=[
- {id:'m1',from:'schade@nn.nl',fromName:'Nationale-Nederlanden',subject:'Opdrachtbon — Schade-expertise en rapportage',received:'vandaag 09:14',ref:'30050-13093-2',owner:'VvE Schalk Burgerstraat 377 t/m 381',addr:'Schalk Burgerstraat 379, Den Haag',type:'Waterschade berging',email:'beheer@vve-schalkburger.nl',phone:'',hasAttachments:true},
- {id:'m2',from:'meldingen@achmea.nl',fromName:'Achmea',subject:'Schademelding gevolgschade — woning Pleinweg',received:'vandaag 08:02',ref:'01019-13280-2',owner:'VvE Pleinweg',addr:'Pleinweg 228C, Rotterdam',type:'Gevolgschade lekkage',email:'',phone:'',hasAttachments:true},
- {id:'m3',from:'j.devries@gmail.com',fromName:'J. de Vries',subject:'Schade aan kozijn na storm',received:'gisteren 16:48',ref:'',owner:'J. de Vries',addr:'Beukenlaan 8, Apeldoorn',type:'Stormschade kozijn',email:'j.devries@gmail.com',phone:'06-2233 4455',hasAttachments:false}
-];
-function renderInbox(){const el=$('#inboxList');if(!el)return;const cnt=$('#navInboxCnt');if(cnt)cnt.textContent=INBOX.length;
-  if(!INBOX.length){el.innerHTML='<div class="empty">Geen openstaande opdrachtbonnen.</div>';return;}
-  el.innerHTML=INBOX.map(m=>`<div class="arow" style="cursor:default;align-items:flex-start;gap:14px"><div class="a-ico" style="background:var(--teal-soft);color:var(--teal-ink)"><svg viewBox="0 0 24 24" fill="none">${IC['doc']}</svg></div>
-    <div class="a-main"><div class="a-title">${m.subject}</div><div class="a-sub">${m.fromName} · ${m.from} · ${m.received}${m.hasAttachments?' · 📎 opdrachtbon':''}</div>
-      <div class="a-sub" style="margin-top:3px">${m.addr||'—'}${m.type?' · '+m.type:''}${m.ref?' · kenmerk '+m.ref:''}</div>
-      ${(!m.email||!m.phone)?`<div style="font-size:11.5px;color:var(--amber);margin-top:4px">⚠ ontbreekt: ${[!m.email?'e-mail':null,!m.phone?'telefoon':null].filter(Boolean).join(' + ')}</div>`:''}</div>
-    <div class="a-meta" style="display:flex;flex-direction:column;gap:6px"><button class="btn primary" style="padding:8px 12px" onclick="makeSchadeFromBon('${m.id}')">Schadekaart aanmaken</button></div></div>`).join('');}
-function makeSchadeFromBon(id){const m=INBOX.find(x=>x.id===id);if(!m)return;
-  openNewSchade({owner:m.owner||m.fromName,email:m.email||'',phone:m.phone||'',addr:m.addr||'',type:m.type||'Schademelding',ins:m.fromName||'',bonRef:m.ref,bonEmail:m.email||m.from,_bonId:id});}
+// De inbox met voorbeeldberichten is vervallen. Het echte postvak staat
+// onderaan dit bestand en leest /api/postvak uit.
 
 /* ---------- nieuwe schadekaart (met traject-keuze) ---------- */
 let NS=null;
@@ -2320,7 +2302,7 @@ function saveNewSchade(){ if(!NS.owner&&!NS.addr){toast('Gegevens nodig','Vul mi
   const yr=new Date().getFullYear().toString().slice(2);const nr='FWD-'+yr+'06-'+String(900+Math.floor(Math.random()*99));
   const icon=/brand/i.test(NS.type)?'fire':/inbraak|kozijn/i.test(NS.type)?'crack':/storm|dak/i.test(NS.type)?'storm':/gevel|kantoor/i.test(NS.type)?'build':'water';
   const s={nr,owner:NS.owner||NS.ins||'Onbekend',email:NS.email||'',phone:NS.phone||'',addr:NS.addr||'',type:NS.type||'Schademelding',icon,ins:NS.ins||'—',amount:NS.amount||0,profit:Math.round((NS.amount||0)*0.26),step:1,invoiced:false,payout:false,received:'nu',newState:'nieuw',status:'new',appt:null,messages:[],traject:NS.traject,aanmelding:NS.aanmelding,bonRef:NS.bonRef,bonEmail:NS.bonEmail,fact:{expertise:{status:'open'},herstel:{status:'open'}}};
-  SCHADES.unshift(s); if(NS._bonId){INBOX=INBOX.filter(x=>x.id!==NS._bonId);renderInbox();}
+  SCHADES.unshift(s); 
   const sc=$('#navSchadeCnt');if(sc)sc.textContent=SCHADES.length;
   closeNewSchade();toast('Schadekaart aangemaakt',nr+' · '+TRAJ[s.traject].label,'check');
   renderDash();renderSchades();openDetail(nr);}
@@ -2329,7 +2311,7 @@ function saveNewSchade(){ if(!NS.owner&&!NS.addr){toast('Gegevens nodig','Vul mi
 SCHADES.forEach(s=>{ if(s.phone===undefined) s.phone='06-1234 5678'; });
 
 /* ---------- init ---------- */
-renderUserFooter();renderDash();renderSchades();renderFacturen();renderAgenda();renderOnder();renderInbox();renderVerzList();renderTeam();applyRoleUI();
+renderUserFooter();renderDash();renderSchades();renderFacturen();renderAgenda();renderOnder();renderVerzList();renderTeam();applyRoleUI();
 sweepExpiredProposals();setInterval(sweepExpiredProposals,60000);
 </script>
 
@@ -10636,5 +10618,470 @@ body.fwq-open{overflow:hidden}
     if (e.key === 'Escape') window.fwqSluit();
     if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') { e.preventDefault(); window.fwqOk(); }
   });
+})();
+</script>
+
+<style>
+  /* ── postvak ── */
+  .pv-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--line);
+    border-radius:var(--radius);padding:12px 16px;margin-bottom:14px;box-shadow:var(--shadow-s);font-size:12.5px}
+  .pv-bar .mb{display:flex;align-items:center;gap:8px;color:var(--muted)}
+  .pv-bar .mb b{color:var(--text);font-weight:600}
+  .pv-bar svg{width:16px;height:16px;flex:none}
+  .pv-bar .op{margin-left:auto;color:var(--muted-2);font-size:11.5px}
+  .pv-arch{flex-basis:100%;display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:11.5px;
+    color:var(--teal-ink);background:var(--teal-soft);border-radius:10px;padding:7px 11px;margin-top:2px}
+  .pv-arch.uit{color:var(--muted);background:var(--line-2)}
+  .pv-tabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:14px}
+  .pv-tab{padding:8px 14px;border-radius:10px;font-size:12.5px;font-weight:500;color:var(--muted);
+    background:transparent;border:1px solid transparent;transition:.12s}
+  .pv-tab:hover{background:var(--surface);color:var(--text)}
+  .pv-tab.on{background:var(--surface);border-color:var(--line);color:var(--text);font-weight:600;box-shadow:var(--shadow-s)}
+  .pv-tab .n{display:inline-block;margin-left:6px;background:var(--line-2);color:var(--muted);border-radius:20px;
+    padding:1px 7px;font-size:10.5px;font-weight:600}
+  .pv-tab.on .n{background:var(--teal-soft);color:var(--teal-ink)}
+  .pv-lijst{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+    box-shadow:var(--shadow-s);overflow:hidden}
+  .pv-r{padding:15px 18px;border-bottom:1px solid var(--line-2);display:flex;gap:14px;align-items:flex-start}
+  .pv-r:last-child{border-bottom:none}
+  .pv-r.uit{opacity:.62}
+  .pv-ico{flex:none;width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;
+    background:var(--teal-soft);color:var(--teal-ink)}
+  .pv-ico svg{width:18px;height:18px}
+  .pv-ico.grijs{background:var(--line-2);color:var(--muted-2)}
+  .pv-mid{flex:1;min-width:0}
+  .pv-ond{font-size:13.5px;font-weight:600;color:var(--text);margin-bottom:2px;word-break:break-word}
+  .pv-van{font-size:11.5px;color:var(--muted)}
+  .pv-snip{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.5;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .pv-koppel{display:inline-flex;align-items:center;gap:6px;margin-top:8px;font-size:11.5px;
+    background:var(--green-soft);color:#12704A;border-radius:8px;padding:4px 9px;max-width:100%}
+  .pv-koppel.los{background:var(--amber-soft);color:#8A5A0B}
+  .pv-koppel .w{opacity:.75}
+  .pv-koppel .nr{font-family:'JetBrains Mono',monospace;font-weight:600}
+  .pv-weg{margin-top:6px;font-size:11.5px;color:var(--muted-2)}
+  .pv-acties{flex:none;display:flex;flex-direction:column;gap:6px;align-items:flex-end}
+  .pv-knop{font-size:11.5px;font-weight:500;color:var(--muted);background:var(--surface);
+    border:1px solid var(--line);border-radius:9px;padding:6px 11px;white-space:nowrap;transition:.12s}
+  .pv-knop:hover{border-color:var(--teal);color:var(--teal-ink);background:var(--teal-soft)}
+  .pv-knop.aan{border-color:var(--teal);color:var(--teal-ink);background:var(--teal-soft)}
+  .pv-tekst{margin:10px 0 2px;padding:13px 15px;background:var(--canvas);border:1px solid var(--line-2);
+    border-radius:11px;font-size:12.5px;line-height:1.6;white-space:pre-wrap;word-break:break-word;
+    max-height:340px;overflow-y:auto;color:var(--text)}
+  .pv-bijl{margin-top:8px;display:flex;gap:6px;flex-wrap:wrap}
+  .pv-bijlp{font-size:11px;color:var(--muted);background:var(--line-2);border-radius:7px;padding:4px 9px;
+    display:inline-flex;align-items:center;gap:8px}
+  .pv-bijlp.kan{background:var(--teal-soft);color:var(--teal-ink)}
+  .pv-bijlp .gr{color:var(--muted-2);font-size:10.5px}
+  .pv-bijlp.kan .gr{color:var(--teal-ink);opacity:.65}
+  .pv-bl{font-size:10.5px;font-weight:600;color:var(--teal-ink);text-decoration:underline;
+    background:none;border:none;padding:0;cursor:pointer;font-family:inherit}
+  .pv-bl:hover{color:var(--teal-deep)}
+  .pv-kies{margin-top:10px;padding:12px 14px;background:var(--canvas);border:1px solid var(--line-2);border-radius:11px}
+  .pv-kies label{display:block;font-size:11px;font-weight:600;color:var(--muted-2);letter-spacing:.04em;
+    text-transform:uppercase;margin-bottom:6px}
+  .pv-kies select{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:9px;font-family:inherit;
+    font-size:12.5px;background:var(--surface);color:var(--text)}
+  .pv-kies .rij{display:flex;gap:8px;margin-top:9px;flex-wrap:wrap}
+  .pv-leeg{padding:40px 20px;text-align:center;color:var(--muted);font-size:13px}
+  .pv-leeg b{display:block;color:var(--text);font-size:14px;margin-bottom:5px;font-family:'Poppins',sans-serif}
+  .pv-fout{background:var(--red-soft);color:#8E3A34;border-radius:var(--radius);padding:14px 16px;
+    font-size:12.5px;line-height:1.55;margin-bottom:14px}
+  @media(max-width:720px){
+    .pv-r{flex-wrap:wrap}
+    .pv-acties{flex-direction:row;width:100%;justify-content:flex-start;flex-wrap:wrap}
+  }
+</style>
+
+<script>
+/* ══════ POSTVAK — leest de gekoppelde mailbox uit ══════
+   De server haalt elke tien minuten nieuwe post op, filtert nieuwsbrieven en
+   automatische antwoorden eruit en koppelt aan een dossier waar dat kan. Dit
+   scherm laat zien wat daaruit komt en laat je de rest zelf toewijzen.      */
+(function(){
+  var STAND = 'open';        // open | afgehandeld | genegeerd | alles
+  var BERICHTEN = [], TELLERS = {}, MAILBOX = null, MAP = null, SOORTEN = {}, ARCHIVEREN = null;
+  var OPEN = null;           // welk bericht is uitgeklapt
+  var KIES = null;           // bij welk bericht staat de dossierkiezer open
+  var BIJL = null;           // bij welke bijlage staat het opbergvenster open
+  var TEKSTEN = {};          // volledige tekst per bericht, eenmaal opgehaald
+  var FOUT = null, BEZIG = false, OPGEHAALD = null;
+
+  function $$(id){ return document.getElementById(id); }
+  function esc(v){ return String(v==null?'':v).replace(/[&<>"]/g, function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function melden(t,m,k){ if (typeof toast==='function') toast(t,m,k||'ok'); }
+
+  var IPOST = '<rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" stroke-width="1.8"/>' +
+              '<path d="M4 7l8 6 8-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>';
+  var IPAPER = '<path d="M20 11a8 8 0 10-2.3 5.7M20 5v6h-6" stroke="currentColor" stroke-width="1.8" ' +
+               'stroke-linecap="round" stroke-linejoin="round"/>';
+  function svg(p){ return '<svg viewBox="0 0 24 24" fill="none">'+p+'</svg>'; }
+
+  /* Wanneer kwam het binnen. Vandaag alleen de tijd, deze week de dag,
+     daarvoor de datum — zoals je het in een mailprogramma verwacht. */
+  function wanneer(d){
+    if (!d) return '';
+    var x = new Date(d);
+    if (isNaN(x.getTime())) return '';
+    var nu = new Date();
+    var zelfdeDag = x.toDateString() === nu.toDateString();
+    if (zelfdeDag) return 'vandaag ' + x.toLocaleTimeString('nl-NL',{hour:'2-digit',minute:'2-digit'});
+    var dagen = Math.floor((nu - x) / 864e5);
+    if (dagen <= 1) return 'gisteren ' + x.toLocaleTimeString('nl-NL',{hour:'2-digit',minute:'2-digit'});
+    if (dagen < 7) return x.toLocaleDateString('nl-NL',{weekday:'long'}) + ' ' +
+      x.toLocaleTimeString('nl-NL',{hour:'2-digit',minute:'2-digit'});
+    return x.toLocaleDateString('nl-NL',{day:'numeric',month:'short',year:
+      x.getFullYear()===nu.getFullYear()?undefined:'numeric'});
+  }
+
+  function api(pad, opts){
+    if (typeof window.fwApi === 'function') return window.fwApi(pad, opts);
+    return Promise.reject(new Error('Geen verbinding met de server'));
+  }
+
+  /* ── laden ── */
+  function laad(stil){
+    if (!stil) { FOUT = null; BEZIG = true; teken(); }
+    return api('/api/postvak?stand=' + encodeURIComponent(STAND) + '&aantal=200')
+      .then(function(r){
+        BERICHTEN = r.berichten || [];
+        TELLERS = r.tellers || {};
+        MAILBOX = r.mailbox || null;
+        MAP = r.map || null;
+        if (r.soorten) SOORTEN = r.soorten;
+        ARCHIVEREN = r.archiveren || null;
+        FOUT = null;
+        badge();
+      })
+      .catch(function(e){ FOUT = e.message; })
+      .then(function(){ BEZIG = false; teken(); });
+  }
+  window.pvLaad = laad;
+
+  // Het bolletje in het menu telt wat nog niet is bekeken.
+  function badge(){
+    var el = $$('navInboxCnt');
+    if (!el) return;
+    var n = Number(TELLERS.nieuw || 0);
+    el.textContent = n;
+    el.style.display = n ? '' : 'none';
+  }
+
+  /* ── nu ophalen in plaats van wachten ── */
+  window.pvOphalen = function(knop){
+    if (knop) { knop.disabled = true; }
+    api('/api/postvak/ophalen', { method:'POST' })
+      .then(function(r){
+        OPGEHAALD = new Date();
+        var stukjes = [];
+        if (r.nieuw) stukjes.push(r.nieuw + ' nieuw');
+        if (r.genegeerd) stukjes.push(r.genegeerd + ' weggefilterd');
+        melden('Post opgehaald', stukjes.length ? stukjes.join(' \u00b7 ')
+          : 'Niets nieuws sinds de vorige ronde.', stukjes.length ? 'ok' : 'info');
+        return laad(true);
+      })
+      .catch(function(e){ melden('Ophalen mislukt', e.message, 'err'); })
+      .then(function(){ if (knop) knop.disabled = false; });
+  };
+
+  window.pvTab = function(stand){ STAND = stand; OPEN = null; KIES = null; BIJL = null; laad(); };
+
+  /* De mailbox goedzetten: post die nog in de inbox staat naar het label van
+     zijn dossier, en verzonden brieven hetzelfde label geven. */
+  window.pvArchiveren = function(knop){
+    if (knop) knop.disabled = true;
+    api('/api/postvak/archiveren', { method:'POST' })
+      .then(function(r){
+        var stukjes = [];
+        if (r.verplaatst) stukjes.push(r.verplaatst + ' bericht' + (r.verplaatst===1?'':'en') + ' verplaatst');
+        if (r.gelabeld) stukjes.push(r.gelabeld + (r.gelabeld===1?' verzonden brief':' verzonden brieven') + ' gelabeld');
+        melden('Mailbox opgeruimd', stukjes.length ? stukjes.join(' \u00b7 ') : 'Alles stond al goed.',
+          stukjes.length ? 'ok' : 'info');
+        if (r.fouten && r.fouten.length) {
+          setTimeout(function(){ melden('Niet alles lukte', r.fouten[0], 'err'); }, 700);
+        }
+        return laad(true);
+      })
+      .catch(function(e){ melden('Opruimen mislukt', e.message, 'err'); })
+      .then(function(){ if (knop) knop.disabled = false; });
+  };
+
+  /* ── één bericht openen: de volledige tekst komt apart van de server ── */
+  window.pvOpen = function(id){
+    if (OPEN === id) { OPEN = null; teken(); return; }
+    OPEN = id; KIES = null;
+    if (TEKSTEN[id] !== undefined) { teken(); return; }
+    teken();
+    api('/api/postvak/' + encodeURIComponent(id))
+      .then(function(r){ TEKSTEN[id] = (r.bericht && r.bericht.tekst) || ''; })
+      .catch(function(e){ TEKSTEN[id] = '\u2014 kon het bericht niet ophalen: ' + e.message; })
+      .then(teken);
+  };
+
+  window.pvKies = function(id){ KIES = (KIES === id) ? null : id; teken(); };
+
+  /* ── aan een dossier hangen, of juist losmaken ── */
+  window.pvKoppel = function(id){
+    var sel = $$('pvSel-' + id);
+    var nr = sel ? sel.value : '';
+    if (!nr) { melden('Geen dossier gekozen', 'Kies eerst een dossier uit de lijst.', 'err'); return; }
+    api('/api/postvak/' + encodeURIComponent(id) + '/koppel',
+        { method:'POST', body: JSON.stringify({ schade: nr }) })
+      .then(function(){ KIES = null; melden('Gekoppeld', 'Het bericht staat nu bij ' + nr); return laad(true); })
+      .catch(function(e){ melden('Niet gelukt', e.message, 'err'); });
+  };
+
+  window.pvLosmaken = function(id){
+    api('/api/postvak/' + encodeURIComponent(id) + '/koppel', { method:'POST', body: JSON.stringify({}) })
+      .then(function(){ melden('Losgemaakt', 'Het bericht staat weer op nieuw.'); return laad(true); })
+      .catch(function(e){ melden('Niet gelukt', e.message, 'err'); });
+  };
+
+  window.pvStand = function(id, stand){
+    var woord = { afgehandeld:'Afgehandeld', genegeerd:'Genegeerd', nieuw:'Teruggezet' }[stand] || 'Bijgewerkt';
+    api('/api/postvak/' + encodeURIComponent(id) + '/stand',
+        { method:'POST', body: JSON.stringify({ stand: stand }) })
+      .then(function(){ OPEN = null; melden(woord, 'Het bericht is bijgewerkt.'); return laad(true); })
+      .catch(function(e){ melden('Niet gelukt', e.message, 'err'); });
+  };
+
+  // Naar het dossier waar dit bericht bij hoort.
+  window.pvNaarDossier = function(nr){
+    if (typeof window.fwkOpen === 'function') window.fwkOpen(nr);
+    else if (typeof openDetail === 'function') openDetail(nr);
+  };
+
+  /* ── de dossierlijst voor de kiezer ──
+     Uit de dossiers die al in het scherm zitten; gearchiveerde laten we weg. */
+  function dossierOpties(huidig){
+    var lijst = (typeof SCHADES !== 'undefined' ? SCHADES : []).filter(function(s){ return !s.archived; });
+    lijst = lijst.slice().sort(function(a,b){ return String(b.nr).localeCompare(String(a.nr)); });
+    return '<option value="">Kies een dossier\u2026</option>' + lijst.map(function(s){
+      var label = s.nr + ' \u00b7 ' + (s.addr || s.owner || '');
+      return '<option value="' + esc(s.nr) + '"' + (s.nr === huidig ? ' selected' : '') + '>' +
+        esc(label.length > 70 ? label.slice(0,70) + '\u2026' : label) + '</option>';
+    }).join('');
+  }
+
+  /* ── bijlagen ──
+     Wat de server heeft bewaard kun je openen en met één handeling als
+     dossierstuk opbergen. Wat te groot was staat er wel bij, met de reden —
+     anders denk je dat er niets bij zat. */
+  function bijlagen(b){
+    var h = '<div class="pv-bijl">';
+    (b.bijlagen || []).forEach(function(a, i){
+      var kan = !!a.opslagnaam;
+      h += '<span class="pv-bijlp' + (kan?' kan':'') + '">\uD83D\uDCCE ' + esc(a.naam || 'bijlage') +
+        (a.grootte ? ' <span class="gr">' + omvang(a.grootte) + '</span>' : '') +
+        (kan
+          ? '<a class="pv-bl" href="/api/postvak/' + encodeURIComponent(b.id) + '/bijlage/' + i +
+            '" target="_blank" rel="noopener">openen</a>' +
+            (a.bruikbaar !== false
+              ? '<button class="pv-bl" onclick="pvBijlage(\'' + b.id + '\',' + i + ')">opbergen</button>'
+              : '')
+          : '<span class="gr">' + esc(a.reden || 'niet bewaard') + '</span>') +
+        '</span>';
+    });
+    h += '</div>';
+
+    var open = BIJL && BIJL.id === b.id;
+    if (open) {
+      var a = (b.bijlagen || [])[BIJL.i] || {};
+      h += '<div class="pv-kies"><label>' + esc(a.naam || 'bijlage') + ' opbergen bij een dossier</label>' +
+        '<select id="pvBSel-' + b.id + '">' + dossierOpties(b.schade ? b.schade.nr : '') + '</select>' +
+        '<label style="margin-top:10px">Wat voor stuk is het?</label>' +
+        '<select id="pvBSoort-' + b.id + '">' + soortOpties(a) + '</select>' +
+        '<div class="rij"><button class="pv-knop aan" onclick="pvBijlageBewaren(\'' + b.id + '\')">Opbergen</button>' +
+        '<button class="pv-knop" onclick="pvBijlage(\'' + b.id + '\',null)">Annuleren</button></div></div>';
+    }
+    return h;
+  }
+
+  function omvang(n){
+    n = Number(n) || 0;
+    if (n >= 1048576) return (n/1048576).toFixed(1).replace('.',',') + ' MB';
+    if (n >= 1024) return Math.round(n/1024) + ' kB';
+    return n + ' B';
+  }
+
+  /* Een gok op basis van de bestandsnaam, zodat je meestal alleen hoeft te
+     bevestigen. De keuze blijft aan jou. */
+  function raadSoort(naam){
+    var n = String(naam || '').toLowerCase();
+    if (/polis/.test(n)) return 'polis';
+    if (/machtig/.test(n)) return 'machtiging';
+    if (/rapport|expertise.*rapport/.test(n)) return 'schaderapport';
+    if (/uitkering|acceptatie|schadeafhandeling/.test(n)) return 'uitkeringsbericht';
+    if (/offerte/.test(n)) return 'offerte_klant';
+    if (/factuur|nota/.test(n)) return 'factuur_onder';
+    if (/\.(jpe?g|png|heic)$/.test(n)) return 'foto';
+    return 'overig';
+  }
+
+  function soortOpties(a){
+    var raad = raadSoort(a && a.naam);
+    return Object.keys(SOORTEN).map(function(k){
+      return '<option value="' + esc(k) + '"' + (k===raad?' selected':'') + '>' + esc(SOORTEN[k]) + '</option>';
+    }).join('');
+  }
+
+  window.pvBijlage = function(id, i){
+    BIJL = (i === null || (BIJL && BIJL.id === id && BIJL.i === i)) ? null : { id: id, i: i };
+    teken();
+  };
+
+  window.pvBijlageBewaren = function(id){
+    if (!BIJL || BIJL.id !== id) return;
+    var dos = $$('pvBSel-' + id), srt = $$('pvBSoort-' + id);
+    var nr = dos ? dos.value : '';
+    if (!nr) { melden('Geen dossier gekozen', 'Kies eerst een dossier uit de lijst.', 'err'); return; }
+    api('/api/postvak/' + encodeURIComponent(id) + '/bijlage/' + BIJL.i + '/bewaren',
+        { method:'POST', body: JSON.stringify({ schade: nr, soort: srt ? srt.value : 'overig' }) })
+      .then(function(r){
+        BIJL = null;
+        melden('Opgeborgen', (r.document ? r.document.bestandsnaam : 'Bijlage') + ' staat nu bij ' + nr);
+        return laad(true);
+      })
+      .catch(function(e){ melden('Niet gelukt', e.message, 'err'); });
+  };
+
+  /* ── tekenen ── */
+  function tab(sleutel, naam, aantal){
+    return '<button class="pv-tab' + (STAND===sleutel?' on':'') + '" onclick="pvTab(\'' + sleutel + '\')">' +
+      naam + (aantal ? '<span class="n">' + aantal + '</span>' : '') + '</button>';
+  }
+
+  function rij(b){
+    var weg = !!b.wegreden;
+    var uit = b.stand === 'afgehandeld' || b.stand === 'genegeerd';
+    var open = OPEN === b.id;
+
+    var h = '<div class="pv-r' + (uit?' uit':'') + '">' +
+      '<div class="pv-ico' + (weg?' grijs':'') + '">' + svg(IPOST) + '</div><div class="pv-mid">';
+
+    h += '<div class="pv-ond">' + esc(b.onderwerp || '(geen onderwerp)') + '</div>';
+    h += '<div class="pv-van">' + esc(b.vanNaam || b.van) +
+      (b.vanNaam && b.van && b.vanNaam !== b.van ? ' \u00b7 ' + esc(b.van) : '') +
+      ' \u00b7 ' + esc(wanneer(b.ontvangenAt)) +
+      ((b.bijlagen||[]).length ? ' \u00b7 ' + b.bijlagen.length + ' bijlage' +
+        (b.bijlagen.length===1?'':'n') : '') + '</div>';
+
+    if (!open && b.aanhef) h += '<div class="pv-snip">' + esc(b.aanhef) + '</div>';
+
+    if (open) {
+      h += '<div class="pv-tekst">' +
+        (TEKSTEN[b.id] === undefined ? 'Bericht laden\u2026' : esc(TEKSTEN[b.id] || '(geen tekst)')) + '</div>';
+      if ((b.bijlagen||[]).length) h += bijlagen(b);
+    }
+
+    if (b.schade) {
+      h += '<div class="pv-koppel"><span class="nr">' + esc(b.schade.nr) + '</span>' +
+        '<span>' + esc(b.schade.adres || b.schade.owner || '') + '</span>' +
+        (b.koppelwijze ? '<span class="w">\u00b7 ' + esc(b.koppelwijze) + '</span>' : '') + '</div>';
+    } else if (!weg) {
+      h += '<div class="pv-koppel los">Nog niet aan een dossier gekoppeld</div>';
+    }
+
+    if (weg) h += '<div class="pv-weg">Weggefilterd: ' + esc(b.wegreden) + '</div>';
+    if (b.gearchiveerd) h += '<div class="pv-weg">In Gmail opgeborgen onder <b>' +
+      esc(b.gearchiveerd) + '</b> \u2014 niet meer in je Postvak IN.</div>';
+
+    if (KIES === b.id) {
+      h += '<div class="pv-kies"><label>Bij welk dossier hoort dit bericht?</label>' +
+        '<select id="pvSel-' + b.id + '">' + dossierOpties(b.schade ? b.schade.nr : '') + '</select>' +
+        '<div class="rij"><button class="pv-knop aan" onclick="pvKoppel(\'' + b.id + '\')">Koppelen</button>' +
+        '<button class="pv-knop" onclick="pvKies(\'' + b.id + '\')">Annuleren</button></div></div>';
+    }
+
+    h += '</div><div class="pv-acties">';
+    h += '<button class="pv-knop' + (open?' aan':'') + '" onclick="pvOpen(\'' + b.id + '\')">' +
+      (open ? 'Inklappen' : 'Lezen') + '</button>';
+
+    if (b.schade) {
+      h += '<button class="pv-knop" onclick="pvNaarDossier(\'' + esc(b.schade.nr) + '\')">Naar dossier</button>';
+      h += '<button class="pv-knop" onclick="pvLosmaken(\'' + b.id + '\')">Losmaken</button>';
+    } else {
+      h += '<button class="pv-knop' + (KIES===b.id?' aan':'') + '" onclick="pvKies(\'' + b.id + '\')">Koppelen</button>';
+    }
+
+    if (b.stand === 'afgehandeld' || b.stand === 'genegeerd') {
+      h += '<button class="pv-knop" onclick="pvStand(\'' + b.id + '\',\'nieuw\')">Terugzetten</button>';
+    } else {
+      h += '<button class="pv-knop" onclick="pvStand(\'' + b.id + '\',\'afgehandeld\')">Afgehandeld</button>';
+      h += '<button class="pv-knop" onclick="pvStand(\'' + b.id + '\',\'genegeerd\')">Negeren</button>';
+    }
+
+    h += '</div></div>';
+    return h;
+  }
+
+  function teken(){
+    var el = $$('pvPane');
+    if (!el) return;
+
+    var oog = $$('pvEyebrow');
+    if (oog) oog.textContent = MAILBOX ? MAILBOX : 'Gekoppelde mailbox';
+
+    var x = '';
+
+    // Wat er is gekoppeld, en wanneer er voor het laatst is opgehaald.
+    x += '<div class="pv-bar"><span class="mb">' + svg(IPOST) +
+      (MAILBOX
+        ? '<span>Leest mee met <b>' + esc(MAILBOX) + '</b>' +
+          (MAP && MAP !== 'INBOX' ? ' \u00b7 map ' + esc(MAP) : '') + '</span>'
+        : '<span style="color:var(--amber)">Nog geen mailbox gekoppeld \u2014 zet MAIL_GEBRUIKER en ' +
+          'MAIL_WACHTWOORD in Coolify.</span>') +
+      '</span><span class="op">' + svg(IPAPER) + ' Elke tien minuten automatisch' +
+      (OPGEHAALD ? ' \u00b7 zojuist opgehaald om ' +
+        OPGEHAALD.toLocaleTimeString('nl-NL',{hour:'2-digit',minute:'2-digit'}) : '') +
+      '</span>' +
+      (ARCHIVEREN
+        ? '<span class="pv-arch">Gekoppelde post gaat naar <b>' + esc(ARCHIVEREN) +
+          '/</b> en verlaat je Postvak IN' +
+          '<button class="pv-knop" onclick="pvArchiveren(this)">Mailbox opruimen</button></span>'
+        : '<span class="pv-arch uit">Archiveren per dossier staat uit ' +
+          '\u2014 zet GMAIL_ARCHIVEREN=aan in Coolify</span>') +
+      '</div>';
+
+    if (FOUT) x += '<div class="pv-fout"><b>Het postvak kon niet worden geladen.</b><br>' + esc(FOUT) + '</div>';
+
+    x += '<div class="pv-tabs">' +
+      tab('open','Openstaand', (Number(TELLERS.nieuw||0) + Number(TELLERS.gekoppeld||0)) || '') +
+      tab('afgehandeld','Afgehandeld', TELLERS.afgehandeld || '') +
+      tab('genegeerd','Weggefilterd', TELLERS.genegeerd || '') +
+      tab('alles','Alles','') +
+      '</div>';
+
+    if (BEZIG) {
+      x += '<div class="pv-lijst"><div class="pv-leeg">Postvak laden\u2026</div></div>';
+    } else if (!BERICHTEN.length) {
+      x += '<div class="pv-lijst"><div class="pv-leeg"><b>' +
+        (STAND==='open' ? 'Niets openstaands.'
+          : STAND==='genegeerd' ? 'Er is niets weggefilterd.'
+          : STAND==='afgehandeld' ? 'Nog niets afgehandeld.' : 'Nog geen post binnen.') + '</b>' +
+        (MAILBOX ? 'Nieuwe post verschijnt hier vanzelf, of gebruik <i>Nu ophalen</i>.'
+                 : 'Koppel eerst een mailbox.') + '</div></div>';
+    } else {
+      x += '<div class="pv-lijst">' + BERICHTEN.map(rij).join('') + '</div>';
+    }
+
+    el.innerHTML = x;
+  }
+
+  /* Bij het opstarten één keer de tellers ophalen, zodat het bolletje in het
+     menu klopt zonder dat je het scherm hoeft te openen. */
+  var pogingen = 0;
+  var wacht = setInterval(function(){
+    if (typeof window.fwApi !== 'function') {
+      // Niet eindeloos blijven kijken; na een halve minuut houdt het op.
+      if (++pogingen > 75) clearInterval(wacht);
+      return;
+    }
+    clearInterval(wacht);
+    api('/api/postvak?stand=nieuw&aantal=1')
+      .then(function(r){ TELLERS = r.tellers || {}; MAILBOX = r.mailbox || null; badge(); })
+      .catch(function(){ /* niet ingelogd of server plat; het menu blijft dan leeg */ });
+  }, 400);
 })();
 </script>
