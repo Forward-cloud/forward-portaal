@@ -312,5 +312,80 @@ async function haalOp({ dagen } = {}) {
   }
 }
 
+
+/* ─────────── laten beoordelen ───────────
+   Nieuwe post door de AI laten lezen: vraagt dit iets van ons? Zo ja, dan komt
+   er een actiepunt op het dossier, en dat verschijnt op het dashboard.
+
+   Dit gebeurt na het ophalen, niet tijdens: een IMAP-verbinding openhouden
+   terwijl je op een AI-antwoord wacht is vragen om een verbroken sessie.
+   Zonder AI-sleutel gebeurt er niets en blijft de rest gewoon werken.        */
+async function beoordeelNieuwe({ aantal } = {}) {
+  const ai = require('./ai');
+  if (!ai.beschikbaar()) return { gelukt: false, reden: 'geen AI-sleutel', beoordeeld: 0, acties: 0 };
+
+  const rijen = await prisma.inkomend.findMany({
+    where: { aiScanAt: null, wegreden: null, stand: { in: ['nieuw', 'gekoppeld'] } },
+    include: { schade: { select: { id: true, nummer: true } } },
+    orderBy: { ontvangenAt: 'desc' },
+    take: Math.min(Number(aantal) || 25, 50),
+  });
+  if (!rijen.length) return { gelukt: true, beoordeeld: 0, acties: 0 };
+
+  let beoordeeld = 0; let acties = 0;
+
+  for (const r of rijen) {
+    const uit = await ai.beoordeelPost({
+      van: r.vanNaam ? `${r.vanNaam} <${r.van}>` : r.van,
+      onderwerp: r.onderwerp,
+      tekst: r.tekst,
+      dossier: r.schade ? r.schade.nummer : null,
+    });
+
+    // Geen antwoord van de AI? Dan laten we het bericht ongemoeid en probeert
+    // de volgende ronde het opnieuw -- beter dan 'geen actie' vastleggen.
+    if (!uit.gelukt) continue;
+    beoordeeld++;
+
+    const data = {
+      aiScanAt: new Date(),
+      aiActie: !!uit.actie,
+      aiTekst: uit.tekst || null,
+      aiSoort: uit.soort || null,
+      aiTermijn: uit.termijn || null,
+    };
+
+    // Hoort het bij een dossier en vraagt het iets? Dan komt het op de lijst
+    // van dat dossier te staan, en daarmee op het dashboard.
+    if (uit.actie && r.schade && uit.tekst && !r.actiepuntId) {
+      const punt = await prisma.actiepunt.create({
+        data: {
+          schadeId: r.schade.id,
+          soort: uit.soort || 'klant',
+          tekst: uit.tekst,
+          klant: false,
+          doorNaam: 'Postvak',
+        },
+      }).catch(() => null);
+      if (punt) {
+        data.actiepuntId = punt.id;
+        acties++;
+        await prisma.logEntry.create({
+          data: {
+            text: `Actiepunt uit binnengekomen post: ${uit.tekst}`,
+            detail: `Bericht van ${r.vanNaam || r.van}` + (uit.termijn ? ` \u00b7 ${uit.termijn}` : ''),
+            schadeId: r.schade.id,
+            byName: 'Postvak',
+          },
+        }).catch(() => {});
+      }
+    }
+
+    await prisma.inkomend.update({ where: { id: r.id }, data }).catch(() => {});
+  }
+
+  return { gelukt: true, beoordeeld, acties };
+}
+
 module.exports = { ingesteld, haalOp, bewaar, wegreden, zoekDossier, bewaarBijlagen,
-  GEBRUIKER, HOST, MAP };
+  beoordeelNieuwe, GEBRUIKER, HOST, MAP };
