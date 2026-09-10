@@ -18,6 +18,23 @@ router.use(requireAuth);
    gekoppeld; zie src/lib/postvak.js. Deze routes gaan alleen over tonen en
    afhandelen.                                                              */
 
+/* Hoe lang ligt dit er al? Gerekend vanaf binnenkomst, in hele dagen. */
+function dagenSinds(d) {
+  if (!d) return 0;
+  return Math.max(0, Math.floor((Date.now() - new Date(d).getTime()) / 86400000));
+}
+
+/* Vraagt dit bericht om actie?
+   Alles wat binnenkomt vraagt om antwoord, tenzij het is beantwoord, is
+   afgehandeld of is weggefilterd. Dat is bewust ruim: liever iets op de lijst
+   dat er niet hoeft te staan dan een vraag van een verzekeraar die drie weken
+   blijft liggen omdat een slimmigheid hem niet herkende. */
+function wachtOpAntwoord(r) {
+  if (r.beantwoordAt) return false;
+  if (r.wegreden) return false;
+  return r.stand === 'nieuw' || r.stand === 'gekoppeld';
+}
+
 function voorScherm(r) {
   return {
     id: r.id,
@@ -32,6 +49,19 @@ function voorScherm(r) {
     koppelwijze: r.koppelwijze,
     // Onder welk Gmail-label dit bericht is opgeborgen, als dat is gebeurd.
     gearchiveerd: r.gearchiveerd || null,
+    // Wie het heeft geopend, en wanneer. Leeg = niemand heeft het bekeken.
+    gelezenAt: r.gelezenAt || null,
+    gelezenDoor: r.gelezenDoor || null,
+    // Antwoord: is het er al, en zo niet, hoe lang wacht het dan.
+    beantwoordAt: r.beantwoordAt || null,
+    beantwoordDoor: r.beantwoordDoor || null,
+    wachtOpAntwoord: wachtOpAntwoord(r),
+    dagenOpen: dagenSinds(r.ontvangenAt),
+    // Wat de AI ervan vond: vraagt dit een handeling, en welke.
+    aiScanAt: r.aiScanAt || null,
+    aiActie: !!r.aiActie,
+    aiTekst: r.aiTekst || null,
+    aiTermijn: r.aiTermijn || null,
     bijlagen: Array.isArray(r.bijlagen) ? r.bijlagen : [],
     schade: r.schade ? { nr: r.schade.nummer, owner: r.schade.owner, adres: r.schade.adres } : null,
   };
@@ -46,6 +76,22 @@ router.get('/postvak', async (req, res) => {
   else if (stand === 'gekoppeld') where.stand = 'gekoppeld';
   else if (stand === 'genegeerd') where.stand = 'genegeerd';
   else if (stand === 'afgehandeld') where.stand = 'afgehandeld';
+  else if (stand === 'ongelezen') { where.gelezenAt = null; where.stand = { not: 'genegeerd' }; }
+  // Twee soorten post, en dat zijn twee verschillende stapels werk.
+  // Een melding moet een schadekaart worden; correspondentie hoort bij een
+  // dossier dat al loopt.
+  else if (stand === 'melding') {
+    where.schadeId = null;
+    where.wegreden = null;
+    where.stand = { in: ['nieuw', 'gekoppeld'] };
+  } else if (stand === 'lopend') {
+    where.schadeId = { not: null };
+    where.stand = { in: ['nieuw', 'gekoppeld'] };
+  } else if (stand === 'onbeantwoord') {
+    where.beantwoordAt = null;
+    where.wegreden = null;
+    where.stand = { in: ['nieuw', 'gekoppeld'] };
+  }
   else if (stand === 'open') where.stand = { in: ['nieuw', 'gekoppeld'] };
   // 'alles' laat het filter leeg
 
@@ -64,22 +110,42 @@ router.get('/postvak', async (req, res) => {
   });
 
   // De tellers voor de tabbladen en het bolletje in het menu.
-  const [nieuw, gekoppeld, afgehandeld, genegeerd] = await Promise.all([
+  const [nieuw, gekoppeld, afgehandeld, genegeerd, ongelezen, onbeantwoord,
+    melding, lopend] = await Promise.all([
     prisma.inkomend.count({ where: { stand: 'nieuw' } }),
     prisma.inkomend.count({ where: { stand: 'gekoppeld' } }),
     prisma.inkomend.count({ where: { stand: 'afgehandeld' } }),
     prisma.inkomend.count({ where: { stand: 'genegeerd' } }),
+    // Wat nog niemand heeft opengeklikt. Dit is de teller in het menu: post
+    // die is gearchiveerd maar nog ongelezen mag je niet kwijtraken.
+    prisma.inkomend.count({ where: { gelezenAt: null, stand: { not: 'genegeerd' } } }),
+    // Wat nog om antwoord vraagt. Dit is de lijst waar je 's ochtends langs wilt.
+    prisma.inkomend.count({
+      where: { beantwoordAt: null, wegreden: null, stand: { in: ['nieuw', 'gekoppeld'] } },
+    }),
+    // Post zonder dossier: mogelijke nieuwe schademelding.
+    prisma.inkomend.count({
+      where: { schadeId: null, wegreden: null, stand: { in: ['nieuw', 'gekoppeld'] } },
+    }),
+    // Post bij een dossier dat al loopt.
+    prisma.inkomend.count({
+      where: { schadeId: { not: null }, stand: { in: ['nieuw', 'gekoppeld'] } },
+    }),
   ]);
 
   res.json({
     berichten: rijen.map(voorScherm),
-    tellers: { nieuw, gekoppeld, afgehandeld, genegeerd },
+    tellers: { nieuw, gekoppeld, afgehandeld, genegeerd, ongelezen, onbeantwoord, melding, lopend },
     mailbox: postvak.ingesteld() ? postvak.GEBRUIKER : null,
     map: postvak.ingesteld() ? postvak.MAP : null,
     // Waar een bijlage als dossierstuk onder kan worden opgeborgen.
     soorten: SOORTEN,
     // Archiveren in Gmail: staat het aan, en onder welke hoofdmap.
     archiveren: mappen.ingesteld() ? mappen.HOOFDMAP : null,
+    // Lopen de vinkjes gelijk met Gmail?
+    gelezenMee: mappen.gelezenMee(),
+    // Leest de AI de post mee?
+    aiAan: require('../lib/ai').beschikbaar(),
   });
 });
 
@@ -90,7 +156,109 @@ router.get('/postvak/:id', async (req, res) => {
     include: { schade: { select: { nummer: true, owner: true, adres: true } } },
   });
   if (!r) return res.status(404).json({ error: 'Bericht niet gevonden' });
-  res.json({ bericht: { ...voorScherm(r), tekst: r.tekst, aan: r.aan, refs: r.refs } });
+
+  // Opengeklikt is gelezen. Alleen de eerste keer vastleggen, zodat je later
+  // kunt zien wie het als eerste heeft opgepakt.
+  let gelezenAt = r.gelezenAt;
+  let gelezenDoor = r.gelezenDoor;
+  if (!gelezenAt) {
+    gelezenAt = new Date();
+    gelezenDoor = req.user.naam;
+    await prisma.inkomend.update({
+      where: { id: r.id }, data: { gelezenAt, gelezenDoor },
+    }).catch(() => {});
+    // En in Gmail hetzelfde. Niet afwachten: het scherm hoeft daar niet op te
+    // wachten, en de ronde trekt het anders alsnog gelijk.
+    mappen.zetGelezen(r, true).catch(() => {});
+  }
+
+  res.json({
+    bericht: { ...voorScherm(r), gelezenAt, gelezenDoor, tekst: r.tekst, aan: r.aan, refs: r.refs },
+  });
+});
+
+/* Weggefilterde post definitief weg.
+   Uit het portaal, en in Gmail naar de prullenbak -- daar staat het nog dertig
+   dagen, dus verkeerd geklikt is niet fataal. Zonder id gaat alles weg wat op
+   'genegeerd' staat. */
+router.post('/postvak/opruimen', async (req, res) => {
+  const id = String(req.body?.id || '').trim();
+
+  const rijen = await prisma.inkomend.findMany({
+    where: id ? { id } : { stand: 'genegeerd' },
+    take: 500,
+  });
+  if (!rijen.length) return res.json({ verwijderd: 0, uitMailbox: 0, fouten: [] });
+
+  // Eerst uit de mailbox, dan pas uit de database: mislukt het daar, dan
+  // hebben we de gegevens nog om het opnieuw te proberen.
+  let uitMailbox = 0; const fouten = [];
+  const uit = await mappen.naarPrullenbak(rijen).catch((e) => ({ gelukt: false, reden: e.message }));
+  if (uit.gelukt) uitMailbox = uit.weg || 0;
+  else if (uit.reden && uit.reden !== 'geen mailbox') fouten.push(uit.reden);
+  if (uit.fouten && uit.fouten.length) fouten.push(...uit.fouten);
+
+  // De bewaarde bijlagen horen ook weg; anders blijft de schijf vollopen met
+  // plaatjes uit nieuwsbrieven.
+  for (const r of rijen) {
+    for (const a of (Array.isArray(r.bijlagen) ? r.bijlagen : [])) {
+      if (!a || !a.opslagnaam) continue;
+      try { fs.unlinkSync(path.join(OPSLAG, path.basename(a.opslagnaam))); }
+      catch (e) { /* al weg */ }
+    }
+  }
+
+  const weg = await prisma.inkomend.deleteMany({ where: { id: { in: rijen.map((r) => r.id) } } });
+  await prisma.logEntry.create({
+    data: {
+      text: `${weg.count} weggefilterde berichten opgeruimd`,
+      detail: uitMailbox ? `${uitMailbox} naar de prullenbak in Gmail` : null,
+      byUserId: req.user.id, byName: req.user.naam,
+    },
+  }).catch(() => {});
+
+  res.json({ verwijderd: weg.count, uitMailbox, fouten });
+});
+
+// Nieuwe post nu laten beoordelen in plaats van bij de volgende ronde.
+router.post('/postvak/beoordelen', async (req, res) => {
+  const uit = await postvak.beoordeelNieuwe({ aantal: req.body?.aantal });
+  if (!uit.gelukt) return res.status(503).json({ error: `Beoordelen kan niet: ${uit.reden}` });
+  res.json(uit);
+});
+
+/* Zelf op beantwoord zetten, of juist weer op de lijst. Voor post die je per
+   telefoon hebt afgedaan, of die achteraf toch nog antwoord nodig heeft. */
+router.post('/postvak/:id/beantwoord', async (req, res) => {
+  const beantwoord = req.body?.beantwoord !== false;
+  const r = await prisma.inkomend.findUnique({ where: { id: req.params.id } });
+  if (!r) return res.status(404).json({ error: 'Bericht niet gevonden' });
+
+  const uit = await prisma.inkomend.update({
+    where: { id: r.id },
+    data: beantwoord
+      ? { beantwoordAt: r.beantwoordAt || new Date(), beantwoordDoor: r.beantwoordDoor || req.user.naam }
+      : { beantwoordAt: null, beantwoordDoor: null },
+  });
+  res.json({ bericht: uit });
+});
+
+/* Zelf op gelezen of ongelezen zetten. Handig als je iets hebt bekeken maar
+   het wilt bewaren voor een collega, of andersom. */
+router.post('/postvak/:id/gelezen', async (req, res) => {
+  const gelezen = req.body?.gelezen !== false;
+  const r = await prisma.inkomend.findUnique({ where: { id: req.params.id } });
+  if (!r) return res.status(404).json({ error: 'Bericht niet gevonden' });
+
+  const uit = await prisma.inkomend.update({
+    where: { id: r.id },
+    data: gelezen
+      ? { gelezenAt: r.gelezenAt || new Date(), gelezenDoor: r.gelezenDoor || req.user.naam }
+      : { gelezenAt: null, gelezenDoor: null },
+  });
+  // Het vinkje in Gmail loopt mee, zodat je mailbox hetzelfde vertelt als het portaal.
+  mappen.zetGelezen(r, gelezen).catch(() => {});
+  res.json({ bericht: uit });
 });
 
 // Nu ophalen in plaats van wachten op de volgende ronde.
@@ -108,7 +276,7 @@ router.post('/postvak/ophalen', async (req, res) => {
 // De mailbox opruimen: alles wat nog onder het verkeerde label hangt goedzetten
 // en verzonden post het label van zijn dossier geven.
 router.post('/postvak/archiveren', async (req, res) => {
-  if (!mappen.ingesteld()) {
+  if (!mappen.ingesteld() && !mappen.gelezenMee()) {
     return res.status(503).json({
       error: 'Archiveren in Gmail staat uit. Zet GMAIL_ARCHIVEREN=aan in Coolify.',
     });
@@ -320,13 +488,19 @@ if (process.env.NODE_ENV !== 'test' && postvak.ingesteld()) {
     if (!uit.gelukt) console.error('postvak ophalen mislukt:', uit.reden);
     else if (uit.nieuw) console.log(`postvak: ${uit.nieuw} nieuw, ${uit.genegeerd} weggefilterd`);
 
+    // Nieuwe post laten beoordelen: vraagt dit iets van ons? Zo ja, dan komt er
+    // een actiepunt op het dossier en staat het op het dashboard.
+    const ai = await postvak.beoordeelNieuwe().catch((e) => ({ gelukt: false, reden: e.message }));
+    if (ai.gelukt && ai.acties) console.log(`postvak: ${ai.acties} actiepunt(en) aangemaakt`);
+
     // Meteen daarna de mailbox opruimen: nieuwe post naar het juiste label en
     // verzonden brieven het label van hun dossier geven.
-    if (mappen.ingesteld()) {
+    if (mappen.ingesteld() || mappen.gelezenMee()) {
       const arch = await mappen.archiveerRonde().catch((e) => ({ gelukt: false, reden: e.message }));
       if (!arch.gelukt) console.error('gmail archiveren mislukt:', arch.reden);
-      else if (arch.verplaatst || arch.gelabeld) {
-        console.log(`gmail: ${arch.verplaatst} verplaatst, ${arch.gelabeld} gelabeld`);
+      else if (arch.verplaatst || arch.gelabeld || arch.gelijkgezet) {
+        console.log(`gmail: ${arch.verplaatst} verplaatst, ${arch.gelabeld} gelabeld, `
+          + `${arch.gelijkgezet} vinkjes gelijkgezet`);
       }
     }
   }, RONDE_MINUTEN * 60 * 1000);

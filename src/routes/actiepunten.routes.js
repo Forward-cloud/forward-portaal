@@ -25,6 +25,54 @@ async function dossier(nummer) {
   return prisma.schade.findUnique({ where: { nummer }, select: { id: true } });
 }
 
+/* ─────────── alles bij elkaar ───────────
+   Wat er over alle dossiers heen openstaat, oudste eerst. Dit voedt het
+   overzicht op het dashboard: één lijst waarop je ziet wat er te doen is,
+   zonder dossier voor dossier te hoeven openklikken. */
+router.get('/actiepunten', async (req, res) => {
+  const welke = String(req.query.open || 'ja');
+  const where = { schade: { archived: false, test: false } };
+  if (welke === 'ja') where.open = true;
+  else if (welke === 'nee') where.open = false;
+
+  const rijen = await prisma.actiepunt.findMany({
+    where,
+    orderBy: [{ open: 'desc' }, { createdAt: 'asc' }],
+    take: Math.min(Number(req.query.aantal) || 200, 500),
+    include: {
+      schade: {
+        select: {
+          nummer: true, owner: true, adres: true, plaats: true, step: true,
+          opdrachtgever: true, behandelaar: { select: { naam: true } },
+        },
+      },
+    },
+  });
+
+  res.json({
+    actiepunten: rijen.map((a) => ({
+      id: a.id,
+      soort: a.soort,
+      tekst: a.tekst,
+      open: a.open,
+      klant: a.klant,
+      doorNaam: a.doorNaam,
+      createdAt: a.createdAt,
+      afgerondAt: a.afgerondAt,
+      // Hoe lang staat dit al open? Daar sorteren en kleuren we op.
+      dagen: Math.max(0, Math.floor((Date.now() - new Date(a.createdAt).getTime()) / 86400000)),
+      schade: a.schade ? {
+        nr: a.schade.nummer,
+        owner: a.schade.owner,
+        adres: [a.schade.adres, a.schade.plaats].filter(Boolean).join(', '),
+        opdrachtgever: a.schade.opdrachtgever,
+        behandelaar: a.schade.behandelaar ? a.schade.behandelaar.naam : null,
+      } : null,
+    })),
+    soorten: Object.keys(ACTIEPUNTEN),
+  });
+});
+
 /* ─────────── lijst ─────────── */
 router.get('/schades/:nummer/actiepunten', async (req, res) => {
   const s = await dossier(req.params.nummer);

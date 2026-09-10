@@ -445,6 +445,34 @@ router.post('/schades/:nummer/verzenden', async (req, res) => {
     },
   });
 
+  /* Gaat er post uit bij dit dossier, dan zijn de openstaande vragen van die
+     ontvanger daarmee beantwoord. Dat scheelt een handeling, en zonder dit
+     blijft het postvak vol staan met berichten die allang zijn afgedaan.
+     Alleen naar de mensen aan wie we nu iets sturen \u2014 een brief aan de
+     verzekeraar beantwoordt niet de vraag van een bewoner. */
+  if (post.verstuurd) {
+    const adressen = veilig.echt.length ? veilig.echt : veilig.naar;
+    const schoon = adressen.map((e) => String(e || '').toLowerCase().trim()).filter(Boolean);
+    if (schoon.length) {
+      await prisma.inkomend.updateMany({
+        where: {
+          schadeId: s.id,
+          beantwoordAt: null,
+          wegreden: null,
+          stand: { in: ['nieuw', 'gekoppeld'] },
+          van: { in: schoon, mode: 'insensitive' },
+        },
+        // Beantwoord is afgehandeld: het bericht verlaat de werklijst en staat
+        // daarna onder Afgehandeld. In Gmail is het al bij het dossierlabel.
+        data: {
+          beantwoordAt: new Date(),
+          beantwoordDoor: req.user.naam,
+          stand: 'afgehandeld',
+        },
+      }).catch(() => {});
+    }
+  }
+
   // Meesturen: beheerder en eigenaar krijgen elk hun eigen bericht.
   const kopieen = Array.isArray(b.kopieen) ? b.kopieen : [];
   const extra = [];
