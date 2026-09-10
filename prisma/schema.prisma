@@ -566,6 +566,28 @@ model Inkomend {
   // Het Gmail-label waar het nu onder hangt; leeg zolang het nog in de inbox staat.
   gearchiveerd String?
 
+  // Heeft iemand van ons dit bericht al opengeklikt? Los van de mailbox: het
+  // bericht verdwijnt uit het Postvak IN zodra het aan een dossier hangt, en
+  // dan is dit de enige plek waar je nog ziet dat niemand het heeft gelezen.
+  gelezenAt   DateTime?
+  gelezenDoor String?
+
+  // Is er al antwoord uitgegaan? Zolang dit leeg is vraagt het bericht om
+  // actie, en telt het portaal hoe lang dat al zo is. Wordt vanzelf gezet
+  // zodra wij iets sturen naar de afzender in hetzelfde dossier.
+  beantwoordAt   DateTime?
+  beantwoordDoor String?
+
+  // Wat de AI van dit bericht vond: vraagt het een handeling, en zo ja welke.
+  // Leeg aiScanAt betekent: nog niet beoordeeld.
+  aiScanAt      DateTime?
+  aiActie       Boolean   @default(false)
+  aiTekst       String?
+  aiSoort       String?
+  aiTermijn     String?
+  // Het actiepunt dat hieruit is ontstaan, zodat we er niet twee maken.
+  actiepuntId   String?
+
   createdAt   DateTime @default(now())
 
   @@index([stand])
